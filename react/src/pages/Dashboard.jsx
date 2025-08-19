@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Coins, Handshake, ArrowDown, UserPlus, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { Users, Coins, Handshake, ArrowDown, UserPlus, CheckCircle, AlertTriangle, Clock, DollarSign } from 'lucide-react';
 
-
-import StatCard from '../components/StatsCard';
+import StatsCard from '../components/StatsCard';
 import QuickActions from '../components/QuickActions';
 import DataCard from '../components/DataCard';
 import DataListItem from '../components/DataListItem';
@@ -26,41 +25,40 @@ const Dashboard = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
-  const statsData = [
-    {
-      title: "Today's Cash Flow",
-      value: "₹45,320",
-      change: "+12.5%",
-      icon: () => <span className="text-white">₹</span>,
-      iconBg: "bg-green-600",
-      changeType: "positive"
-    },
-    {
-      title: "Total Customers",
-      value: "847",
-      change: "23 new",
-      icon: Users,
-      iconBg: "bg-blue-500",
-      changeType: "positive"
-    },
-    {
-      title: "Active Loans",
-      value: "156",
-      change: "5 overdue",
-      icon: Handshake,
-      iconBg: "bg-yellow-500",
-      changeType: "negative"
-    },
-    {
-      title: "Gold Portfolio",
-      value: "₹12.4L",
-      change: "Total value",
-      icon: Coins,
-      iconBg: "bg-gray-600",
-      changeType: "neutral"
-    }
-  ];
-
+ const statsData = [
+  {
+    title: "Today's Cash Flow",
+    value: "₹45,320",
+    change: "+12.5%",
+    icon: DollarSign, // Use DollarSign icon
+    color: "green",
+    changeType: "positive"
+  },
+  {
+    title: "Total Customers",
+    value: "847",
+    change: "23 new",
+    icon: Users,
+    color: "blue",
+    changeType: "positive"
+  },
+  {
+    title: "Active Loans",
+    value: "156",
+    change: "5 overdue",
+    icon: Handshake,
+    color: "yellow",
+    changeType: "negative"
+  },
+  {
+    title: "Gold Portfolio",
+    value: "₹12.4L",
+    change: "Total value",
+    icon: Coins,
+    color: "gray",
+    changeType: "neutral"
+  }
+];
   const recentTransactions = [
     {
       icon: ArrowDown,
@@ -135,11 +133,17 @@ const Dashboard = () => {
     
         <main className="p-8">
           {/* Stats Grid */}
-          <div className="grid grid-cols-4 gap-5 mb-8">
-            {statsData.map((stat, index) => (
-              <StatCard key={index} {...stat} />
-            ))}
-          </div>
+<div className="grid grid-cols sm:grid-cols-2 lg:grid-cols-4 gap-6">  {statsData.map((stat, index) => (
+    <StatsCard 
+      key={index}
+      icon={stat.icon}
+      title={stat.title}
+      value={stat.value}
+      subtitle={stat.subtitle}
+      color={stat.color}
+    />
+  ))}
+</div>
 
           {/* Quick Actions */}
           <QuickActions />
