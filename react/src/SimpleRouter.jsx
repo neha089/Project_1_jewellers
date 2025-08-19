@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Customer from './pages/Customers';
+import GoldLoan from './pages/GoldLoan';
 const SimpleRouter = () => {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -19,8 +20,9 @@ const SimpleRouter = () => {
       case '/customers':
         return <Customer />;
       case '/dashboard':
-      case '/':
         return <Dashboard />;
+      case '/gold-loans':
+        return <GoldLoan />;
       default:
         return <Dashboard />;
     }
