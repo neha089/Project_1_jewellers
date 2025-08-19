@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Coins, Handshake, ArrowDown, UserPlus, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 
-import Header from '../components/Header';
-import Sidebar from '../components/Sidebar';
-import StatCard from '../components/StatCard';
+
+import StatCard from '../components/StatsCard';
 import QuickActions from '../components/QuickActions';
 import DataCard from '../components/DataCard';
 import DataListItem from '../components/DataListItem';
@@ -133,19 +132,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar 
-        isOpen={sidebarOpen} 
-        toggleSidebar={toggleSidebar} 
-        isMobile={isMobile}
-      />
-      
-      <div className={`transition-all duration-300 ${!isMobile ? 'ml-64' : ''}`}>
-        <Header 
-          toggleSidebar={toggleSidebar} 
-          isMobile={isMobile}
-        />
-        
+    
         <main className="p-8">
           {/* Stats Grid */}
           <div className="grid grid-cols-4 gap-5 mb-8">
@@ -172,8 +159,7 @@ const Dashboard = () => {
             </DataCard>
           </div>
         </main>
-      </div>
-    </div>
+  
   );
 };
 

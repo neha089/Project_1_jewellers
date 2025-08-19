@@ -12,38 +12,45 @@ import {
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
-  const [activeItem, setActiveItem] = useState('Dashboard');
+  const [activeItem, setActiveItem] = useState(window.location.pathname.substring(1) || 'dashboard');
 
   const navigationSections = [
     {
       title: 'Main',
       items: [
-        { name: 'Dashboard', icon: PieChart, href: '#' }
+        { name: 'dashboard', label: 'Dashboard', icon: PieChart, href: '/dashboard' }
       ]
     },
     {
       title: 'Management',
       items: [
-        { name: 'Customers', icon: Users, href: '#' },
-        { name: 'Gold Loans', icon: Coins, href: '#' },
-        { name: 'Transactions', icon: ArrowUpDown, href: '#' }
+        { name: 'customers', label: 'Customers', icon: Users, href: '/customers' },
+        { name: 'gold-loans', label: 'Gold Loans', icon: Coins, href: '/gold-loans' },
+        { name: 'transactions', label: 'Transactions', icon: ArrowUpDown, href: '/transactions' }
       ]
     },
     {
       title: 'Finance',
       items: [
-        { name: 'Cash Management', icon: Wallet, href: '#' },
-        { name: 'Interest', icon: Percent, href: '#' },
-        { name: 'Reports', icon: BarChart3, href: '#' }
+        { name: 'cash-management', label: 'Cash Management', icon: Wallet, href: '/cash-management' },
+        { name: 'interest', label: 'Interest', icon: Percent, href: '/interest' },
+        { name: 'reports', label: 'Reports', icon: BarChart3, href: '/reports' }
       ]
     },
     {
       title: 'System',
       items: [
-        { name: 'Settings', icon: Settings, href: '#' }
+        { name: 'settings', label: 'Settings', icon: Settings, href: '/settings' }
       ]
     }
   ];
+
+  const handleNavClick = (item) => {
+    setActiveItem(item.name);
+    if (isMobile) {
+      toggleSidebar();
+    }
+  };
 
   const sidebarClasses = `
     fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-lg z-40 transition-transform duration-300 ease-in-out overflow-y-auto
@@ -81,8 +88,14 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
                 const isActive = activeItem === item.name;
                 return (
                   <div key={itemIndex} className="mx-3 mb-1">
-                    <button
-                      onClick={() => setActiveItem(item.name)}
+                    <a
+                      href={item.href}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        window.history.pushState(null, '', item.href);
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                        handleNavClick(item);
+                      }}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                         isActive 
                           ? 'bg-blue-500 text-white' 
@@ -90,8 +103,8 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
                       }`}
                     >
                       <Icon size={16} />
-                      <span>{item.name}</span>
-                    </button>
+                      <span>{item.label}</span>
+                    </a>
                   </div>
                 );
               })}

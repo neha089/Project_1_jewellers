@@ -1,13 +1,8 @@
-import React from 'react';
-import Dashboard from './pages/Dashboard';
 import './index.css'; // Make sure Tailwind CSS is imported
-
+import React from 'react';
+import SimpleRouter from './SimpleRouter';
 function App() {
-  return (
-    <div className="App">
-      <Dashboard />
-    </div>
-  );
+ return <SimpleRouter />;
 }
 
 export default App;
