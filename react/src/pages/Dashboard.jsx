@@ -133,7 +133,7 @@ const Dashboard = () => {
     
         <main className="p-8">
           {/* Stats Grid */}
-<div className="grid grid-cols sm:grid-cols-2 lg:grid-cols-4 gap-6">  {statsData.map((stat, index) => (
+<div className="grid grid-cols sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">  {statsData.map((stat, index) => (
     <StatsCard 
       key={index}
       icon={stat.icon}

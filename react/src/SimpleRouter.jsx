@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Customer from './pages/Customers';
 import GoldLoan from './pages/GoldLoan';
+import Transactions from './pages/Transactions';
 const SimpleRouter = () => {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -23,6 +24,8 @@ const SimpleRouter = () => {
         return <Dashboard />;
       case '/gold-loans':
         return <GoldLoan />;
+      case '/transactions':
+        return <Transactions />;
       default:
         return <Dashboard />;
     }
