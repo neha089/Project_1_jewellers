@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Customer from './pages/Customers';
 import GoldLoan from './pages/GoldLoan';
 import Transactions from './pages/Transactions';
+import Analysis from './pages/Analysis';
 const SimpleRouter = () => {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -26,6 +27,8 @@ const SimpleRouter = () => {
         return <GoldLoan />;
       case '/transactions':
         return <Transactions />;
+      case '/analytics':
+        return <Analysis />;
       default:
         return <Dashboard />;
     }

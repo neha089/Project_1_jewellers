@@ -170,21 +170,25 @@ const PaymentReminderModal = ({ isOpen, onClose, loan, onAction }) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSendReminder}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            {reminderType === 'call' ? 'Call Now' : isScheduled ? 'Schedule Reminder' : 'Send Reminder'}
-          </button>
-        </div>
-      </div>
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50 sticky bottom-0 z-10">
+    <button
+      onClick={onClose}
+      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+    >
+      Cancel
+    </button>
+    <button
+      onClick={handleSendReminder}
+      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+    >
+      {reminderType === 'call'
+        ? 'Call Now'
+        : isScheduled
+        ? 'Schedule Reminder'
+        : 'Send Reminder'}
+    </button>
+  </div>
+</div>
     </div>
   );
 };

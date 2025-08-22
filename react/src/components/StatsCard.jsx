@@ -9,32 +9,32 @@ const StatsCard = ({ title, value, icon: IconComponent, iconColor, trend, subtit
     green: "bg-green-50 text-green-600 border-green-200",
     purple: "bg-purple-50 text-purple-600 border-purple-200",
     orange: "bg-orange-50 text-orange-600 border-orange-200",
+    red: "bg-red-50 text-red-600 border-red-200",
     gray: "bg-gray-50 text-gray-600 border-gray-200"
   };
-   const getIconElement = () => {
+   
+  const getIconElement = () => {
     if (!IconComponent) return null;
     
     if (iconColor) {
-      // Legacy support: use iconColor prop
       return <IconComponent className={iconColor} size={24} />;
     } else {
-      // New approach: use color-based styling
       return <IconComponent size={24} />;
     }
   };
-   const getIconContainerClasses = () => {
+   
+  const getIconContainerClasses = () => {
     if (iconColor) {
-      // Legacy mode: minimal container styling
       return "p-3 rounded-lg";
     } else {
-      // New mode: use color-based background
       return `p-3 rounded-lg border ${colorClasses[color] || colorClasses.gray}`;
     }
   };
+  
   return (
    <div className={`bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-all duration-200 ${className}`}>
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
           <p className="text-2xl font-bold text-gray-900">{value}</p>
           {(subtitle || trend) && (
@@ -50,5 +50,7 @@ const StatsCard = ({ title, value, icon: IconComponent, iconColor, trend, subtit
     </div>
   );
 };
+
+
 
 export default StatsCard;

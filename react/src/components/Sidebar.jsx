@@ -104,13 +104,7 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
       title: 'Analytics & Reports',
       items: [
         { name: 'analytics', label: 'Overview Analytics', icon: BarChart3, href: '/analytics' },
-        { name: 'income-analysis', label: 'Income Analysis', icon: TrendingUp, href: '/income-analysis' },
-        { name: 'expense-analysis', label: 'Expense Analysis', icon: TrendingDown, href: '/expense-analysis' },
-        { name: 'loan-analytics', label: 'Loan Analytics', icon: CreditCard, href: '/loan-analytics' },
-        { name: 'customer-insights', label: 'Customer Insights', icon: Target, href: '/customer-insights' },
-        { name: 'gold-market', label: 'Gold Market Trends', icon: Activity, href: '/gold-market' },
-        { name: 'profit-loss', label: 'Profit & Loss', icon: Calculator, href: '/profit-loss' },
-        { name: 'reports', label: 'Financial Reports', icon: FileText, href: '/reports' }
+       
       ]
     },
     {
@@ -182,17 +176,7 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
                     >
                       <Icon size={16} />
                       <span>{item.label}</span>
-                      {/* Add notification badges for certain sections */}
-                      {item.name === 'analytics' && (
-                        <span className="ml-auto bg-emerald-100 text-emerald-600 text-xs px-1.5 py-0.5 rounded-full">
-                          New
-                        </span>
-                      )}
-                      {item.name === 'reports' && (
-                        <span className="ml-auto bg-amber-100 text-amber-600 text-xs px-1.5 py-0.5 rounded-full">
-                          5
-                        </span>
-                      )}
+            
                     </a>
                   </div>
                 );
