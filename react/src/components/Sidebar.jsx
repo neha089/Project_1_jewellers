@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Gem, 
   PieChart, 
@@ -12,7 +12,51 @@ import {
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
-  const [activeItem, setActiveItem] = useState(window.location.pathname.substring(1) || 'dashboard');
+  // Function to get active item from current path
+  const getActiveItemFromPath = (path) => {
+    switch (path) {
+      case '/':
+      case '/dashboard':
+        return 'dashboard';
+      case '/customers':
+        return 'customers';
+      case '/gold-loans':
+        return 'gold-loans';
+      case '/transactions':
+        return 'transactions';
+      default:
+        return 'dashboard';
+    }
+  };
+
+  const [activeItem, setActiveItem] = useState(
+    getActiveItemFromPath(window.location.pathname)
+  );
+
+  // Listen for navigation changes (including from QuickActions)
+  useEffect(() => {
+    const handlePopState = () => {
+      const newActiveItem = getActiveItemFromPath(window.location.pathname);
+      setActiveItem(newActiveItem);
+    };
+
+    // Listen for both popstate and custom navigation events
+    window.addEventListener('popstate', handlePopState);
+    
+    // Also listen for direct path changes
+    const handleLocationChange = () => {
+      const newActiveItem = getActiveItemFromPath(window.location.pathname);
+      setActiveItem(newActiveItem);
+    };
+
+    // Create a custom event listener for manual navigation updates
+    window.addEventListener('navigationUpdate', handleLocationChange);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('navigationUpdate', handleLocationChange);
+    };
+  }, []);
 
   const navigationSections = [
     {
@@ -27,20 +71,6 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
         { name: 'customers', label: 'Customers', icon: Users, href: '/customers' },
         { name: 'gold-loans', label: 'Gold Loans', icon: Coins, href: '/gold-loans' },
         { name: 'transactions', label: 'Transactions', icon: ArrowUpDown, href: '/transactions' }
-      ]
-    },
-    {
-      title: 'Finance',
-      items: [
-        { name: 'cash-management', label: 'Cash Management', icon: Wallet, href: '/cash-management' },
-        { name: 'interest', label: 'Interest', icon: Percent, href: '/interest' },
-        { name: 'reports', label: 'Reports', icon: BarChart3, href: '/reports' }
-      ]
-    },
-    {
-      title: 'System',
-      items: [
-        { name: 'settings', label: 'Settings', icon: Settings, href: '/settings' }
       ]
     }
   ];
@@ -96,10 +126,10 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
                         window.dispatchEvent(new PopStateEvent('popstate'));
                         handleNavClick(item);
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                         isActive 
-                          ? 'bg-blue-500 text-white' 
-                          : 'text-gray-700 hover:bg-gray-100'
+                          ? 'bg-blue-500 text-white shadow-md' 
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                     >
                       <Icon size={16} />
