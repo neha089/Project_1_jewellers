@@ -251,7 +251,7 @@ const GoldLoanManagement = () => {
         </div>
 
         {/* Enhanced Stats Cards with Notification Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           <StatsCard
             title="Total Loans"
             value={stats.total}
