@@ -8,7 +8,16 @@ import {
   Wallet, 
   Percent, 
   BarChart3, 
-  Settings 
+  Settings,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  ShoppingCart,
+  CreditCard,
+  Target,
+  FileText,
+  Calculator,
+  Activity
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
@@ -24,6 +33,24 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
         return 'gold-loans';
       case '/transactions':
         return 'transactions';
+      case '/analytics':
+        return 'analytics';
+      case '/income-analysis':
+        return 'income-analysis';
+      case '/expense-analysis':
+        return 'expense-analysis';
+      case '/loan-analytics':
+        return 'loan-analytics';
+      case '/customer-insights':
+        return 'customer-insights';
+      case '/gold-market':
+        return 'gold-market';
+      case '/profit-loss':
+        return 'profit-loss';
+      case '/reports':
+        return 'reports';
+      case '/settings':
+        return 'settings';
       default:
         return 'dashboard';
     }
@@ -72,6 +99,25 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
         { name: 'gold-loans', label: 'Gold Loans', icon: Coins, href: '/gold-loans' },
         { name: 'transactions', label: 'Transactions', icon: ArrowUpDown, href: '/transactions' }
       ]
+    },
+    {
+      title: 'Analytics & Reports',
+      items: [
+        { name: 'analytics', label: 'Overview Analytics', icon: BarChart3, href: '/analytics' },
+        { name: 'income-analysis', label: 'Income Analysis', icon: TrendingUp, href: '/income-analysis' },
+        { name: 'expense-analysis', label: 'Expense Analysis', icon: TrendingDown, href: '/expense-analysis' },
+        { name: 'loan-analytics', label: 'Loan Analytics', icon: CreditCard, href: '/loan-analytics' },
+        { name: 'customer-insights', label: 'Customer Insights', icon: Target, href: '/customer-insights' },
+        { name: 'gold-market', label: 'Gold Market Trends', icon: Activity, href: '/gold-market' },
+        { name: 'profit-loss', label: 'Profit & Loss', icon: Calculator, href: '/profit-loss' },
+        { name: 'reports', label: 'Financial Reports', icon: FileText, href: '/reports' }
+      ]
+    },
+    {
+      title: 'System',
+      items: [
+        { name: 'settings', label: 'Settings', icon: Settings, href: '/settings' }
+      ]
     }
   ];
 
@@ -83,7 +129,7 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
   };
 
   const sidebarClasses = `
-    fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-lg z-40 transition-transform duration-300 ease-in-out overflow-y-auto
+    fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200 shadow-lg z-40 transition-transform duration-300 ease-in-out overflow-y-auto
     ${isMobile ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
   `;
 
@@ -98,18 +144,19 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
       )}
       
       <aside className={sidebarClasses}>
-        <div className="bg-gray-600 text-white p-6 text-center border-b border-gray-200">
+        <div className="bg-slate-700 text-white p-6 text-center border-b border-slate-200">
           <div className="flex items-center justify-center gap-2">
-            <Gem className="text-gray-300" size={24} />
+            <Gem className="text-amber-400" size={24} />
             <h1 className="text-xl font-bold">JewelManager</h1>
           </div>
+          <p className="text-xs text-slate-300 mt-1">Professional Edition</p>
         </div>
         
         <nav className="py-4">
           {navigationSections.map((section, sectionIndex) => (
             <div key={sectionIndex} className="mb-6">
-              <div className="px-5 mb-2">
-                <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <div className="px-5 mb-3">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   {section.title}
                 </h3>
               </div>
@@ -128,12 +175,24 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                         isActive 
-                          ? 'bg-blue-500 text-white shadow-md' 
-                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                          ? 'bg-blue-600 text-white shadow-md' 
+                          : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                       }`}
+                      title={item.label}
                     >
                       <Icon size={16} />
                       <span>{item.label}</span>
+                      {/* Add notification badges for certain sections */}
+                      {item.name === 'analytics' && (
+                        <span className="ml-auto bg-emerald-100 text-emerald-600 text-xs px-1.5 py-0.5 rounded-full">
+                          New
+                        </span>
+                      )}
+                      {item.name === 'reports' && (
+                        <span className="ml-auto bg-amber-100 text-amber-600 text-xs px-1.5 py-0.5 rounded-full">
+                          5
+                        </span>
+                      )}
                     </a>
                   </div>
                 );
@@ -141,6 +200,8 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
             </div>
           ))}
         </nav>
+        
+        
       </aside>
     </>
   );
