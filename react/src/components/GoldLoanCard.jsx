@@ -29,8 +29,7 @@ const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }) => {
   const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-200">
-      {/* Header */}
+ <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-amber-700 transition-all duration-200">      {/* Header */}
       <div className="p-4 border-b border-gray-100">
         <div className="flex items-start justify-between mb-2">
           <div>
