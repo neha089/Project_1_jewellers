@@ -1,4 +1,4 @@
-// components/GoldLoanManagement.jsx - Complete Implementation with Notification System
+// components/GoldLoanManagement.jsx - Complete Implementation with Fixed Layout
 import { useState, useEffect } from "react";
 import { mockGoldLoans } from "../data/mockGoldLoans";
 import GoldLoanCard from "./GoldLoanCard";
@@ -188,10 +188,15 @@ const GoldLoanManagement = () => {
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
        
+        {/* Header Section with Title and Action Buttons */}
+        <div className="flex flex-col sm:flex-row sm:items sm:justify-between gap-4 ">
+         
+          
+          <div className="flex items-center gap-3">
             {/* Notification Bell */}
             <NotificationBell loans={goldLoans} />
             
-            {/* Quick Action Buttons */}
+            {/* Export Button */}
             <button
               onClick={handleExport}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm"
@@ -199,6 +204,8 @@ const GoldLoanManagement = () => {
               <Download size={16} />
               Export
             </button>
+            
+            {/* Add New Loan Button */}
             <button
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-lg"
@@ -207,7 +214,7 @@ const GoldLoanManagement = () => {
               New Loan
             </button>
           </div>
-    
+        </div>
 
         {/* Tab Navigation */}
         <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
@@ -252,7 +259,7 @@ const GoldLoanManagement = () => {
         </div>
 
         {/* Enhanced Stats Cards with Notification Metrics */}
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <StatsCard
             title="Total Loans"
             value={stats.total}
@@ -307,18 +314,20 @@ const GoldLoanManagement = () => {
         {activeTab === 'loans' && (
           <>
             {/* Search and Filter Bar */}
-            <GoldLoanSearchFilterBar
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              goldTypeFilter={goldTypeFilter}
-              onGoldTypeFilterChange={setGoldTypeFilter}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
+            <div className="mb-6">
+              <GoldLoanSearchFilterBar
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
+                goldTypeFilter={goldTypeFilter}
+                onGoldTypeFilterChange={setGoldTypeFilter}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                viewMode={viewMode}
+                 setViewMode={setViewMode}
+              />
+            </div>
 
             {/* Loans Display */}
             {viewMode === 'grid' ? (
@@ -337,45 +346,51 @@ const GoldLoanManagement = () => {
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Customer Directory</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Loan Directory</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Customer
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Contact Info
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Location
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Loans
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
+                      Loan Details
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Customer
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Gold Details
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Loan Amount
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Outstanding
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Due Date
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Photos
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredLoans.map((loan) => (
-                        <GoldLoanTableRow
-                          key={loan.id}
-                          loan={loan}
-                          onEdit={handleEdit}
-                          onView={handleView}
-                          onPayment={handlePayment}
-                        />
-                      ))}
+                     {filteredLoans.map((loan) => (
+                    <GoldLoanTableRow
+                      key={loan.id}
+                      loan={loan}
+                      onEdit={handleEdit}
+                      onView={handleView}
+                      onPayment={handlePayment}
+                    />
+                  ))}
                     </tbody>
                   </table>
                 </div>
@@ -460,7 +475,7 @@ const GoldLoanManagement = () => {
         {activeTab === 'calendar' && (
           <DueDateCalendar loans={goldLoans} onLoanClick={handleCalendarLoanClick} />
         )}
-      
+      </div>
 
       {/* Modals */}
       {showAddModal && (
