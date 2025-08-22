@@ -112,7 +112,7 @@ Backup options will include:
 
       {/* Actions Grid */}
       <div className="p-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {actions.map((action, index) => (
             <div key={index} className="relative group">
               <div className="relative p-4 rounded-lg border-2 border-gray-200 bg-white hover:border-blue-300 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer">
