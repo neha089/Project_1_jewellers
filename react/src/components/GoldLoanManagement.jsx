@@ -207,7 +207,7 @@ const GoldLoanManagement = () => {
               New Loan
             </button>
           </div>
-        </div>
+    
 
         {/* Tab Navigation */}
         <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
@@ -460,7 +460,7 @@ const GoldLoanManagement = () => {
         {activeTab === 'calendar' && (
           <DueDateCalendar loans={goldLoans} onLoanClick={handleCalendarLoanClick} />
         )}
-      </div>
+      
 
       {/* Modals */}
       {showAddModal && (
