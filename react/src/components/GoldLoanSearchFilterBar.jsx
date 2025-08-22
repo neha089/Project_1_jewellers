@@ -123,38 +123,38 @@ const GoldLoanSearchFilterBar = ({
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-              View:
-            </label>
-            <div className="flex bg-gray-50 rounded-lg p-1 border border-gray-200">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md transition-all duration-200 text-sm font-medium ${
-                  viewMode === 'grid' 
-                    ? 'bg-white shadow-sm text-amber-600 border border-gray-200' 
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-                title="Grid View"
-              >
-                <Grid3X3 size={16} />
-                <span className="hidden sm:inline">Grid</span>
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md transition-all duration-200 text-sm font-medium ${
-                  viewMode === 'table' 
-                    ? 'bg-white shadow-sm text-amber-600 border border-gray-200' 
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                }`}
-                title="Table View"
-              >
-                <List size={16} />
-                <span className="hidden sm:inline">Table</span>
-              </button>
-            </div>
-          </div>
-        </div>
+               <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                        View:
+                      </label>
+                      <div className="flex bg-gray-50 rounded-lg p-1 border border-gray-200">
+                        <button
+                          onClick={() => setViewMode('grid')}
+                          className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md transition-all duration-200 text-sm font-medium ${
+                            viewMode === 'grid' 
+                              ? 'bg-white shadow-sm text-blue-600 border border-gray-200' 
+                              : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                          }`}
+                          title="Grid View"
+                        >
+                          <Grid3X3 size={16} />
+                          <span className="hidden sm:inline">Grid</span>
+                        </button>
+                        <button
+                          onClick={() => setViewMode('table')}
+                          className={`flex items-center justify-center gap-1 px-3 py-2 rounded-md transition-all duration-200 text-sm font-medium ${
+                            viewMode === 'table' 
+                              ? 'bg-white shadow-sm text-blue-600 border border-gray-200' 
+                              : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                          }`}
+                          title="Table View"
+                        >
+                          <List size={16} />
+                          <span className="hidden sm:inline">Table</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
         {/* Active Filters Display */}
         {(searchTerm || statusFilter !== 'all' || goldTypeFilter !== 'all' || sortBy !== 'loanId') && (
