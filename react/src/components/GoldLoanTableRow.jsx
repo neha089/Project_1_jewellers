@@ -13,7 +13,7 @@ import {
 
 const GoldLoanTableRow = ({ loan, onEdit, onView, onPayment }) => {
   const getStatusConfig = (status) => {
-    const configs = {
+   const configs = {
       active: { 
         bg: 'bg-green-100', 
         text: 'text-green-800', 
@@ -26,11 +26,11 @@ const GoldLoanTableRow = ({ loan, onEdit, onView, onPayment }) => {
         icon: AlertTriangle,
         label: 'Overdue' 
       },
-      closed: { 
-        bg: 'bg-gray-100', 
-        text: 'text-gray-800', 
-        icon: XCircle,
-        label: 'Closed' 
+      completed: { 
+        bg: 'bg-blue-100', 
+        text: 'text-blue-800', 
+        icon: CheckCircle,
+        label: 'Completed' 
       }
     };
     return configs[status] || configs.active;
@@ -89,7 +89,7 @@ const GoldLoanTableRow = ({ loan, onEdit, onView, onPayment }) => {
       <td className="px-6 py-4">
         <div className="flex items-center gap-1">
           <ImageIcon size={16} className="text-gray-400" />
-          <span className="text-sm text-gray-600">{loan.photos.length}</span>
+          <span className="text-sm text-gray-600">{loan.photos?.length || 0}</span>
         </div>
       </td>
       
