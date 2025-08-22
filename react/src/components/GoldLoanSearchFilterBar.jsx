@@ -223,4 +223,4 @@ const GoldLoanSearchFilterBar = ({
     </div>
   );
 };
-
+export default GoldLoanSearchFilterBar;

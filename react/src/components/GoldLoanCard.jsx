@@ -1,190 +1,134 @@
 // components/GoldLoanCard.jsx
-import React, { useState } from 'react';
-import { 
-  Edit, 
-  Eye, 
-  Phone, 
-  Calendar, 
-  Coins, 
-  DollarSign,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Image as ImageIcon,
-  User
-} from 'lucide-react';
+import React from 'react';
+import { Edit3, Eye, DollarSign, Phone, Calendar, Coins, AlertTriangle, CheckCircle, MessageSquare } from 'lucide-react';
 
-const GoldLoanCard = ({ loan, onEdit, onView, onPayment }) => {
-  const [imageError, setImageError] = useState({});
-
-  const getStatusConfig = (status) => {
-    const configs = {
-      active: { 
-        bg: 'bg-green-100', 
-        text: 'text-green-800', 
-        icon: CheckCircle,
-        label: 'Active' 
-      },
-      overdue: { 
-        bg: 'bg-red-100', 
-        text: 'text-red-800', 
-        icon: AlertTriangle,
-        label: 'Overdue' 
-      },
-      closed: { 
-        bg: 'bg-gray-100', 
-        text: 'text-gray-800', 
-        icon: XCircle,
-        label: 'Closed' 
-      }
-    };
-    return configs[status] || configs.active;
+const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }) => {
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'overdue':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
   };
 
-  const statusConfig = getStatusConfig(loan.status);
-  const StatusIcon = statusConfig.icon;
-
-  const handleImageError = (index) => {
-    setImageError(prev => ({ ...prev, [index]: true }));
+  const getDaysUntilDue = () => {
+    const today = new Date();
+    const dueDate = new Date(loan.dueDate);
+    const diffTime = dueDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
   };
 
-  const formatCurrency = (amount) => `₹${amount.toLocaleString()}`;
-  
+  const daysUntilDue = getDaysUntilDue();
+  const isOverdue = daysUntilDue < 0;
+  const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-amber-300 transition-all duration-200">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg transition-all duration-200">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-full flex items-center justify-center text-white text-lg font-semibold shadow-md">
-            <Coins size={20} />
-          </div>
+      <div className="p-4 border-b border-gray-100">
+        <div className="flex items-start justify-between mb-2">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">{loan.id}</h3>
-            <p className="text-sm text-gray-500">{loan.goldItem}</p>
+            <p className="text-sm text-gray-600">{loan.customerName}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {(isOverdue || isDueSoon) && (
+              <AlertTriangle size={16} className={isOverdue ? 'text-red-500' : 'text-yellow-500'} />
+            )}
+            <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(loan.status)}`}>
+              {loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+            </span>
           </div>
         </div>
-        <div className="flex gap-2">
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-3">
+        {/* Gold Information */}
+        <div className="flex items-center gap-2 text-sm">
+          <Coins size={16} className="text-amber-600" />
+          <span className="text-gray-600">{loan.goldItem}</span>
+          <span className="text-gray-400">•</span>
+          <span className="text-gray-600">{loan.goldWeight}g</span>
+          <span className="text-gray-400">•</span>
+          <span className="text-gray-600">{loan.purity}</span>
+        </div>
+
+        {/* Amount Information */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Loan Amount</p>
+            <p className="text-sm font-medium text-gray-900">₹{loan.loanAmount.toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Outstanding</p>
+            <p className="text-sm font-medium text-red-600">₹{loan.outstandingAmount.toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Due Date */}
+        <div className="flex items-center gap-2">
+          <Calendar size={16} className="text-gray-400" />
+          <span className="text-sm text-gray-600">Due: {loan.dueDate}</span>
+          {isOverdue && (
+            <span className="text-xs text-red-600 font-medium">
+              ({Math.abs(daysUntilDue)} days overdue)
+            </span>
+          )}
+          {isDueSoon && !isOverdue && (
+            <span className="text-xs text-yellow-600 font-medium">
+              ({daysUntilDue} days left)
+            </span>
+          )}
+        </div>
+
+        {/* Contact Information */}
+        <div className="flex items-center gap-2">
+          <Phone size={16} className="text-gray-400" />
+          <span className="text-sm text-gray-600">{loan.customerPhone}</span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(loan);
-            }}
-            className="w-8 h-8 border border-gray-300 rounded-lg bg-white text-gray-600 flex items-center justify-center hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-all duration-200"
-            title="Edit Loan"
-          >
-            <Edit size={14} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onView(loan);
-            }}
-            className="w-8 h-8 border border-gray-300 rounded-lg bg-white text-gray-600 flex items-center justify-center hover:border-green-500 hover:text-green-500 hover:bg-green-50 transition-all duration-200"
-            title="View Details"
+            onClick={() => onView(loan)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
           >
             <Eye size={14} />
+            View
           </button>
-        </div>
-      </div>
-
-      {/* Customer Info */}
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <User size={14} className="text-gray-400" />
-          <span className="font-medium">{loan.customerName}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Phone size={14} className="text-gray-400" />
-          <span>{loan.customerPhone}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Calendar size={14} className="text-gray-400" />
-          <span>Due: {loan.dueDate}</span>
-        </div>
-      </div>
-
-      {/* Gold Details */}
-      <div className="bg-amber-50 rounded-lg p-3 mb-4">
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="text-gray-500">Weight:</span>
-            <span className="font-medium text-gray-900 ml-1">{loan.goldWeight}g</span>
-          </div>
-          <div>
-            <span className="text-gray-500">Type:</span>
-            <span className="font-medium text-gray-900 ml-1">{loan.goldType}</span>
-          </div>
-          <div>
-            <span className="text-gray-500">Purity:</span>
-            <span className="font-medium text-gray-900 ml-1">{loan.purity}</span>
-          </div>
-          <div>
-            <span className="text-gray-500">Rate:</span>
-            <span className="font-medium text-gray-900 ml-1">{loan.interestRate}%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Photos Section */}
-      <div className="mb-4">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-          Proof Photos ({loan.photos.length})
-        </h4>
-        <div className="flex gap-2 overflow-x-auto">
-          {loan.photos.map((photo, index) => (
-            <div key={index} className="flex-shrink-0">
-              {imageError[index] ? (
-                <div className="w-16 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                  <ImageIcon size={16} className="text-gray-400" />
-                </div>
-              ) : (
-                <img
-                  src={photo}
-                  alt={`Gold item ${index + 1}`}
-                  className="w-16 h-12 object-cover rounded-lg border border-gray-200 hover:scale-105 transition-transform cursor-pointer"
-                  onError={() => handleImageError(index)}
-                  onClick={() => {
-                    // You can implement a modal to show full-size image here
-                    window.open(photo, '_blank');
-                  }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Financial Info */}
-      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
-        <div className="text-center">
-          <div className="text-lg font-bold text-gray-900">{formatCurrency(loan.loanAmount)}</div>
-          <div className="text-xs text-gray-500">Principal</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-bold text-amber-600">{formatCurrency(loan.outstandingAmount)}</div>
-          <div className="text-xs text-gray-500">Outstanding</div>
-        </div>
-      </div>
-
-      {/* Status and Action */}
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-        <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${statusConfig.bg} ${statusConfig.text}`}>
-          <StatusIcon size={12} />
-          {statusConfig.label}
-        </span>
-        
-        {loan.status === 'active' && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onPayment(loan);
-            }}
-            className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center gap-1"
+            onClick={() => onEdit(loan)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           >
-            <DollarSign size={12} />
+            <Edit3 size={14} />
+            Edit
+          </button>
+          <button
+            onClick={() => onPayment(loan)}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+          >
+            <DollarSign size={14} />
             Payment
           </button>
-        )}
+          {(isOverdue || isDueSoon) && (
+            <button
+              onClick={() => onSendReminder(loan)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+            >
+              <MessageSquare size={14} />
+              Remind
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
