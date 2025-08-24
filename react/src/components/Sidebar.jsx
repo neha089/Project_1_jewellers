@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   Gem, 
   PieChart, 
@@ -9,183 +9,148 @@ import {
   Percent, 
   BarChart3, 
   Settings,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  ShoppingCart,
-  CreditCard,
-  Target,
-  FileText,
-  Calculator,
-  Activity
+  X,
+  DollarSign
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
-  // Function to get active item from current path
-  const getActiveItemFromPath = (path) => {
-    switch (path) {
-      case '/':
-      case '/dashboard':
-        return 'dashboard';
-      case '/customers':
-        return 'customers';
-      case '/gold-loans':
-        return 'gold-loans';
-      case '/transactions':
-        return 'transactions';
-      case '/analytics':
-        return 'analytics';
-      case '/income-analysis':
-        return 'income-analysis';
-      case '/expense-analysis':
-        return 'expense-analysis';
-      case '/loan-analytics':
-        return 'loan-analytics';
-      case '/customer-insights':
-        return 'customer-insights';
-      case '/gold-market':
-        return 'gold-market';
-      case '/profit-loss':
-        return 'profit-loss';
-      case '/reports':
-        return 'reports';
-      case '/settings':
-        return 'settings';
-      default:
-        return 'dashboard';
-    }
-  };
-
-  const [activeItem, setActiveItem] = useState(
-    getActiveItemFromPath(window.location.pathname)
-  );
-
-  // Listen for navigation changes (including from QuickActions)
-  useEffect(() => {
-    const handlePopState = () => {
-      const newActiveItem = getActiveItemFromPath(window.location.pathname);
-      setActiveItem(newActiveItem);
-    };
-
-    // Listen for both popstate and custom navigation events
-    window.addEventListener('popstate', handlePopState);
-    
-    // Also listen for direct path changes
-    const handleLocationChange = () => {
-      const newActiveItem = getActiveItemFromPath(window.location.pathname);
-      setActiveItem(newActiveItem);
-    };
-
-    // Create a custom event listener for manual navigation updates
-    window.addEventListener('navigationUpdate', handleLocationChange);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('navigationUpdate', handleLocationChange);
-    };
-  }, []);
-
-  const navigationSections = [
-    {
-      title: 'Main',
-      items: [
-        { name: 'dashboard', label: 'Dashboard', icon: PieChart, href: '/dashboard' }
-      ]
+  const menuItems = [
+    { 
+      name: 'Dashboard', 
+      icon: PieChart, 
+      path: '/dashboard',
+      description: 'Overview & Analytics'
     },
-    {
-      title: 'Management',
-      items: [
-        { name: 'customers', label: 'Customers', icon: Users, href: '/customers' },
-        { name: 'gold-loans', label: 'Gold Loans', icon: Coins, href: '/gold-loans' },
-        { name: 'transactions', label: 'Transactions', icon: ArrowUpDown, href: '/transactions' }
-      ]
+    { 
+      name: 'Customers', 
+      icon: Users, 
+      path: '/customers',
+      description: 'Customer Management'
     },
-    {
-      title: 'Analytics & Reports',
-      items: [
-        { name: 'analytics', label: 'Overview Analytics', icon: BarChart3, href: '/analytics' },
-       
-      ]
+    { 
+      name: 'Balances', 
+      icon: DollarSign, 
+      path: '/balances',
+      description: 'Money In/Out Tracking'
     },
-    {
-      title: 'System',
-      items: [
-        { name: 'settings', label: 'Settings', icon: Settings, href: '/settings' }
-      ]
+    { 
+      name: 'Gold Loans', 
+      icon: Coins, 
+      path: '/gold-loans',
+      description: 'Gold Loan Management'
+    },
+    { 
+      name: 'Transactions', 
+      icon: ArrowUpDown, 
+      path: '/transactions',
+      description: 'All Transactions'
+    },
+    { 
+      name: 'Analytics', 
+      icon: BarChart3, 
+      path: '/analytics',
+      description: 'Business Insights'
     }
   ];
 
-  const handleNavClick = (item) => {
-    setActiveItem(item.name);
+  const handleNavigation = (path) => {
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
     if (isMobile) {
       toggleSidebar();
     }
   };
 
-  const sidebarClasses = `
-    fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200 shadow-lg z-40 transition-transform duration-300 ease-in-out overflow-y-auto
-    ${isMobile ? (isOpen ? 'translate-x-0' : '-translate-x-full') : 'translate-x-0'}
-  `;
+  const isActivePath = (path) => {
+    return window.location.pathname === path || 
+           (path === '/dashboard' && window.location.pathname === '/');
+  };
 
   return (
     <>
-      {/* Overlay for mobile */}
+      {/* Mobile Overlay */}
       {isMobile && isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
           onClick={toggleSidebar}
         />
       )}
       
-      <aside className={sidebarClasses}>
-        <div className="bg-slate-700 text-white p-6 text-center border-b border-slate-200">
-          <div className="flex items-center justify-center gap-2">
-            <Gem className="text-amber-400" size={24} />
-            <h1 className="text-xl font-bold">JewelManager</h1>
-          </div>
-          <p className="text-xs text-slate-300 mt-1">Professional Edition</p>
-        </div>
-        
-        <nav className="py-4">
-          {navigationSections.map((section, sectionIndex) => (
-            <div key={sectionIndex} className="mb-6">
-              <div className="px-5 mb-3">
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  {section.title}
-                </h3>
-              </div>
-              {section.items.map((item, itemIndex) => {
-                const Icon = item.icon;
-                const isActive = activeItem === item.name;
-                return (
-                  <div key={itemIndex} className="mx-3 mb-1">
-                    <a
-                      href={item.href}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        window.history.pushState(null, '', item.href);
-                        window.dispatchEvent(new PopStateEvent('popstate'));
-                        handleNavClick(item);
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                        isActive 
-                          ? 'bg-blue-600 text-white shadow-md' 
-                          : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                      title={item.label}
-                    >
-                      <Icon size={16} />
-                      <span>{item.label}</span>
-            
-                    </a>
-                  </div>
-                );
-              })}
+      {/* Sidebar */}
+      <aside className={`
+        fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-200 transition-transform duration-300
+        ${isOpen || !isMobile ? 'translate-x-0' : '-translate-x-full'}
+        ${isMobile ? 'shadow-xl' : ''}
+      `}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Gem className="w-6 h-6 text-white" />
             </div>
-          ))}
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">JewelryPro</h1>
+              <p className="text-xs text-gray-500">Business Manager</p>
+            </div>
+          </div>
+          
+          {isMobile && (
+            <button 
+              onClick={toggleSidebar}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X size={20} className="text-gray-500" />
+            </button>
+          )}
+        </div>
+
+        {/* Navigation */}
+        <nav className="p-4 space-y-2">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = isActivePath(item.path);
+            
+            return (
+              <button
+                key={item.name}
+                onClick={() => handleNavigation(item.path)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-700 border border-blue-100 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Icon 
+                  size={20} 
+                  className={`${
+                    isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                  }`} 
+                />
+                <div className="flex-1">
+                  <div className={`font-medium ${isActive ? 'text-blue-900' : ''}`}>
+                    {item.name}
+                  </div>
+                  <div className={`text-xs ${
+                    isActive ? 'text-blue-600' : 'text-gray-400'
+                  }`}>
+                    {item.description}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </nav>
-        
-        
+
+        {/* Bottom Section */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-gray-50">
+          <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-xl transition-colors">
+            <Settings size={20} className="text-gray-400" />
+            <div>
+              <div className="font-medium">Settings</div>
+              <div className="text-xs text-gray-400">Preferences & Config</div>
+            </div>
+          </button>
+        </div>
       </aside>
     </>
   );

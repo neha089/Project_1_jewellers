@@ -20,10 +20,12 @@ import {
   Trash2,
   Mail,
   MapPin,
-  Calendar
+  Calendar,
+  DollarSign
 } from 'lucide-react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+
 // Layout Component
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -44,6 +46,12 @@ const Layout = ({ children }) => {
     setSidebarOpen(!sidebarOpen);
   };
 
+  const handleNotificationClick = () => {
+    // Navigate to balances page
+    window.history.pushState({}, '', '/balances');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar 
@@ -56,6 +64,7 @@ const Layout = ({ children }) => {
         <Header 
           toggleSidebar={toggleSidebar} 
           isMobile={isMobile}
+          onNotificationClick={handleNotificationClick}
         />
         
         <main className="p-8">
