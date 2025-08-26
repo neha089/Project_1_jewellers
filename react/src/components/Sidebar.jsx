@@ -39,12 +39,7 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
       path: '/gold-loans',
       description: 'Gold Loan Management'
     },
-    { 
-      name: 'Transactions', 
-      icon: ArrowUpDown, 
-      path: '/transactions',
-      description: 'All Transactions'
-    },
+   
     { 
       name: 'Analytics', 
       icon: BarChart3, 

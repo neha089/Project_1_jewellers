@@ -24,13 +24,11 @@ const SimpleRouter = () => {
       case '/customers':
         return <Customer />;
       case '/dashboard':
-        return <Dashboard />;
+        return <Transactions />;
       case '/balances':
         return <Balances />;
       case '/gold-loans':
         return <GoldLoan />;
-      case '/transactions':
-        return <Transactions />;
       case '/analytics':
         return <Analysis />;
       default:
