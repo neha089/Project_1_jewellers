@@ -1903,30 +1903,47 @@ const TransactionManagement = () => {
     </div>
   );
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="flex items-center mb-6">
-              <div className="bg-blue-100 p-2.5 rounded-full mr-3">
-                <Plus className="text-blue-600" size={20} />
+return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-3 rounded-xl mr-4">
+                <Plus className="text-white" size={24} />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Transaction Management</h2>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Transaction Management</h1>
+                <p className="text-sm text-gray-500">Manage customer transactions and records</p>
+              </div>
             </div>
+            {selectedCustomer && (
+              <div className="flex items-center bg-gray-50 px-4 py-2 rounded-xl">
+                <User size={16} className="text-gray-500 mr-2" />
+                <span className="text-sm font-medium text-gray-700">{selectedCustomer.name}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
-            {showSuccess && renderSuccessMessage()}
-            
-            {!showSuccess && (
-              <>
+      {/* Main Content */}
+      <div className="flex-1 p-6">
+        <div className="max-w-7xl mx-auto">
+          {showSuccess && renderSuccessMessage()}
+          
+          {!showSuccess && (
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 min-h-[calc(100vh-200px)]">
+              <div className="p-8">
                 {currentStep === 'search' && renderCustomerSearch()}
                 {currentStep === 'customer' && renderCreateCustomerForm()}
                 {currentStep === 'category' && !transactionType && renderTransactionTypeSelection()}
                 {currentStep === 'category' && transactionType && renderCategorySelection()}
                 {currentStep === 'form' && renderTransactionForm()}
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
