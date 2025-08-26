@@ -1132,6 +1132,10 @@ import {
   Trash2,
   CheckCircle2
 } from 'lucide-react';
+import SummaryCards from './SummaryCards';
+import TransactionHeader from "./TransactionHeader";
+import RecentTransactions from "./RecentTransactions";
+import {mockTransactions} from '../data/mockTransactions';
 
 // Mock customer data
 const mockCustomers = [
@@ -1372,80 +1376,56 @@ const TransactionManagement = () => {
     setErrors({});
   };
 
-  const renderCustomerSearch = () => (
-    <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Search customer by name or phone number..."
-          className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </div>
-
-      {searchResults.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-          {searchResults.map(customer => (
-            <div
-              key={customer.id}
-              onClick={() => selectCustomer(customer)}
-              className="p-4 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-900">{customer.name}</h4>
-                  <p className="text-sm text-gray-500">{customer.phone}</p>
-                </div>
-                <User size={20} className="text-gray-400" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {searchTerm.length > 0 && searchResults.length === 0 && (
-        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-          <User size={48} className="mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No customer found</h3>
-          <p className="text-gray-500 mb-4">No customer found with "{searchTerm}"</p>
-          <button
-            onClick={handleCreateNewCustomer}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Create New Customer
-          </button>
-        </div>
-      )}
-      
-      {/* Show recent customers when search is empty */}
-      {searchTerm.length === 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-          <div className="p-4 border-b border-gray-100 bg-gray-50">
-            <h4 className="font-medium text-gray-900">Recent Customers</h4>
-          </div>
-          {mockCustomers.slice(0, 6).map(customer => (
-            <div
-              key={customer.id}
-              onClick={() => selectCustomer(customer)}
-              className="p-4 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-900">{customer.name}</h4>
-                  <p className="text-sm text-gray-500">{customer.phone}</p>
-                  <p className="text-xs text-gray-400">{customer.address}</p>
-                </div>
-                <User size={20} className="text-gray-400" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+const renderCustomerSearch = () => (
+  <div>
+    <div className="relative">
+      <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => handleSearch(e.target.value)}
+        placeholder="Search customer by name or phone number..."
+        className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
     </div>
-  );
 
+    {searchResults.length > 0 && (
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+        {searchResults.map(customer => (
+          <div
+            key={customer.id}
+            onClick={() => selectCustomer(customer)}
+            className="p-4 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-gray-900">{customer.name}</h4>
+                <p className="text-sm text-gray-500">{customer.phone}</p>
+              </div>
+              <User size={20} className="text-gray-400" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {searchTerm.length > 0 && searchResults.length === 0 && (
+      <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+        <User size={48} className="mx-auto text-gray-400 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No customer found</h3>
+        <p className="text-gray-500 mb-4">No customer found with "{searchTerm}"</p>
+        <button
+          onClick={handleCreateNewCustomer}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Create New Customer
+        </button>
+      </div>
+    )}
+    
+
+  </div>
+);
   const renderCreateCustomerForm = () => (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
@@ -1902,39 +1882,38 @@ const TransactionManagement = () => {
       </button>
     </div>
   );
+  const [transactions, setTransactions] = useState(mockTransactions);
 
+  const handleAddTransaction = (newTransaction) => {
+    setTransactions([newTransaction, ...transactions]);
+  };
+
+  const handleEditTransaction = (transaction) => {
+    console.log('Edit transaction:', transaction);
+  };
+
+  const handleDeleteTransaction = (id) => {
+    setTransactions(transactions.filter(t => t.id !== id));
+  };
 return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-3 rounded-xl mr-4">
-                <Plus className="text-white" size={24} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Transaction Management</h1>
-                <p className="text-sm text-gray-500">Manage customer transactions and records</p>
-              </div>
-            </div>
-            {selectedCustomer && (
-              <div className="flex items-center bg-gray-50 px-4 py-2 rounded-xl">
-                <User size={16} className="text-gray-500 mr-2" />
-                <span className="text-sm font-medium text-gray-700">{selectedCustomer.name}</span>
-              </div>
-            )}
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Transaction Header */}
+      <div className="mb-8">
+        <TransactionHeader />
       </div>
-
+      
+      {/* Summary Cards */}
+      <div className="mb-8">
+        <SummaryCards />
+      </div>
+       
       {/* Main Content */}
       <div className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
           {showSuccess && renderSuccessMessage()}
           
           {!showSuccess && (
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 min-h-[calc(100vh-200px)]">
+            <div>
               <div className="p-8">
                 {currentStep === 'search' && renderCustomerSearch()}
                 {currentStep === 'customer' && renderCreateCustomerForm()}
@@ -1945,6 +1924,15 @@ return (
             </div>
           )}
         </div>
+      </div>
+      
+      {/* Recent Transactions */}
+      <div className="px-6 py-4">
+        <RecentTransactions 
+          transactions={transactions}
+          onEdit={handleEditTransaction}
+          onDelete={handleDeleteTransaction}
+        />        
       </div>
     </div>
   );
