@@ -1,43 +1,44 @@
 import mongoose from "mongoose";
 
-const udhariTxnSchema = new mongoose.Schema({
-  customer: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "Customer", 
-    required: true, 
-    index: true 
-  },
-
-  kind: { 
-    type: String, 
-    enum: ["GIVEN", "TAKEN", "REPAYMENT", "INTEREST"], 
-    required: true, 
-    index: true 
-  },
-
-  principalPaise: { type: Number, default: 0, min: 0 }, 
-  interestPaise: { type: Number, default: 0, min: 0 },
-
-  direction: { type: Number, enum: [1, -1], required: true },
-  // +1 means money goes from you → customer
-  // -1 means money comes from customer → you
-
-  takenDate: { type: Date, default: Date.now, index: true },
-  returnDate: { type: Date }, 
-
-  // NEW: track where this money movement came from
-  sourceType: { 
-    type: String, 
-    enum: ["UDHARI", "GOLD_LOAN", "LOAN" , "OTHER"], 
-    default: "UDHARI",
+const transactionSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    enum: [
+      "GOLD_LOAN_DISBURSEMENT", "GOLD_LOAN_PAYMENT", "GOLD_LOAN_CLOSURE",
+      "LOAN_DISBURSEMENT", "LOAN_PAYMENT", "LOAN_CLOSURE",
+      "UDHARI_GIVEN", "UDHARI_RECEIVED",
+      "GOLD_PURCHASE", "SILVER_PURCHASE", "GOLD_SALE", "SILVER_SALE",
+      "INTEREST_RECEIVED", "INTEREST_PAID"
+    ],
+    required: true,
     index: true
   },
-  sourceRef: { type: mongoose.Schema.Types.ObjectId }, // optional link to loan/interest doc
-
-  note: String,
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Customer",
+    index: true
+  },
+  amount: { type: Number, required: true },
+  direction: { type: Number, enum: [1, -1], required: true }, // +1 outgoing, -1 incoming
+  description: { type: String, required: true },
+  date: { type: Date, default: Date.now, index: true },
+  relatedDoc: {
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'relatedModel'
+  },
+  relatedModel: {
+    type: String,
+    enum: ['GoldLoan', 'Loan', 'UdhariTransaction', 'MetalSale', 'GoldPurchase']
+  },
+  category: {
+    type: String,
+    enum: ["INCOME", "EXPENSE"],
+    required: true,
+    index: true
+  }
 }, { timestamps: true });
 
-udhariTxnSchema.index({ customer: 1, takenDate: -1 });
-udhariTxnSchema.index({ sourceType: 1 });
+transactionSchema.index({ date: -1, category: 1 });
+transactionSchema.index({ customer: 1, date: -1 });
 
-export default mongoose.model("UdhariTransaction", udhariTxnSchema);
+export default mongoose.model("Transaction", transactionSchema);

@@ -6,11 +6,9 @@ const purchasedItemSchema = new mongoose.Schema({
   amountPaise: { type: Number, required: true, min: 0 },
   purityK: { type: Number, min: 0 },
   metal: { type: String, enum: ["GOLD", "SILVER"], required: true, index: true },
-
 }, { _id: false });
 
 const goldPurchaseSchema = new mongoose.Schema({
-  // buying from outside party (not necessarily your customer)
   partyName: { type: String, trim: true, index: true },
   items: { type: [purchasedItemSchema], validate: v => v.length > 0 },
   totalPaise: { type: Number, required: true, min: 0 },

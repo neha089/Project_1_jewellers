@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const addressSchema = new mongoose.Schema({
   street: { type: String, required: true },
@@ -54,9 +54,10 @@ const customerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for better query performance
 customerSchema.index({ phone: 1 });
 customerSchema.index({ adhaarNumber: 1 });
 customerSchema.index({ email: 1 });
 
-module.exports = mongoose.model('Customer', customerSchema);
+const Customer = mongoose.model("Customer", customerSchema);
+
+export default Customer;
