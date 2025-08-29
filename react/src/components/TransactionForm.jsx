@@ -1,30 +1,30 @@
 // TransactionForm.js
-import React, { useState } from 'react';
-import { X, Save, Upload, Trash2 } from 'lucide-react';
-import ApiService from '../services/api';
+import React, { useState } from "react";
+import { X, Save, Upload, Trash2 } from "lucide-react";
+import ApiService from "../services/api";
 
-const TransactionForm = ({ 
-  selectedCustomer, 
-  selectedCategory, 
+const TransactionForm = ({
+  selectedCustomer,
+  selectedCategory,
   transactionType,
-  onBack, 
-  onCancel, 
-  onSuccess 
+  onBack,
+  onCancel,
+  onSuccess,
 }) => {
   const [transactionData, setTransactionData] = useState({
-    amount: '',
-    description: '',
-    date: new Date().toISOString().split('T')[0],
+    amount: "",
+    description: "",
+    date: new Date().toISOString().split("T")[0],
     // Gold specific fields
-    goldWeight: '',
-    goldType: '22K',
-    goldPurity: '916',
-    goldRate: '6500',
+    goldWeight: "",
+    goldType: "22K",
+    goldPurity: "916",
+    goldRate: "6500",
     // Loan specific fields
-    interestRate: '2.5',
-    durationMonths: '6',
+    interestRate: "2.5",
+    durationMonths: "6",
     // Photos
-    photos: []
+    photos: [],
   });
 
   const [errors, setErrors] = useState({});
@@ -32,25 +32,28 @@ const TransactionForm = ({
 
   const handleDataChange = (e) => {
     const { name, value } = e.target;
-    setTransactionData(prev => ({ ...prev, [name]: value }));
+    setTransactionData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
   const handlePhotoUpload = (e) => {
     const files = Array.from(e.target.files);
-    files.forEach(file => {
+    files.forEach((file) => {
       if (transactionData.photos.length < 3) {
         const reader = new FileReader();
         reader.onload = (e) => {
-          setTransactionData(prev => ({
+          setTransactionData((prev) => ({
             ...prev,
-            photos: [...prev.photos, {
-              id: Date.now() + Math.random(),
-              name: file.name,
-              dataUrl: e.target.result
-            }]
+            photos: [
+              ...prev.photos,
+              {
+                id: Date.now() + Math.random(),
+                name: file.name,
+                dataUrl: e.target.result,
+              },
+            ],
           }));
         };
         reader.readAsDataURL(file);
@@ -59,30 +62,35 @@ const TransactionForm = ({
   };
 
   const removePhoto = (photoId) => {
-    setTransactionData(prev => ({
+    setTransactionData((prev) => ({
       ...prev,
-      photos: prev.photos.filter(photo => photo.id !== photoId)
+      photos: prev.photos.filter((photo) => photo.id !== photoId),
     }));
   };
 
   const validateForm = () => {
     const newErrors = {};
-    if (!transactionData.amount.trim() || parseFloat(transactionData.amount) <= 0) {
-      newErrors.amount = 'Valid amount is required';
+    if (
+      !transactionData.amount.trim() ||
+      parseFloat(transactionData.amount) <= 0
+    ) {
+      newErrors.amount = "Valid amount is required";
     }
-    
-    const isGoldTransaction = selectedCategory?.id.includes('gold') || selectedCategory?.id.includes('silver');
+
+    const isGoldTransaction =
+      selectedCategory?.id.includes("gold") ||
+      selectedCategory?.id.includes("silver");
     if (isGoldTransaction && !transactionData.goldWeight.trim()) {
-      newErrors.goldWeight = 'Weight is required';
+      newErrors.goldWeight = "Weight is required";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const submitTransaction = async () => {
     if (!validateForm()) return;
-    
+
     setLoading(true);
     try {
       let response;
@@ -91,69 +99,115 @@ const TransactionForm = ({
         amount: transactionData.amount,
         description: transactionData.description,
         date: new Date(transactionData.date).toISOString(),
-        photos: transactionData.photos
+        photos: transactionData.photos,
       };
 
       switch (selectedCategory.id) {
-        case 'gold-sell':
-        case 'silver-sell':
+        case "gold-sell":
+        case "silver-sell":
           response = await ApiService.createMetalSale({
             ...commonData,
-            metal: selectedCategory.id.includes('gold') ? 'GOLD' : 'SILVER',
+            metal: selectedCategory.id.includes("gold") ? "GOLD" : "SILVER",
             weight: transactionData.goldWeight,
             rate: transactionData.goldRate,
-            purity: transactionData.goldPurity
+            purity: transactionData.goldPurity,
           });
           break;
 
-        case 'gold-loan':
+        case "gold-loan":
           response = await ApiService.createGoldLoan({
             ...commonData,
             goldWeight: transactionData.goldWeight,
             goldType: transactionData.goldType,
             interestRate: transactionData.interestRate,
-            durationMonths: transactionData.durationMonths
+            durationMonths: transactionData.durationMonths,
           });
           break;
 
-        case 'business-loan-taken':
-          response = await ApiService.createLoan({
+        case "interest-received-gl":
+          response = await ApiService.makeGoldLoanInterestPayment(
+            {
+              ...commonData,
+              amount: transactionData.amount,
+              description: transactionData.description,
+              date: new Date(transactionData.date).toISOString(),
+            },
+            1
+          ); // direction 1 for taken
+          break;
+        case "interest-received-l":
+          response = await ApiService.makeLoanInterestPayment(
+            {
+              ...commonData,
+              amount: transactionData.amount,
+              description: transactionData.description,
+              date: new Date(transactionData.date).toISOString(),
+            },
+            1
+          ); // direction 1 for taken
+          break;
+        case "gold-loan-repayment":
+          response = await ApiService.makeGoldLoanPayment({
             ...commonData,
+            goldWeight: transactionData.goldWeight,
+            goldType: transactionData.goldType,
             interestRate: transactionData.interestRate,
-            durationMonths: transactionData.durationMonths
-          }, 1); // direction 1 for taken
+            durationMonths: transactionData.durationMonths,
+          });
+          break;
+        case "loan-repayment":
+          response = await ApiService.makeLoanPayment({
+            ...commonData,
+            goldWeight: transactionData.goldWeight,
+            goldType: transactionData.goldType,
+            interestRate: transactionData.interestRate,
+            durationMonths: transactionData.durationMonths,
+          });
+          break;
+        case "business-loan-taken":
+          response = await ApiService.createLoan(
+            {
+              ...commonData,
+              interestRate: transactionData.interestRate,
+              durationMonths: transactionData.durationMonths,
+            },
+            1
+          ); // direction 1 for taken
           break;
 
-        case 'business-loan-given':
-          response = await ApiService.createLoan({
-            ...commonData,
-            interestRate: transactionData.interestRate,
-            durationMonths: transactionData.durationMonths
-          }, -1); // direction -1 for given
+        case "business-loan-given":
+          response = await ApiService.createLoan(
+            {
+              ...commonData,
+              interestRate: transactionData.interestRate,
+              durationMonths: transactionData.durationMonths,
+            },
+            -1
+          ); // direction -1 for given
           break;
 
-        case 'udhari-given':
+        case "udhari-given":
           response = await ApiService.giveUdhari({
             ...commonData,
-            installments: 3 // Default installments
+            installments: 3, // Default installments
           });
           break;
 
-        case 'gold-purchase':
-        case 'silver-purchase':
+        case "gold-purchase":
+        case "silver-purchase":
           response = await ApiService.createGoldPurchase({
             ...commonData,
             partyName: selectedCustomer.name,
             goldWeight: transactionData.goldWeight,
             goldType: transactionData.goldType,
-            metal: selectedCategory.id.includes('gold') ? 'GOLD' : 'SILVER'
+            metal: selectedCategory.id.includes("gold") ? "GOLD" : "SILVER",
           });
           break;
 
         // For other categories, create a simple transaction record
         default:
           // This would need a generic transaction API endpoint
-          console.log('Transaction data:', commonData);
+          console.log("Transaction data:", commonData);
           response = { success: true }; // Placeholder
           break;
       }
@@ -161,36 +215,45 @@ const TransactionForm = ({
       if (response?.success !== false) {
         onSuccess();
       } else {
-        throw new Error(response?.message || 'Transaction failed');
+        throw new Error(response?.message || "Transaction failed");
       }
     } catch (error) {
-      console.error('Transaction failed:', error);
-      setErrors({ submit: error.message || 'Failed to save transaction. Please try again.' });
+      console.error("Transaction failed:", error);
+      setErrors({
+        submit:
+          error.message || "Failed to save transaction. Please try again.",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const isGoldTransaction = selectedCategory?.id.includes('gold') || selectedCategory?.id.includes('silver');
-  const isLoanTransaction = selectedCategory?.id.includes('loan');
-  const metalType = selectedCategory?.id.includes('silver') ? 'Silver' : 'Gold';
+  const isGoldTransaction =
+    selectedCategory?.id.includes("gold") ||
+    selectedCategory?.id.includes("silver");
+  const isLoanTransaction = selectedCategory?.id.includes("loan");
+  const metalType = selectedCategory?.id.includes("silver") ? "Silver" : "Gold";
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 bg-${selectedCategory.color}-100 rounded-lg flex items-center justify-center`}>
-            <selectedCategory.icon size={20} className={`text-${selectedCategory.color}-600`} />
+          <div
+            className={`w-10 h-10 bg-${selectedCategory.color}-100 rounded-lg flex items-center justify-center`}
+          >
+            <selectedCategory.icon
+              size={20}
+              className={`text-${selectedCategory.color}-600`}
+            />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">{selectedCategory.label}</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {selectedCategory.label}
+            </h3>
             <p className="text-sm text-gray-500">{selectedCustomer.name}</p>
           </div>
         </div>
-        <button
-          onClick={onBack}
-          className="text-gray-500 hover:text-gray-700"
-        >
+        <button onClick={onBack} className="text-gray-500 hover:text-gray-700">
           <X size={20} />
         </button>
       </div>
@@ -203,23 +266,29 @@ const TransactionForm = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Amount (₹) *
+          </label>
           <input
             type="number"
             name="amount"
             value={transactionData.amount}
             onChange={handleDataChange}
             className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.amount ? 'border-red-300' : 'border-gray-300'
+              errors.amount ? "border-red-300" : "border-gray-300"
             }`}
             placeholder="Enter amount"
             disabled={loading}
           />
-          {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
+          {errors.amount && (
+            <p className="text-red-500 text-xs mt-1">{errors.amount}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Date
+          </label>
           <input
             type="date"
             name="date"
@@ -233,7 +302,9 @@ const TransactionForm = ({
         {isGoldTransaction && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{metalType} Weight (grams) *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {metalType} Weight (grams) *
+              </label>
               <input
                 type="number"
                 step="0.1"
@@ -241,16 +312,20 @@ const TransactionForm = ({
                 value={transactionData.goldWeight}
                 onChange={handleDataChange}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.goldWeight ? 'border-red-300' : 'border-gray-300'
+                  errors.goldWeight ? "border-red-300" : "border-gray-300"
                 }`}
                 placeholder="Enter weight"
                 disabled={loading}
               />
-              {errors.goldWeight && <p className="text-red-500 text-xs mt-1">{errors.goldWeight}</p>}
+              {errors.goldWeight && (
+                <p className="text-red-500 text-xs mt-1">{errors.goldWeight}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{metalType} Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {metalType} Type
+              </label>
               <select
                 name="goldType"
                 value={transactionData.goldType}
@@ -266,7 +341,9 @@ const TransactionForm = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{metalType} Rate (₹/gram)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {metalType} Rate (₹/gram)
+              </label>
               <input
                 type="number"
                 name="goldRate"
@@ -279,7 +356,9 @@ const TransactionForm = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Purity</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Purity
+              </label>
               <input
                 type="text"
                 name="goldPurity"
@@ -296,7 +375,9 @@ const TransactionForm = ({
         {isLoanTransaction && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Interest Rate (% per month)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Interest Rate (% per month)
+              </label>
               <input
                 type="number"
                 step="0.1"
@@ -310,7 +391,9 @@ const TransactionForm = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Duration (months)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Duration (months)
+              </label>
               <select
                 name="durationMonths"
                 value={transactionData.durationMonths}
@@ -328,7 +411,9 @@ const TransactionForm = ({
         )}
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Description
+          </label>
           <textarea
             name="description"
             value={transactionData.description}
@@ -342,7 +427,9 @@ const TransactionForm = ({
 
         {(isGoldTransaction || isLoanTransaction) && (
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Photos (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Photos (Optional)
+            </label>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
               <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
               <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
@@ -361,7 +448,7 @@ const TransactionForm = ({
 
             {transactionData.photos.length > 0 && (
               <div className="grid grid-cols-3 gap-3 mt-3">
-                {transactionData.photos.map(photo => (
+                {transactionData.photos.map((photo) => (
                   <div key={photo.id} className="relative group">
                     <img
                       src={photo.dataUrl}
@@ -406,7 +493,7 @@ const TransactionForm = ({
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
           >
             <Save size={16} />
-            {loading ? 'Saving...' : 'Save Transaction'}
+            {loading ? "Saving..." : "Save Transaction"}
           </button>
         </div>
       </div>
