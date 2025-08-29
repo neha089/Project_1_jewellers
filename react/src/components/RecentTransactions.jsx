@@ -1,4 +1,3 @@
-// RecentTransactions.js - Updated with API Integration
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Edit, Trash2, User, Calendar, FileText } from 'lucide-react';
 import ApiService from '../services/api';
@@ -141,20 +140,20 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
             return (
               <div
                 key={transaction._id}
-                className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100"
+                className="flex flex-wrap items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100"
               >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 bg-${color}-100 rounded-lg flex items-center justify-center`}>
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className={`w-10 h-10 bg-${color}-100 rounded-lg flex items-center justify-center flex-shrink-0`}>
                     <Icon size={20} className={`text-${color}-600`} />
                   </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">
+                  <div className="min-w-0">
+                    <h4 className="font-medium text-gray-900 truncate">
                       {getTransactionTypeLabel(transaction.type)}
                     </h4>
-                    <div className="flex items-center space-x-3 text-sm text-gray-500">
-                      <div className="flex items-center space-x-1">
+                    <div className="flex flex-wrap items-center space-x-3 text-sm text-gray-500">
+                      <div className="flex items-center space-x-1 truncate max-w-xs">
                         <User size={14} />
-                        <span>{transaction.customer?.name || 'Unknown'}</span>
+                        <span className="truncate">{transaction.customer?.name || 'Unknown'}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Calendar size={14} />
@@ -168,16 +167,16 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
                     )}
                   </div>
                 </div>
-                
-                <div className="flex items-center space-x-3">
-                  <div className="text-right">
+
+                <div className="flex items-center space-x-3 mt-2 sm:mt-0">
+                  <div className="text-right min-w-[80px]">
                     <span className={`font-semibold ${
                       transaction.category === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
                     }`}>
                       {transaction.category === 'INCOME' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </span>
                   </div>
-                  
+
                   <div className="flex items-center space-x-1">
                     <button
                       onClick={() => onEdit && onEdit(transaction)}
@@ -203,7 +202,7 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
 
       {transactions.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200 text-center">
-          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium w-full sm:w-auto">
             View All Transactions
           </button>
         </div>
