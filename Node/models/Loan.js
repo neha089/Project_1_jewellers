@@ -7,6 +7,7 @@ const loanSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  direction: { type: Number, enum: [1, -1], required: true },
   principalPaise: { type: Number, required: true, min: 0 },
   interestRateMonthlyPct: { type: Number, required: true, min: 0 },
   startDate: { type: Date, default: Date.now, index: true },

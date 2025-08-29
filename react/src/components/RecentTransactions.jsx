@@ -1,26 +1,215 @@
-import React from 'react';
-import TransactionItem from './TransactionItem';
-const RecentTransactions = ({ transactions, onEdit, onDelete }) => {
-  return (
-    <div className="bg-white mx-6 rounded-lg border border-gray-200">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900">Recent Transactions</h3>
-          <p className="text-sm text-gray-500">Today, August 17, 2025</p>
+// RecentTransactions.js - Updated with API Integration
+import React, { useState, useEffect } from 'react';
+import { TrendingUp, TrendingDown, Edit, Trash2, User, Calendar, FileText } from 'lucide-react';
+import ApiService from '../services/api';
+
+const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchRecentTransactions();
+  }, [refreshTrigger]);
+
+  const fetchRecentTransactions = async () => {
+    try {
+      setLoading(true);
+      const response = await ApiService.getDashboardStats();
+      if (response.success && response.data.recentTransactions) {
+        setTransactions(response.data.recentTransactions);
+      } else {
+        throw new Error('Failed to fetch transactions');
+      }
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+      setError('Failed to load recent transactions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amountInPaise) => {
+    return `₹${ApiService.paiseToRupees(amountInPaise).toLocaleString('en-IN')}`;
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getTransactionIcon = (type) => {
+    switch (type) {
+      case 'GOLD_LOAN_DISBURSEMENT':
+      case 'UDHARI_GIVEN':
+      case 'BUSINESS_LOAN_TAKEN':
+        return TrendingDown;
+      case 'GOLD_LOAN_PAYMENT':
+      case 'INTEREST_RECEIVED':
+      case 'METAL_SALE':
+      case 'UDHARI_RECEIVED':
+        return TrendingUp;
+      default:
+        return FileText;
+    }
+  };
+
+  const getTransactionColor = (category) => {
+    return category === 'INCOME' ? 'emerald' : 'red';
+  };
+
+  const getTransactionTypeLabel = (type) => {
+    const typeMap = {
+      'GOLD_LOAN_DISBURSEMENT': 'Gold Loan Given',
+      'GOLD_LOAN_PAYMENT': 'Loan Repayment',
+      'INTEREST_RECEIVED': 'Interest Received',
+      'METAL_SALE': 'Metal Sale',
+      'UDHARI_GIVEN': 'Udhari Given',
+      'UDHARI_RECEIVED': 'Udhari Received',
+      'BUSINESS_LOAN_TAKEN': 'Business Loan Taken',
+      'BUSINESS_LOAN_GIVEN': 'Business Loan Given'
+    };
+    return typeMap[type] || type.replace(/_/g, ' ');
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg animate-pulse">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
+                <div>
+                  <div className="w-32 h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="w-24 h-3 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+              <div className="w-20 h-6 bg-gray-200 rounded"></div>
+            </div>
+          ))}
         </div>
       </div>
-      
-      <div className="p-6">
-        {transactions.map((transaction) => (
-          <TransactionItem
-            key={transaction.id}
-            transaction={transaction}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h2>
+        <div className="text-center py-8">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchRecentTransactions}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+        <button 
+          onClick={fetchRecentTransactions}
+          className="text-sm text-blue-600 hover:text-blue-700"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {transactions.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <FileText size={48} className="mx-auto mb-4 text-gray-300" />
+          <p>No recent transactions found</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {transactions.map((transaction) => {
+            const Icon = getTransactionIcon(transaction.type);
+            const color = getTransactionColor(transaction.category);
+            
+            return (
+              <div
+                key={transaction._id}
+                className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 bg-${color}-100 rounded-lg flex items-center justify-center`}>
+                    <Icon size={20} className={`text-${color}-600`} />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-900">
+                      {getTransactionTypeLabel(transaction.type)}
+                    </h4>
+                    <div className="flex items-center space-x-3 text-sm text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <User size={14} />
+                        <span>{transaction.customer?.name || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Calendar size={14} />
+                        <span>{formatDate(transaction.date)}</span>
+                      </div>
+                    </div>
+                    {transaction.description && (
+                      <p className="text-xs text-gray-400 mt-1 truncate max-w-xs">
+                        {transaction.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <div className="text-right">
+                    <span className={`font-semibold ${
+                      transaction.category === 'INCOME' ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {transaction.category === 'INCOME' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => onEdit && onEdit(transaction)}
+                      className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                      title="Edit Transaction"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => onDelete && onDelete(transaction._id)}
+                      className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                      title="Delete Transaction"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {transactions.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            View All Transactions
+          </button>
+        </div>
+      )}
     </div>
   );
 };
+
 export default RecentTransactions;
