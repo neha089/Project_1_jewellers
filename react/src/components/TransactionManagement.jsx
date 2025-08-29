@@ -1,5 +1,5 @@
 // TransactionManagement.js - Main Component with API Integration
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import SummaryCards from './SummaryCards';
 import TransactionHeader from "./TransactionHeader";
@@ -18,6 +18,7 @@ const TransactionManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [createCustomerInitialData, setCreateCustomerInitialData] = useState({});
 
   // Navigation helper functions
   const goBack = () => {
@@ -44,20 +45,23 @@ const TransactionManagement = () => {
     setCurrentStep('category');
   };
 
-  const handleCreateCustomer = () => {
-    setShowCreateCustomer(true);
-    setCurrentStep('customer');
+  // Fixed: Use useCallback to prevent re-renders and properly handle initial data
+  const handleCreateCustomer = useCallback(() => {
+    let initialData = {};
     
     // Pre-fill with search term if it looks like a name
     if (searchTerm && !searchTerm.includes('+91') && searchTerm.length > 2) {
       const nameParts = searchTerm.trim().split(' ');
-      return {
+      initialData = {
         firstName: nameParts[0] || '',
         lastName: nameParts.slice(1).join(' ') || ''
       };
     }
-    return {};
-  };
+    
+    setCreateCustomerInitialData(initialData);
+    setShowCreateCustomer(true);
+    setCurrentStep('customer');
+  }, [searchTerm]);
 
   const handleCustomerCreated = (newCustomer) => {
     setSelectedCustomer(newCustomer);
@@ -92,6 +96,7 @@ const TransactionManagement = () => {
     setTransactionType('');
     setSelectedCategory(null);
     setShowSuccess(false);
+    setCreateCustomerInitialData({});
   };
 
   const handleEditTransaction = (transaction) => {
@@ -159,7 +164,7 @@ const TransactionManagement = () => {
                     onCancel={handleCancel}
                     onBack={goBack}
                     onCustomerCreated={handleCustomerCreated}
-                    initialData={handleCreateCustomer()}
+                    initialData={createCustomerInitialData}
                   />
                 )}
                 
