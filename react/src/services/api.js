@@ -33,22 +33,23 @@ class ApiService {
 
   // Customer APIs
   async createCustomer(customerData) {
+    console.log(customerData)
     return this.request('/api/customers/', {
       method: 'POST',
       body: {
         name: customerData.name,
         phone: customerData.phone,
         address: {
-          street: customerData.address,
-          city: customerData.city,
-          state: customerData.state,
-          pincode: customerData.pinCode
+          street: customerData.address.street,
+          city: customerData.address.city,
+          state: customerData.address.state,
+          pincode: customerData.address.pinCode
         },
-        adhaarNumber: customerData.idProofNumber,
+        adhaarNumber: customerData.idProof.number,
         email: customerData.email,
-        city: customerData.city,
-        state: customerData.state,
-        pincode: customerData.pinCode,
+        city: customerData.address.city,
+        state: customerData.address.state,
+        pincode: customerData.address.pinCode,
         totalAmountTakenFromJewellers: 0,
         totalAmountTakenByUs: 0,
         status: 'active'
