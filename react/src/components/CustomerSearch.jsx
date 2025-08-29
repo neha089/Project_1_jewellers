@@ -321,11 +321,6 @@ const CustomerSearch = ({
           <p className="text-gray-500 mb-2">
             Type at least 2 characters to search by:
           </p>
-          <div className="text-sm text-gray-400 space-y-1">
-            <p>• Customer name (e.g., "Neha", "Prit")</p>
-            <p>• Phone number (e.g., "+91", "9876")</p>
-            <p>• Address (city, state, street)</p>
-          </div>
         </div>
       )}
     </div>
