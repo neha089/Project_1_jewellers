@@ -6,6 +6,7 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     fetchRecentTransactions();
@@ -14,9 +15,10 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
   const fetchRecentTransactions = async () => {
     try {
       setLoading(true);
-      const response = await ApiService.getDashboardStats();
-      if (response.success && response.data.recentTransactions) {
-        setTransactions(response.data.recentTransactions);
+      const response = await ApiService.getAllTransactions();
+      if (response.success && response.data) {
+        // Fixed: response.data is already the array of transactions
+        setTransactions(response.data);
       } else {
         throw new Error('Failed to fetch transactions');
       }
@@ -29,7 +31,17 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
   };
 
   const formatCurrency = (amountInPaise) => {
-    return `₹${ApiService.paiseToRupees(amountInPaise).toLocaleString('en-IN')}`;
+    const amountInRupees = ApiService.paiseToRupees(amountInPaise);
+    
+    if (amountInRupees >= 10000000) { // 1 Crore or more
+      return `₹${(amountInRupees / 10000000).toFixed(1)}Cr`;
+    } else if (amountInRupees >= 100000) { // 1 Lakh or more
+      return `₹${(amountInRupees / 100000).toFixed(1)}L`;
+    } else if (amountInRupees >= 1000) { // 1 Thousand or more
+      return `₹${(amountInRupees / 1000).toFixed(1)}K`;
+    } else {
+      return `₹${amountInRupees.toFixed(0)}`;
+    }
   };
 
   const formatDate = (dateString) => {
@@ -43,13 +55,18 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
 
   const getTransactionIcon = (type) => {
     switch (type) {
+      case 'GOLD_LOAN_GIVEN':
       case 'GOLD_LOAN_DISBURSEMENT':
+      case 'LOAN_DISBURSEMENT':
       case 'UDHARI_GIVEN':
+      case 'GOLD_PURCHASE':
       case 'BUSINESS_LOAN_TAKEN':
         return TrendingDown;
       case 'GOLD_LOAN_PAYMENT':
+      case 'GOLD_LOAN_INTEREST_RECEIVED':
       case 'INTEREST_RECEIVED':
-      case 'METAL_SALE':
+      case 'GOLD_SALE':
+      case 'SILVER_SALE':
       case 'UDHARI_RECEIVED':
         return TrendingUp;
       default:
@@ -63,10 +80,15 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
 
   const getTransactionTypeLabel = (type) => {
     const typeMap = {
+      'GOLD_LOAN_GIVEN': 'Gold Loan Given',
       'GOLD_LOAN_DISBURSEMENT': 'Gold Loan Given',
       'GOLD_LOAN_PAYMENT': 'Loan Repayment',
+      'GOLD_LOAN_INTEREST_RECEIVED': 'Gold Loan Interest',
       'INTEREST_RECEIVED': 'Interest Received',
-      'METAL_SALE': 'Metal Sale',
+      'GOLD_SALE': 'Gold Sale',
+      'SILVER_SALE': 'Silver Sale',
+      'GOLD_PURCHASE': 'Gold Purchase',
+      'LOAN_DISBURSEMENT': 'Loan Given',
       'UDHARI_GIVEN': 'Udhari Given',
       'UDHARI_RECEIVED': 'Udhari Received',
       'BUSINESS_LOAN_TAKEN': 'Business Loan Taken',
@@ -132,8 +154,8 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
           <p>No recent transactions found</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {transactions.map((transaction) => {
+        <div className={`space-y-3 ${showAll ? 'max-h-96 overflow-y-auto' : ''}`}>
+          {(showAll ? transactions : transactions.slice(0, 5)).map((transaction) => {
             const Icon = getTransactionIcon(transaction.type);
             const color = getTransactionColor(transaction.category);
             
@@ -143,18 +165,20 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
                 className="flex flex-wrap items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100"
               >
                 <div className="flex items-center space-x-3 min-w-0">
-                  <div className={`w-10 h-10 bg-${color}-100 rounded-lg flex items-center justify-center flex-shrink-0`}>
-                    <Icon size={20} className={`text-${color}-600`} />
+                  <div className={`w-10 h-10 ${color === 'emerald' ? 'bg-emerald-100' : 'bg-red-100'} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                    <Icon size={20} className={color === 'emerald' ? 'text-emerald-600' : 'text-red-600'} />
                   </div>
                   <div className="min-w-0">
                     <h4 className="font-medium text-gray-900 truncate">
                       {getTransactionTypeLabel(transaction.type)}
                     </h4>
                     <div className="flex flex-wrap items-center space-x-3 text-sm text-gray-500">
-                      <div className="flex items-center space-x-1 truncate max-w-xs">
-                        <User size={14} />
-                        <span className="truncate">{transaction.customer?.name || 'Unknown'}</span>
-                      </div>
+                      {transaction.customer && (
+                        <div className="flex items-center space-x-1 truncate max-w-xs">
+                          <User size={14} />
+                          <span className="truncate">{transaction.customer.name}</span>
+                        </div>
+                      )}
                       <div className="flex items-center space-x-1">
                         <Calendar size={14} />
                         <span>{formatDate(transaction.date)}</span>
@@ -202,8 +226,11 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
 
       {transactions.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-200 text-center">
-          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium w-full sm:w-auto">
-            View All Transactions
+          <button 
+            onClick={() => setShowAll(!showAll)}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium w-full sm:w-auto"
+          >
+            {showAll ? 'Show Less' : `View All Transactions (${transactions.length} total)`}
           </button>
         </div>
       )}
