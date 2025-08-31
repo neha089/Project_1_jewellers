@@ -1,52 +1,66 @@
+// routes/goldLoanRoutes.js
 import express from 'express';
 import * as goldLoanController from '../controllers/goldLoanController.js';
-import * as reportController from '../controllers/reportController.js'; // ✅ Correct import name
+import * as reportController from '../controllers/reportController.js';
 
 const router = express.Router();
 
-// Interest calculation (should be before /:id routes)
+// GOLD PRICE MANAGEMENT (Before /:id routes)
+router.get('/current-gold-prices', goldLoanController.getCurrentGoldPrices);
+router.post('/update-gold-prices', goldLoanController.updateGoldPrices);
+router.get('/calculate-amount', goldLoanController.calculateLoanAmount);
+
+// INTEREST CALCULATION AND MANAGEMENT
 router.get('/calculate/interest', goldLoanController.calculateInterest);
 
-// Analytics and reports (should be before /:id routes)
+// ANALYTICS AND REPORTS
 router.get('/analytics/pending-interest', goldLoanController.getPendingInterest);
 router.get('/analytics/dashboard', goldLoanController.getDashboardStats);
-router.get('/analytics/business', reportController.getBusinessAnalytics); // ✅ Fixed: reportController not reportsController
-router.get('/analytics/overdue', reportController.getOverdueReport); // ✅ Fixed
+router.get('/analytics/business', reportController.getBusinessAnalytics);
+router.get('/analytics/overdue', reportController.getOverdueReport);
 
-// Payment history
+// PAYMENT HISTORY
 router.get('/payments/history', goldLoanController.getAllPaymentHistory);
 
-// Reports
-router.get('/reports/monthly-income', reportController.getMonthlyIncomeReport); // ✅ Fixed
+// REPORTS
+router.get('/reports/monthly-income', reportController.getMonthlyIncomeReport);
 
-// Customer specific routes (MOVED UP - before /:id route)
+// CUSTOMER SPECIFIC ROUTES (Before /:id route)
 router.get('/customer/:customerId', goldLoanController.getGoldLoansByCustomer);
 router.get('/customer/:customerId/summary', goldLoanController.getCustomerLoanSummary);
 
-// Basic CRUD operations
+// BASIC CRUD OPERATIONS
 router.post('/', goldLoanController.createGoldLoan);
 router.get('/', goldLoanController.getAllGoldLoans);
-router.get('/:id', goldLoanController.getGoldLoanById); // MOVED DOWN - after specific routes
+router.get('/:id', goldLoanController.getGoldLoanById);
 
-// Loan specific operations
+// LOAN SPECIFIC OPERATIONS
 router.get('/:id/report', goldLoanController.getLoanReport);
-router.get('/:id/timeline', reportController.getLoanTimeline); // ✅ Fixed
+router.get('/:id/timeline', reportController.getLoanTimeline);
 
-// Payment operations
+// ENHANCED PAYMENT OPERATIONS
 router.post('/:id/payments', goldLoanController.addPayment);
 router.post('/:id/interest-payment', goldLoanController.addInterestPayment);
+router.get('/:id/interest-history', goldLoanController.getInterestPaymentHistory);
 
-// Item management
+// NEW ENHANCED ENDPOINTS FOR YOUR REQUIREMENTS
+router.get('/:id/interest-calculation', goldLoanController.getInterestCalculation);
+
+// ENHANCED REPAYMENT OPERATIONS
+router.get('/:id/repayment-options', goldLoanController.getRepaymentOptions);
+router.post('/:id/process-repayment', goldLoanController.processItemRepayment);
+
+// ITEM MANAGEMENT
 router.post('/:id/items', goldLoanController.addItems);
 router.put('/:id/items/:itemId', goldLoanController.updateItem);
 router.delete('/:id/items/:itemId', goldLoanController.removeItem);
 
-// Loan management
+// LOAN MANAGEMENT
 router.put('/:id/close', goldLoanController.closeGoldLoan);
 router.post('/:id/return-items', goldLoanController.returnItems);
 router.put('/:id/complete', goldLoanController.completeGoldLoan);
 
-// Validation endpoints
+// VALIDATION ENDPOINTS
 router.get('/:id/validate-closure', goldLoanController.validateLoanClosure);
 router.get('/:id/outstanding-summary', goldLoanController.getOutstandingSummary);
 
