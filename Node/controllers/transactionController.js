@@ -1,4 +1,4 @@
-import Transaction from "../models/Transaction.js"; // adjust path if needed
+import Transaction from '../models/Transaction.js';
 
 export const getAllTransactions = async (req, res) => {
   try {

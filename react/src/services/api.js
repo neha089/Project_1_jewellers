@@ -36,22 +36,12 @@ class ApiService {
     }
   }
 
-  // Enhanced customer search with better parameter handling
+  // Enhanced customer search
   async searchCustomers(search = "", page = 1, limit = 50, status = "active") {
     const cleanSearch = search ? search.trim() : "";
-
-    console.log("Searching customers with params:", {
-      search: cleanSearch,
-      page,
-      limit,
-      status,
-    });
-
     const params = new URLSearchParams();
 
-    if (cleanSearch) {
-      params.append("search", cleanSearch);
-    }
+    if (cleanSearch) params.append("search", cleanSearch);
     params.append("page", page.toString());
     params.append("limit", limit.toString());
     params.append("status", status);
@@ -59,61 +49,36 @@ class ApiService {
     const queryString = params.toString();
     const endpoint = `/api/customers${queryString ? "?" + queryString : ""}`;
 
-    console.log("Final endpoint:", endpoint);
-
     try {
       const response = await this.request(endpoint);
 
-      // If API doesn't support search properly, implement client-side filtering
       if (response.success && cleanSearch && response.data?.customers) {
         const customers = response.data.customers;
-
         const filtered = customers.filter((customer) => {
           const searchLower = cleanSearch.toLowerCase();
-
-          if (customer.name && customer.name.toLowerCase().includes(searchLower)) {
-            return true;
-          }
-          if (customer.phone && customer.phone.toLowerCase().includes(searchLower)) {
-            return true;
-          }
-          if (customer.email && customer.email.toLowerCase().includes(searchLower)) {
-            return true;
-          }
-          if (customer.address) {
-            const address = customer.address;
-            const addressFields = [
-              address.street,
-              address.city,
-              address.state,
-              address.pincode?.toString(),
-            ].filter(Boolean);
-
-            return addressFields.some((field) =>
-              field.toLowerCase().includes(searchLower)
-            );
-          }
-          if (customer.city && customer.city.toLowerCase().includes(searchLower)) {
-            return true;
-          }
-          if (customer.state && customer.state.toLowerCase().includes(searchLower)) {
-            return true;
-          }
-          if (customer.adhaarNumber && customer.adhaarNumber.toString().includes(searchLower)) {
-            return true;
-          }
-
-          return false;
+          return (
+            (customer.name &&
+              customer.name.toLowerCase().includes(searchLower)) ||
+            (customer.phone &&
+              customer.phone.toLowerCase().includes(searchLower)) ||
+            (customer.email &&
+              customer.email.toLowerCase().includes(searchLower)) ||
+            (customer.address &&
+              [customer.address.street, customer.address.city, customer.address.state, customer.address.pincode?.toString()]
+                .filter(Boolean)
+                .some((field) => field.toLowerCase().includes(searchLower))) ||
+            (customer.city &&
+              customer.city.toLowerCase().includes(searchLower)) ||
+            (customer.state &&
+              customer.state.toLowerCase().includes(searchLower)) ||
+            (customer.adhaarNumber &&
+              customer.adhaarNumber.toString().includes(searchLower))
+          );
         });
-
-        console.log(`Client-side filtered: ${filtered.length} from ${customers.length} customers`);
 
         return {
           ...response,
-          data: {
-            ...response.data,
-            customers: filtered,
-          },
+          data: { ...response.data, customers: filtered },
         };
       }
 
@@ -126,7 +91,6 @@ class ApiService {
 
   // Customer APIs
   async createCustomer(customerData) {
-    console.log("Creating customer:", customerData);
     return this.request("/api/customers/", {
       method: "POST",
       body: {
@@ -151,15 +115,11 @@ class ApiService {
   }
 
   async getGoldLoansByCustomer(customerId) {
-    return this.request(`/api/gold-loans/customer/${customerId}`, {
-      method: "GET",
-    });
+    return this.request(`/api/gold-loans/customer/${customerId}`);
   }
 
   async getLoansByCustomer(customerId) {
-    return this.request(`/api/loans/customer/${customerId}`, {
-      method: "GET",
-    });
+    return this.request(`/api/loans/customer/${customerId}`);
   }
 
   async getAllCustomers(page = 1, limit = 100) {
@@ -176,7 +136,7 @@ class ApiService {
       method: "POST",
       body: {
         customer: loanData.customerId,
-        items: loanData.items.map(item => ({
+        items: loanData.items.map((item) => ({
           name: item.name || "Gold Item",
           weightGram: parseFloat(item.weightGram),
           amountPaise: Math.round(parseFloat(item.amountPaise) * 100),
@@ -192,17 +152,35 @@ class ApiService {
     });
   }
 
-  // NEW: Get gold loan interest summary with current market value
+  async getPaymentHistory(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.page) params.append("page", filters.page.toString());
+    if (filters.limit) params.append("limit", filters.limit.toString());
+    if (filters.customer) params.append("customer", filters.customer);
+    if (filters.month) params.append("month", filters.month.toString());
+    if (filters.year) params.append("year", filters.year.toString());
+    const queryString = params.toString();
+    return this.request(
+      `/api/gold-loans/payments/history${queryString ? "?" + queryString : ""}`
+    );
+  }
+
+  async getDashboardStats() {
+    return this.request("/api/gold-loans/analytics/dashboard");
+  }
+
   async getGoldLoanInterestSummary(loanId) {
     return this.request(`/api/gold-loans/${loanId}/interest-summary`);
   }
 
-  // NEW: Get gold loan payment history
+  async getAllTransactions() {
+    return this.request(`/api/transactions`);
+  }
+
   async getGoldLoanPaymentHistory(loanId) {
     return this.request(`/api/gold-loans/${loanId}/payment-history`);
   }
 
-  // Enhanced payment methods
   async makeGoldLoanPayment(loanId, paymentData) {
     return this.request(`/api/gold-loans/${loanId}/payments`, {
       method: "POST",
@@ -211,13 +189,12 @@ class ApiService {
         interestPaise: Math.round(parseFloat(paymentData.interest || 0) * 100),
         forMonth: paymentData.forMonth || this.getCurrentMonth(),
         photos: paymentData.photos || [],
-        notes: paymentData.notes || '',
+        notes: paymentData.notes || "",
       },
     });
   }
 
-  // Enhanced interest-only payment
-  async makeGoldLoanInterestPayment(loanId, interestAmount, notes = '') {
+  async makeGoldLoanInterestPayment(loanId, interestAmount, notes = "") {
     return this.request(`/api/gold-loans/${loanId}/interest-payment`, {
       method: "POST",
       body: {
@@ -228,48 +205,53 @@ class ApiService {
     });
   }
 
-  // NEW: Process gold loan repayment with item returns
   async processGoldLoanRepayment(repaymentData) {
-    return this.request(`/api/gold-loans/${repaymentData.loanId}/repayment`, {
-      method: "POST",
-      body: {
-        returnedItemIds: repaymentData.returnedItems || [],
-        cashPaymentPaise: Math.round((repaymentData.cashPayment || 0) * 100),
-        summary: repaymentData.summary,
-        notes: 'Partial/Full loan repayment with item returns',
-      },
-    });
+    return this.request(
+      `/api/gold-loans/${repaymentData.loanId}/repayment`,
+      {
+        method: "POST",
+        body: {
+          returnedItemIds: repaymentData.returnedItems || [],
+          cashPaymentPaise: Math.round(
+            (repaymentData.cashPayment || 0) * 100
+          ),
+          summary: repaymentData.summary,
+          notes: "Partial/Full loan repayment with item returns",
+        },
+      }
+    );
   }
 
-  // Complete gold loan (customer returns all money, gets all gold back)
   async completeGoldLoan(loanId, completionData = {}) {
     return this.request(`/api/gold-loans/${loanId}/complete`, {
       method: "PUT",
       body: {
-        finalPaymentPaise: Math.round((completionData.finalPayment || 0) * 100),
+        finalPaymentPaise: Math.round(
+          (completionData.finalPayment || 0) * 100
+        ),
         photos: completionData.photos || [],
-        notes: completionData.notes || 'Loan completed - all gold returned to customer',
+        notes:
+          completionData.notes ||
+          "Loan completed - all gold returned to customer",
       },
     });
   }
 
-  // Add items to existing gold loan
   async addGoldLoanItems(loanId, items) {
     return this.request(`/api/gold-loans/${loanId}/items`, {
       method: "POST",
       body: {
-        items: items.map(item => ({
+        items: items.map((item) => ({
           name: item.name || "Gold Item",
           weightGram: parseFloat(item.weightGram),
           amountPaise: Math.round(parseFloat(item.amount) * 100),
           purityK: parseInt(item.purityK),
           images: item.images || [],
-        }))
+        })),
       },
     });
   }
 
-  // Update specific item
   async updateGoldLoanItem(loanId, itemId, itemData) {
     return this.request(`/api/gold-loans/${loanId}/items/${itemId}`, {
       method: "PUT",
@@ -283,47 +265,41 @@ class ApiService {
     });
   }
 
-  // Remove specific item
   async removeGoldLoanItem(loanId, itemId) {
     return this.request(`/api/gold-loans/${loanId}/items/${itemId}`, {
       method: "DELETE",
     });
   }
 
-  // Validate loan closure
   async validateGoldLoanClosure(loanId) {
     return this.request(`/api/gold-loans/${loanId}/validate-closure`);
   }
 
-  // Get outstanding summary
   async getGoldLoanOutstanding(loanId) {
     return this.request(`/api/gold-loans/${loanId}/outstanding-summary`);
   }
 
-  // Close gold loan
   async closeGoldLoan(loanId, closureData = {}) {
     return this.request(`/api/gold-loans/${loanId}/close`, {
       method: "PUT",
       body: {
         closureImages: closureData.photos || [],
-        notes: closureData.notes || 'Loan closed',
+        notes: closureData.notes || "Loan closed",
       },
     });
   }
 
-  // Return specific gold loan items
   async returnGoldLoanItems(loanId, itemIds, returnData = {}) {
     return this.request(`/api/gold-loans/${loanId}/return-items`, {
       method: "POST",
       body: {
         itemIds,
         returnImages: returnData.photos || [],
-        notes: returnData.notes || '',
+        notes: returnData.notes || "",
       },
     });
   }
 
-  // Get loan details and reports
   async getGoldLoan(loanId) {
     return this.request(`/api/gold-loans/${loanId}`);
   }
@@ -334,40 +310,22 @@ class ApiService {
 
   async getAllGoldLoans(filters = {}) {
     const params = new URLSearchParams();
-    
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.limit) params.append('limit', filters.limit.toString());
-    if (filters.status) params.append('status', filters.status);
-    if (filters.customer) params.append('customer', filters.customer);
-
+    if (filters.page) params.append("page", filters.page.toString());
+    if (filters.limit) params.append("limit", filters.limit.toString());
+    if (filters.status) params.append("status", filters.status);
+    if (filters.customer) params.append("customer", filters.customer);
     const queryString = params.toString();
-    return this.request(`/api/gold-loans${queryString ? '?' + queryString : ''}`);
+    return this.request(
+      `/api/gold-loans${queryString ? "?" + queryString : ""}`
+    );
   }
 
   async getCustomerGoldLoanSummary(customerId) {
     return this.request(`/api/gold-loans/customer/${customerId}/summary`);
   }
 
-  // Payment history and analytics
-  async getPaymentHistory(filters = {}) {
-    const params = new URLSearchParams();
-    
-    if (filters.page) params.append('page', filters.page.toString());
-    if (filters.limit) params.append('limit', filters.limit.toString());
-    if (filters.customer) params.append('customer', filters.customer);
-    if (filters.month) params.append('month', filters.month.toString());
-    if (filters.year) params.append('year', filters.year.toString());
-
-    const queryString = params.toString();
-    return this.request(`/api/gold-loans/payments/history${queryString ? '?' + queryString : ''}`);
-  }
-
   async getPendingInterest() {
-    return this.request('/api/gold-loans/analytics/pending-interest');
-  }
-
-  async getDashboardStats() {
-    return this.request('/api/gold-loans/analytics/dashboard');
+    return this.request("/api/gold-loans/analytics/pending-interest");
   }
 
   // Metal Sale APIs
@@ -398,7 +356,7 @@ class ApiService {
         startDate: loanData.date,
         dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
         status: "ACTIVE",
-        direction: direction,
+        direction: direction, // -1 for given, 1 for taken
         note: loanData.description,
       },
     });
@@ -421,7 +379,7 @@ class ApiService {
         principalPaise: Math.round(parseFloat(paymentData.principal || 0) * 100),
         interestPaise: Math.round(parseFloat(paymentData.interest || 0) * 100),
         photos: paymentData.photos || [],
-        notes: paymentData.notes || '',
+        notes: paymentData.notes || "",
       },
     });
   }
@@ -482,23 +440,18 @@ class ApiService {
 
   getCurrentMonth() {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   }
 
-  // Convert paise to rupees
   paiseToRupees(paise) {
     return paise / 100;
   }
 
-  // Convert rupees to paise
   rupeesToPaise(rupees) {
     return Math.round(parseFloat(rupees) * 100);
   }
 }
 
-// Create instance and export both default and named export
 const apiService = new ApiService();
-
-// Export both ways to support different import styles
 export default apiService;
 export { apiService as ApiService };
