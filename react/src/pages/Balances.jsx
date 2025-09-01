@@ -14,203 +14,11 @@ import {
   Filter,
   Plus,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
-
-// Mock data
-let mockTransactions = [
-  {
-    id: 1,
-    customerId: 'CUST001',
-    customerName: 'Neha Patel',
-    customerPhone: '+91 9876543210',
-    type: 'borrowed',
-    amount: 100000,
-    date: '2024-06-24',
-    description: 'Gold jewelry purchase - wedding order'
-  },
-  {
-    id: 2,
-    customerId: 'CUST001',
-    customerName: 'Neha Patel',
-    customerPhone: '+91 9876543210',
-    type: 'borrowed',
-    amount: 50000,
-    date: '2024-08-23',
-    description: 'Additional jewelry items'
-  },
-  {
-    id: 3,
-    customerId: 'CUST001',
-    customerName: 'Neha Patel',
-    customerPhone: '+91 9876543210',
-    type: 'borrowed',
-    amount: 20000,
-    date: '2024-08-24',
-    description: 'Emergency gold loan'
-  },
-  {
-    id: 4,
-    customerId: 'CUST001',
-    customerName: 'Neha Patel',
-    customerPhone: '+91 9876543210',
-    type: 'returned',
-    amount: 25000,
-    date: '2024-08-20',
-    description: 'Partial payment'
-  },
-  {
-    id: 5,
-    customerId: 'CUST002',
-    customerName: 'Raj Shah',
-    customerPhone: '+91 9876543211',
-    type: 'borrowed',
-    amount: 75000,
-    date: '2024-08-15',
-    description: 'Gold loan for business'
-  },
-  {
-    id: 6,
-    customerId: 'CUST002',
-    customerName: 'Raj Shah',
-    customerPhone: '+91 9876543211',
-    type: 'returned',
-    amount: 30000,
-    date: '2024-08-22',
-    description: 'First installment payment'
-  },
-  {
-    id: 7,
-    customerId: 'CUST003',
-    customerName: 'Priya Sharma',
-    customerPhone: '+91 9876543212',
-    type: 'lent',
-    amount: 40000,
-    date: '2024-08-10',
-    description: 'Advance payment for custom jewelry order'
-  },
-  {
-    id: 8,
-    customerId: 'CUST004',
-    customerName: 'Amit Kumar',
-    customerPhone: '+91 9876543213',
-    type: 'borrowed',
-    amount: 25000,
-    date: '2024-08-20',
-    description: 'Gold purchase'
-  }
-];
-
-// Utility functions
-const getCustomerBalances = () => {
-  const customerMap = {};
-  
-  mockTransactions.forEach(transaction => {
-    if (!customerMap[transaction.customerId]) {
-      customerMap[transaction.customerId] = {
-        customerId: transaction.customerId,
-        customerName: transaction.customerName,
-        customerPhone: transaction.customerPhone,
-        totalBorrowed: 0,
-        totalReturned: 0,
-        totalLent: 0,
-        netBalance: 0,
-        transactions: [],
-        lastTransactionDate: null
-      };
-    }
-    
-    customerMap[transaction.customerId].transactions.push(transaction);
-    
-    if (transaction.type === 'borrowed') {
-      customerMap[transaction.customerId].totalBorrowed += transaction.amount;
-    } else if (transaction.type === 'returned') {
-      customerMap[transaction.customerId].totalReturned += transaction.amount;
-    } else if (transaction.type === 'lent') {
-      customerMap[transaction.customerId].totalLent += transaction.amount;
-    }
-    
-    const transactionDate = new Date(transaction.date);
-    if (!customerMap[transaction.customerId].lastTransactionDate || 
-        transactionDate > new Date(customerMap[transaction.customerId].lastTransactionDate)) {
-      customerMap[transaction.customerId].lastTransactionDate = transaction.date;
-    }
-  });
-  
-  Object.values(customerMap).forEach(customer => {
-    customer.netBalance = (customer.totalBorrowed - customer.totalReturned) - customer.totalLent;
-    customer.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-  });
-  
-  return Object.values(customerMap);
-};
-
-const getCustomerTransactionHistory = (customerId) => {
-  const customer = getCustomerBalances().find(c => c.customerId === customerId);
-  if (!customer) return [];
-  
-  const sortedTransactions = [...customer.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-  
-  let runningBalance = 0;
-  return sortedTransactions.map(transaction => {
-    if (transaction.type === 'borrowed') {
-      runningBalance += transaction.amount;
-    } else if (transaction.type === 'returned') {
-      runningBalance -= transaction.amount;
-    } else if (transaction.type === 'lent') {
-      runningBalance -= transaction.amount;
-    }
-    
-    return {
-      ...transaction,
-      runningBalance
-    };
-  });
-};
-
-const getBusinessSummary = () => {
-  const customers = getCustomerBalances();
-  
-  return {
-    totalCustomers: customers.length,
-    customersWithBalance: customers.filter(c => Math.abs(c.netBalance) > 0).length,
-    totalMoneyOut: customers.reduce((sum, c) => sum + (c.netBalance > 0 ? c.netBalance : 0), 0),
-    totalMoneyIn: customers.reduce((sum, c) => sum + (c.netBalance < 0 ? Math.abs(c.netBalance) : 0), 0),
-    totalTransactions: mockTransactions.length
-  };
-};
-
-const sendReminder = (customerPhone, amount, customerName) => {
-  const message = `Dear ${customerName}, your outstanding balance is ₹${amount.toLocaleString()}. Please arrange for payment. Thank you!`;
-  alert(`📱 Message sent to ${customerName}:\n\n${message}`);
-  return { success: true, message: 'Reminder sent successfully' };
-};
-
-const getTimeAgo = (date) => {
-  const now = new Date();
-  const transactionDate = new Date(date);
-  const diffTime = Math.abs(now - transactionDate);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays <= 7) return `${diffDays} days ago`;
-  if (diffDays <= 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
-  if (diffDays <= 365) return `${Math.ceil(diffDays / 30)} months ago`;
-  return `${Math.ceil(diffDays / 365)} years ago`;
-};
-
-const getInitials = (name) => {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-};
-
-const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 0
-  }).format(amount);
-};
+import ApiService from '../services/api.js';
 
 const Balances = () => {
   const [customers, setCustomers] = useState([]);
@@ -221,24 +29,176 @@ const Balances = () => {
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [businessSummary, setBusinessSummary] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    loadCustomers();
-    loadBusinessSummary();
+    loadAllData();
   }, []);
 
   useEffect(() => {
     filterCustomers();
   }, [customers, searchTerm, filterType]);
 
-  const loadCustomers = () => {
-    const customerBalances = getCustomerBalances();
-    setCustomers(customerBalances);
+  const loadAllData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await Promise.all([loadCustomers(), loadBusinessSummary()]);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setError(error.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const loadBusinessSummary = () => {
-    const summary = getBusinessSummary();
-    setBusinessSummary(summary);
+  const loadCustomers = async () => {
+    try {
+      // Get all customers
+      const customersResponse = await ApiService.getAllCustomers(1, 1000);
+      
+      if (!customersResponse.success || !customersResponse.data?.customers) {
+        throw new Error('Failed to load customers');
+      }
+
+      const customersData = customersResponse.data.customers;
+      
+      // Calculate balances for each customer by getting their loans and payments
+      const customerBalances = await Promise.all(
+        customersData.map(async (customer) => {
+          try {
+            // Get gold loans and regular loans for this customer
+            const [goldLoansResponse, loansResponse] = await Promise.all([
+              ApiService.getGoldLoansByCustomer(customer._id).catch(() => ({ data: { loans: [] } })),
+              ApiService.getLoansByCustomer(customer._id).catch(() => ({ data: { loans: [] } }))
+            ]);
+
+            const goldLoans = goldLoansResponse.data?.loans || [];
+            const regularLoans = loansResponse.data?.loans || [];
+
+            // Calculate totals from gold loans
+            let totalBorrowed = 0;
+            let totalReturned = 0;
+            let totalLent = 0;
+            let lastTransactionDate = customer.createdAt;
+
+            // Process gold loans
+            goldLoans.forEach(loan => {
+              const principal = (loan.principalPaise || 0) / 100;
+              const totalPaid = (loan.totalPaidPaise || 0) / 100;
+              
+              totalBorrowed += principal;
+              totalReturned += totalPaid;
+              
+              if (loan.updatedAt && new Date(loan.updatedAt) > new Date(lastTransactionDate)) {
+                lastTransactionDate = loan.updatedAt;
+              }
+            });
+
+            // Process regular loans
+            regularLoans.forEach(loan => {
+              const principal = (loan.principalPaise || 0) / 100;
+              const totalPaid = (loan.totalPaidPaise || 0) / 100;
+              
+              if (loan.direction === 'INCOMING') {
+                totalBorrowed += principal;
+                totalReturned += totalPaid;
+              } else if (loan.direction === 'OUTGOING') {
+                totalLent += principal;
+                // For outgoing loans, payments reduce what they owe us
+                totalLent -= totalPaid;
+              }
+              
+              if (loan.updatedAt && new Date(loan.updatedAt) > new Date(lastTransactionDate)) {
+                lastTransactionDate = loan.updatedAt;
+              }
+            });
+
+            const netBalance = totalBorrowed - totalReturned - totalLent;
+
+            return {
+              customerId: customer._id,
+              customerName: customer.name || 'Unknown Customer',
+              customerPhone: customer.phone || '',
+              customerEmail: customer.email || '',
+              totalBorrowed,
+              totalReturned,
+              totalLent,
+              netBalance,
+              lastTransactionDate,
+              goldLoansCount: goldLoans.length,
+              regularLoansCount: regularLoans.length,
+              rawData: customer,
+              goldLoans,
+              regularLoans
+            };
+          } catch (error) {
+            console.error(`Error processing customer ${customer._id}:`, error);
+            // Return customer with zero balances if there's an error
+            return {
+              customerId: customer._id,
+              customerName: customer.name || 'Unknown Customer',
+              customerPhone: customer.phone || '',
+              customerEmail: customer.email || '',
+              totalBorrowed: 0,
+              totalReturned: 0,
+              totalLent: 0,
+              netBalance: 0,
+              lastTransactionDate: customer.createdAt,
+              goldLoansCount: 0,
+              regularLoansCount: 0,
+              rawData: customer,
+              goldLoans: [],
+              regularLoans: []
+            };
+          }
+        })
+      );
+
+      setCustomers(customerBalances);
+    } catch (error) {
+      console.error('Error loading customers:', error);
+      throw error;
+    }
+  };
+
+  const loadBusinessSummary = async () => {
+    try {
+      // Try to get dashboard stats from API
+      const dashboardResponse = await ApiService.getDashboardStats().catch(() => null);
+      
+      if (dashboardResponse && dashboardResponse.success) {
+        setBusinessSummary({
+          totalCustomers: dashboardResponse.data.totalCustomers || 0,
+          customersWithBalance: dashboardResponse.data.customersWithOutstanding || 0,
+          totalMoneyOut: (dashboardResponse.data.totalOutstandingPaise || 0) / 100,
+          totalMoneyIn: (dashboardResponse.data.totalAdvancesPaise || 0) / 100,
+          totalTransactions: dashboardResponse.data.totalTransactions || 0
+        });
+      } else {
+        // Calculate from customer data if API doesn't provide dashboard stats
+        const summary = {
+          totalCustomers: customers.length,
+          customersWithBalance: customers.filter(c => Math.abs(c.netBalance) > 0).length,
+          totalMoneyOut: customers.reduce((sum, c) => sum + (c.netBalance > 0 ? c.netBalance : 0), 0),
+          totalMoneyIn: customers.reduce((sum, c) => sum + (c.netBalance < 0 ? Math.abs(c.netBalance) : 0), 0),
+          totalTransactions: customers.reduce((sum, c) => sum + c.goldLoansCount + c.regularLoansCount, 0)
+        };
+        setBusinessSummary(summary);
+      }
+    } catch (error) {
+      console.error('Error loading business summary:', error);
+      // Set default values
+      setBusinessSummary({
+        totalCustomers: 0,
+        customersWithBalance: 0,
+        totalMoneyOut: 0,
+        totalMoneyIn: 0,
+        totalTransactions: 0
+      });
+    }
   };
 
   const filterCustomers = () => {
@@ -258,18 +218,168 @@ const Balances = () => {
     setFilteredCustomers(filtered);
   };
 
-  const handleSendReminder = (customer, e) => {
+  const getCustomerTransactionHistory = (customer) => {
+    const transactions = [];
+    
+    // Add gold loan transactions
+    customer.goldLoans.forEach(loan => {
+      transactions.push({
+        id: `gl-${loan._id}`,
+        type: 'borrowed',
+        amount: (loan.principalPaise || 0) / 100,
+        date: loan.startDate || loan.createdAt,
+        description: `Gold Loan - ${loan.items?.length || 0} items`,
+        loanId: loan._id,
+        loanType: 'gold'
+      });
+
+      // Add payment records if available
+      if (loan.payments && loan.payments.length > 0) {
+        loan.payments.forEach(payment => {
+          transactions.push({
+            id: `glp-${payment._id}`,
+            type: 'returned',
+            amount: ((payment.principalPaise || 0) + (payment.interestPaise || 0)) / 100,
+            date: payment.createdAt,
+            description: `Payment for Gold Loan`,
+            loanId: loan._id,
+            loanType: 'gold'
+          });
+        });
+      }
+    });
+
+    // Add regular loan transactions
+    customer.regularLoans.forEach(loan => {
+      const amount = (loan.principalPaise || 0) / 100;
+      transactions.push({
+        id: `rl-${loan._id}`,
+        type: loan.direction === 'INCOMING' ? 'borrowed' : 'lent',
+        amount,
+        date: loan.startDate || loan.createdAt,
+        description: loan.note || `${loan.direction === 'INCOMING' ? 'Regular Loan' : 'Advance Given'}`,
+        loanId: loan._id,
+        loanType: 'regular'
+      });
+
+      // Add payment records
+      if (loan.payments && loan.payments.length > 0) {
+        loan.payments.forEach(payment => {
+          transactions.push({
+            id: `rlp-${payment._id}`,
+            type: loan.direction === 'INCOMING' ? 'returned' : 'received',
+            amount: ((payment.principalPaise || 0) + (payment.interestPaise || 0)) / 100,
+            date: payment.createdAt,
+            description: `Payment for ${loan.direction === 'INCOMING' ? 'Loan' : 'Advance'}`,
+            loanId: loan._id,
+            loanType: 'regular'
+          });
+        });
+      }
+    });
+
+    // Sort by date and calculate running balance
+    transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    let runningBalance = 0;
+    return transactions.map(transaction => {
+      if (transaction.type === 'borrowed') {
+        runningBalance += transaction.amount;
+      } else if (transaction.type === 'returned') {
+        runningBalance -= transaction.amount;
+      } else if (transaction.type === 'lent') {
+        runningBalance -= transaction.amount;
+      } else if (transaction.type === 'received') {
+        runningBalance += transaction.amount;
+      }
+      
+      return {
+        ...transaction,
+        runningBalance
+      };
+    });
+  };
+
+  const handleSendReminder = async (customer, e) => {
     e.stopPropagation();
     const amount = Math.abs(customer.netBalance);
-    sendReminder(customer.customerPhone, amount, customer.customerName);
+    const message = `Dear ${customer.customerName}, your outstanding balance is ₹${amount.toLocaleString()}. Please arrange for payment. Thank you!`;
+    
+    // For now, show alert - in production, integrate with SMS service
+    alert(`📱 Message would be sent to ${customer.customerName}:\n\n${message}`);
   };
 
   const handleCustomerClick = (customer) => {
-    const history = getCustomerTransactionHistory(customer.customerId);
+    const history = getCustomerTransactionHistory(customer);
     setTransactionHistory(history);
     setSelectedCustomer(customer);
     setShowCustomerDetail(true);
   };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadAllData();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const getTimeAgo = (date) => {
+    const now = new Date();
+    const transactionDate = new Date(date);
+    const diffTime = Math.abs(now - transactionDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays <= 7) return `${diffDays} days ago`;
+    if (diffDays <= 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+    if (diffDays <= 365) return `${Math.ceil(diffDays / 30)} months ago`;
+    return `${Math.ceil(diffDays / 365)} years ago`;
+  };
+
+  const getInitials = (name) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 size={48} className="text-blue-600 animate-spin mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Balances</h3>
+          <p className="text-slate-600">Calculating customer balances...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Error Loading Balances</h3>
+          <p className="text-slate-600 mb-6">{error}</p>
+          <button
+            onClick={loadAllData}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Customer Detail Page
   if (showCustomerDetail) {
@@ -312,7 +422,7 @@ const Balances = () => {
                   <TrendingUp size={16} className="text-white" />
                 </div>
                 <p className="text-red-700 text-xs font-medium mb-1">Total Borrowed</p>
-                <p className="font-bold text-red-700 text-lg">{formatCurrency(selectedCustomer?.totalBorrowed)}</p>
+                <p className="font-bold text-red-700 text-lg">{formatCurrency(selectedCustomer?.totalBorrowed || 0)}</p>
               </div>
               
               <div className="text-center p-4 bg-green-50 rounded-xl border border-green-100">
@@ -320,7 +430,7 @@ const Balances = () => {
                   <TrendingDown size={16} className="text-white" />
                 </div>
                 <p className="text-green-700 text-xs font-medium mb-1">Total Returned</p>
-                <p className="font-bold text-green-700 text-lg">{formatCurrency(selectedCustomer?.totalReturned)}</p>
+                <p className="font-bold text-green-700 text-lg">{formatCurrency(selectedCustomer?.totalReturned || 0)}</p>
               </div>
               
               <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-100">
@@ -329,8 +439,20 @@ const Balances = () => {
                 </div>
                 <p className="text-blue-700 text-xs font-medium mb-1">Net Balance</p>
                 <p className={`font-bold text-lg ${selectedCustomer?.netBalance > 0 ? 'text-red-700' : selectedCustomer?.netBalance < 0 ? 'text-green-700' : 'text-slate-700'}`}>
-                  {formatCurrency(Math.abs(selectedCustomer?.netBalance))}
+                  {formatCurrency(Math.abs(selectedCustomer?.netBalance || 0))}
                 </p>
+              </div>
+            </div>
+
+            {/* Loan Summary */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                <p className="text-amber-700 text-xs font-medium">Gold Loans</p>
+                <p className="font-bold text-amber-700">{selectedCustomer?.goldLoansCount || 0}</p>
+              </div>
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                <p className="text-purple-700 text-xs font-medium">Regular Loans</p>
+                <p className="font-bold text-purple-700">{selectedCustomer?.regularLoansCount || 0}</p>
               </div>
             </div>
 
@@ -371,27 +493,30 @@ const Balances = () => {
             </div>
             
             <div className="divide-y divide-slate-100">
-              {transactionHistory.map((transaction, index) => (
+              {transactionHistory.length > 0 ? transactionHistory.map((transaction, index) => (
                 <div key={transaction.id} className="p-6 hover:bg-slate-50 transition-colors">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <div className={`w-3 h-3 rounded-full ${
                           transaction.type === 'borrowed' ? 'bg-red-500' :
-                          transaction.type === 'returned' ? 'bg-green-500' : 'bg-blue-500'
+                          transaction.type === 'returned' ? 'bg-green-500' : 
+                          transaction.type === 'lent' ? 'bg-blue-500' : 'bg-purple-500'
                         }`}></div>
                         <span className="font-semibold text-slate-900">
                           {transaction.type === 'borrowed' ? 'Money Borrowed' :
-                           transaction.type === 'returned' ? 'Payment Received' : 'Advance Given'}
+                           transaction.type === 'returned' ? 'Payment Received' : 
+                           transaction.type === 'lent' ? 'Advance Given' : 'Payment Received'}
                         </span>
                         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-                          {transaction.type.toUpperCase()}
+                          {transaction.loanType?.toUpperCase() || transaction.type.toUpperCase()}
                         </span>
                       </div>
                       
                       <p className={`text-xl font-bold mb-2 ${
                         transaction.type === 'borrowed' ? 'text-red-600' :
-                        transaction.type === 'returned' ? 'text-green-600' : 'text-blue-600'
+                        transaction.type === 'returned' ? 'text-green-600' : 
+                        transaction.type === 'lent' ? 'text-blue-600' : 'text-purple-600'
                       }`}>
                         {formatCurrency(transaction.amount)}
                       </p>
@@ -429,7 +554,12 @@ const Balances = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="p-6 text-center">
+                  <FileText size={24} className="text-slate-300 mx-auto mb-2" />
+                  <p className="text-slate-500">No transactions found</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -440,35 +570,44 @@ const Balances = () => {
   // Main List View
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-     
-          
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 rounded-xl shadow-md">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                  <TrendingUp size={16} />
-                </div>
-                <span className="text-xs font-medium opacity-90">RECEIVABLE</span>
-              </div>
-              <p className="text-2xl font-bold">{formatCurrency(businessSummary.totalMoneyOut || 0)}</p>
-              <p className="text-xs opacity-90">Money to collect</p>
-            </div>
-            
-            <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-xl shadow-md">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                  <TrendingDown size={16} />
-                </div>
-                <span className="text-xs font-medium opacity-90">PAYABLE</span>
-              </div>
-              <p className="text-2xl font-bold">{formatCurrency(businessSummary.totalMoneyIn || 0)}</p>
-              <p className="text-xs opacity-90">Money to pay</p>
-            </div>
-          </div>
-
       <div className="p-4">
+        {/* Header with refresh button */}
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-slate-900">Customer Balances</h1>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="p-2 text-slate-600 hover:bg-white hover:text-slate-900 rounded-xl transition-colors border border-slate-200"
+          >
+            <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+          </button>
+        </div>
+          
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 rounded-xl shadow-md">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                <TrendingUp size={16} />
+              </div>
+              <span className="text-xs font-medium opacity-90">RECEIVABLE</span>
+            </div>
+            <p className="text-2xl font-bold">{formatCurrency(businessSummary.totalMoneyOut || 0)}</p>
+            <p className="text-xs opacity-90">Money to collect</p>
+          </div>
+          
+          <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4 rounded-xl shadow-md">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                <TrendingDown size={16} />
+              </div>
+              <span className="text-xs font-medium opacity-90">PAYABLE</span>
+            </div>
+            <p className="text-2xl font-bold">{formatCurrency(businessSummary.totalMoneyIn || 0)}</p>
+            <p className="text-xs opacity-90">Money to pay</p>
+          </div>
+        </div>
+
         {/* Search Bar */}
         <div className="relative mb-4">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />

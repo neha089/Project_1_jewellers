@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, SortAsc, Grid3X3, List, ChevronDown } from 'lucide-react';
+import { Search, Filter, SortAsc, Grid3X3, List, ChevronDown, Loader2 } from 'lucide-react';
 
 const SearchFilterBar = ({ 
   searchTerm, 
@@ -9,7 +9,8 @@ const SearchFilterBar = ({
   sortBy, 
   setSortBy,
   viewMode,
-  setViewMode 
+  setViewMode,
+  isSearching = false
 }) => {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
@@ -18,11 +19,11 @@ const SearchFilterBar = ({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Search & Filter</h3>
-            <p className="text-sm text-gray-600 mt-1">Find and organize your data efficiently</p>
+            <p className="text-sm text-gray-600 mt-1">Find and organize your customer data efficiently</p>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span>Real-time search</span>
+            <div className={`w-2 h-2 rounded-full ${isSearching ? 'bg-blue-400 animate-pulse' : 'bg-green-400'}`}></div>
+            <span>{isSearching ? 'Searching...' : 'Real-time search'}</span>
           </div>
         </div>
       </div>
@@ -33,21 +34,27 @@ const SearchFilterBar = ({
           {/* Search Input */}
           <div className="flex-1 min-w-64">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Search
+              Search Customers
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              {isSearching ? (
+                <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 animate-spin" size={16} />
+              ) : (
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              )}
               <input
                 type="text"
-                placeholder="Search transactions..."
+                placeholder="Search by name, phone, email, or address..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                disabled={isSearching}
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors text-lg"
+                  disabled={isSearching}
                 >
                   ×
                 </button>
@@ -67,6 +74,7 @@ const SearchFilterBar = ({
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
+                disabled={isSearching}
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -140,6 +148,7 @@ const SearchFilterBar = ({
                   <button
                     onClick={() => setSearchTerm('')}
                     className="ml-1 hover:text-blue-900 transition-colors"
+                    disabled={isSearching}
                   >
                     ×
                   </button>
@@ -174,6 +183,7 @@ const SearchFilterBar = ({
                   setSortBy('name');
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline transition-colors"
+                disabled={isSearching}
               >
                 Clear all
               </button>

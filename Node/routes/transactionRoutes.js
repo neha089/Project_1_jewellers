@@ -1,9 +1,9 @@
 import express from 'express';
-import * as transactionController from '../controllers/transactionController.js';
+import { getAllTransactions, getRecentTransactions } from '../controllers/transactionController.js';
 
 const router = express.Router();
 
-router.get('/', transactionController.getAllTransactions);
-router.get('/recent', transactionController.getRecentTransactions);
+router.get('/', getAllTransactions);
+router.get('/recent', getRecentTransactions);
 
 export default router;

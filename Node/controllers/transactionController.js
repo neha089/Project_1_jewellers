@@ -1,3 +1,5 @@
+import Transaction from "../models/Transaction.js"; // adjust path if needed
+
 export const getAllTransactions = async (req, res) => {
   try {
     const { page = 1, limit = 20, type, category, customer, fromDate, toDate } = req.query;
