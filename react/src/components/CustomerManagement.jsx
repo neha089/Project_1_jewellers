@@ -473,7 +473,7 @@ const CustomerManagement = () => {
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard
             icon={Users}
             title="Total Customers"
@@ -554,7 +554,7 @@ const CustomerManagement = () => {
             )}
           </div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols md:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredCustomers.map((customer) => (
               <CustomerCard
                 key={customer.id}

@@ -58,7 +58,7 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
     { 
       name: 'Bussiness Expense', 
       icon: BarChart3, 
-      path: '/bussiness-expense',
+      path: '/business-expense',
       description: 'Financial Overview'
     },
     { 

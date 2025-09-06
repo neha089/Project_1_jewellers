@@ -233,28 +233,31 @@ const SilverLoanCard = ({
   return (
     <>
       <div 
-        className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl hover:border-gray-400 transition-all duration-300 transform hover:-translate-y-1 cursor-pointer w-full"
+        className="bg-white rounded-xl lg:rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl hover:border-gray-400 transition-all duration-300 transform hover:-translate-y-1 cursor-pointer w-full max-w-full"
         onClick={() => setShowModal(true)}
       >
         {/* Header with Silver Icon */}
-        <div className="bg-gradient-to-r from-gray-50 to-slate-50 p-3 sm:p-5 border-b border-gray-200">
-          <div className="flex items-start justify-between flex-wrap gap-2 sm:gap-0">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-gray-400 via-gray-500 to-gray-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 sm:ring-4 ring-gray-100 flex-shrink-0">
-                <SilverIcon size={20} className="sm:w-6 sm:h-6 drop-shadow-sm" />
+        <div className="bg-gradient-to-r from-gray-50 to-slate-50 p-3 md:p-4 lg:p-5 border-b border-gray-200">
+          <div className="flex items-start justify-between gap-2 md:gap-3 lg:gap-4">
+            <div className="flex items-center gap-2 md:gap-3 lg:gap-4 min-w-0 flex-1">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-gradient-to-br from-gray-400 via-gray-500 to-gray-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 lg:ring-4 ring-gray-100 flex-shrink-0">
+                <SilverIcon size={16} className="sm:w-5 sm:h-5 lg:w-6 lg:h-6 drop-shadow-sm" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{loan.id}</h3>
-                <p className="text-xs sm:text-sm text-gray-700 font-medium truncate">{loan.silverItem}</p>
+                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 truncate leading-tight">{loan.id}</h3>
+                <p className="text-xs sm:text-sm lg:text-sm text-gray-700 font-medium truncate mt-0.5">{loan.silverItem}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
               {(isOverdue || isDueSoon) && (
-                <AlertTriangle size={16} className={`sm:w-[18px] sm:h-[18px] ${isOverdue ? 'text-red-500' : 'text-yellow-500'}`} />
+                <AlertTriangle 
+                  size={14} 
+                  className={`sm:w-4 sm:h-4 lg:w-[18px] lg:h-[18px] ${isOverdue ? 'text-red-500' : 'text-yellow-500'}`} 
+                />
               )}
-              <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-semibold rounded-full border whitespace-nowrap ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}>
+              <span className={`inline-flex items-center gap-1 px-2 sm:px-2.5 lg:px-3 py-1 text-xs font-semibold rounded-full border whitespace-nowrap ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}>
                 <StatusIcon size={10} className="sm:w-3 sm:h-3" />
-                {statusConfig.label}
+                <span className="hidden sm:inline">{statusConfig.label}</span>
               </span>
             </div>
           </div>
@@ -262,13 +265,13 @@ const SilverLoanCard = ({
 
         {/* Alert Section */}
         {(isOverdue || isDueSoon) && (
-          <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-400 p-3">
+          <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-400 p-2.5 md:p-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle size={14} className="sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
+              <AlertTriangle size={12} className="sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
               <span className="text-xs sm:text-sm font-medium text-red-800">
                 {isOverdue 
-                  ? `Payment overdue by ${Math.abs(daysUntilDue)} days`
-                  : `Payment due in ${daysUntilDue} days`
+                  ? `Overdue by ${Math.abs(daysUntilDue)} days`
+                  : `Due in ${daysUntilDue} days`
                 }
               </span>
             </div>
@@ -276,31 +279,31 @@ const SilverLoanCard = ({
         )}
 
         {/* Essential Information */}
-        <div className="p-3 sm:p-5 space-y-3 sm:space-y-4">
+        <div className="p-3 md:p-4 lg:p-5 space-y-3 md:space-y-4">
           {/* Customer Info */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
               <User size={14} className="sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-              <span className="font-semibold text-gray-900 text-sm sm:text-base truncate">{loan.customerName}</span>
+              <span className="font-semibold text-gray-900 text-sm md:text-base truncate">{loan.customerName}</span>
             </div>
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 ml-6 sm:ml-0">
+            <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 sm:ml-0 ml-6">
               <Phone size={12} className="sm:w-[14px] sm:h-[14px] text-gray-400 flex-shrink-0" />
               <span className="truncate">{loan.customerPhone}</span>
             </div>
           </div>
 
           {/* Key Financial Info */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-4">
-            <div className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg sm:rounded-xl">
-              <div className="text-sm sm:text-lg font-bold text-gray-900 mb-1">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 md:gap-3 lg:gap-4">
+            <div className="text-center p-2.5 md:p-3 lg:p-4 bg-gray-50 rounded-lg lg:rounded-xl">
+              <div className="text-sm md:text-base lg:text-lg font-bold text-gray-900 mb-1 leading-tight">
                 {formatCurrency(loan.loanAmount)}
               </div>
               <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
                 Loan Amount
               </div>
             </div>
-            <div className="text-center p-2 sm:p-3 bg-gradient-to-br from-red-50 to-pink-50 rounded-lg sm:rounded-xl border border-red-100">
-              <div className="text-sm sm:text-lg font-bold text-red-600 mb-1">
+            <div className="text-center p-2.5 md:p-3 lg:p-4 bg-gradient-to-br from-red-50 to-pink-50 rounded-lg lg:rounded-xl border border-red-100">
+              <div className="text-sm md:text-base lg:text-lg font-bold text-red-600 mb-1 leading-tight">
                 {formatCurrency(loan.outstandingAmount)}
               </div>
               <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
@@ -310,21 +313,21 @@ const SilverLoanCard = ({
           </div>
 
           {/* Silver Info */}
-          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg p-3 border border-gray-200">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0 text-xs sm:text-sm">
+          <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg p-2.5 md:p-3 border border-gray-200">
+            <div className="flex flex-col xs:flex-row xs:justify-between xs:items-center gap-1 text-xs md:text-sm">
               <span className="text-gray-600">Weight & Purity:</span>
               <span className="font-semibold text-gray-900">{loan.silverWeight}g • {loan.purity}</span>
             </div>
           </div>
 
-          {/* Due Date */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+          {/* Due Date and Photos */}
+          <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2">
             <div className="flex items-center gap-2">
               <Calendar size={14} className="sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-              <span className="text-xs sm:text-sm text-gray-600">Due: {formatDate(loan.dueDate)}</span>
+              <span className="text-xs md:text-sm text-gray-600">Due: {formatDate(loan.dueDate)}</span>
             </div>
             {loan.photos && loan.photos.length > 0 && (
-              <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-600 ml-6 sm:ml-0">
+              <div className="flex items-center gap-1 text-xs md:text-sm text-gray-600 xs:ml-0 ml-6">
                 <Camera size={12} className="sm:w-[14px] sm:h-[14px]" />
                 <span>{loan.photos.length} photos</span>
               </div>
@@ -333,58 +336,64 @@ const SilverLoanCard = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="px-3 sm:px-5 pb-3 sm:pb-5">
-          <div className="flex flex-wrap gap-2">
+        <div className="px-3 md:px-4 lg:px-5 pb-3 md:pb-4 lg:pb-5">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setShowModal(true);
               }}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 hover:scale-105"
+              className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md lg:rounded-lg transition-all duration-200 hover:scale-105"
             >
-              <Eye size={14} className="sm:w-4 sm:h-4" />
+              <Eye size={12} className="sm:w-4 sm:h-4" />
               <span className="hidden xs:inline">View Details</span>
               <span className="xs:hidden">View</span>
             </button>
+            
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit && onEdit(loan);
               }}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200 hover:scale-105"
+              className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md lg:rounded-lg transition-all duration-200 hover:scale-105"
             >
-              <Edit3 size={14} className="sm:w-4 sm:h-4" />
-              Edit
+              <Edit3 size={12} className="sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Edit</span>
+              <span className="sm:hidden">Edit</span>
             </button>
+            
             {loan.status === 'active' && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onPayment && onPayment(loan);
                 }}
-                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg transition-all duration-200 hover:scale-105 shadow-sm"
+                className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-md lg:rounded-lg transition-all duration-200 hover:scale-105 shadow-sm"
               >
-                <DollarSign size={14} className="sm:w-4 sm:h-4" />
-                Payment
+                <DollarSign size={12} className="sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Payment</span>
+                <span className="sm:hidden">Pay</span>
               </button>
             )}
+            
             {(isOverdue || isDueSoon) && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onSendReminder && onSendReminder(loan);
                 }}
-                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-all duration-200 hover:scale-105"
+                className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-md lg:rounded-lg transition-all duration-200 hover:scale-105"
               >
-                <MessageSquare size={14} className="sm:w-4 sm:h-4" />
-                Remind
+                <MessageSquare size={12} className="sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Remind</span>
+                <span className="sm:hidden">Remind</span>
               </button>
             )}
           </div>
         </div>
       </div>
       
-      {/* Detail Modal would go here - simplified for now */}
+      {/* Detail Modal */}
       {showModal && (
         <SilverLoanDetailModal
           loan={loan}
@@ -407,7 +416,6 @@ const SilverLoanCard = ({
     </>
   );
 };
-
 // Silver Loan Detail Modal
 const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendReminder }) => {
   if (!isOpen || !loan) return null;
@@ -1558,16 +1566,8 @@ const SilverLoanManagement = () => {
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-gray-500 to-gray-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                <SilverIcon size={24} />
-              </div>
-              Silver Loan Management
-            </h1>
-            <p className="text-gray-600 mt-1">Manage your silver-backed loans efficiently</p>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items sm:justify-between gap-4">
+          
           
           <div className="flex items-center gap-3">
             {/* Notification Bell */}
@@ -1715,7 +1715,7 @@ const SilverLoanManagement = () => {
             </div>
 
             {viewMode === 'grid' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredLoans.map(loan => (
                   <SilverLoanCard
                     key={loan.id}
