@@ -1,35 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Gem, 
-  PieChart, 
-  Users, 
-  Coins, 
-  ArrowUpDown, 
-  Wallet, 
-  Percent, 
-  BarChart3, 
-  Settings,
-  Menu,
-  X,
-  Search,
-  Download,
-  UserPlus,
-  Edit,
-  Eye,
-  Plus,
-  Trash2,
-  Mail,
-  MapPin,
-  Calendar,
-  DollarSign
-} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
-// Layout Component
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -47,9 +24,7 @@ const Layout = ({ children }) => {
   };
 
   const handleNotificationClick = () => {
-    // Navigate to balances page
-    window.history.pushState({}, '', '/balances');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    navigate('/balance-expense');
   };
 
   return (
@@ -74,4 +49,5 @@ const Layout = ({ children }) => {
     </div>
   );
 };
+
 export default Layout;

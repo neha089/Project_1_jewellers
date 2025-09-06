@@ -6,14 +6,18 @@ import {
   Coins, 
   ArrowUpDown, 
   Wallet, 
-  Percent, 
   BarChart3, 
   Settings,
   X,
-  DollarSign
+  DollarSign,
+  TrendingUp
 } from 'lucide-react';
+import { NavLink, useLocation } from "react-router-dom";
 
 const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
+  const location = useLocation();
+  
+  // Reordered menu items based on your paper
   const menuItems = [
     { 
       name: 'Dashboard', 
@@ -28,37 +32,70 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
       description: 'Customer Management'
     },
     { 
-      name: 'Balances', 
+      name: 'Udhaar', 
       icon: DollarSign, 
-      path: '/balances',
-      description: 'Money In/Out Tracking'
+      path: '/udhaar',
+      description: 'Money Transactions'
     },
     { 
-      name: 'Gold Loans', 
+      name: 'GoldLoan', 
       icon: Coins, 
-      path: '/gold-loans',
-      description: 'Gold Loan Management'
+      path: '/gold-loan',
+      description: 'Gold Management'
     },
-   
     { 
-      name: 'Analytics', 
+      name: 'SilverLoan', 
+      icon: Wallet, 
+      path: '/silver-loan',
+      description: 'Silver Management'
+    },
+    { 
+      name: 'Loan', 
+      icon: ArrowUpDown, 
+      path: '/loan',
+      description: 'Loan Management'
+    },
+    { 
+      name: 'Bussiness Expense', 
       icon: BarChart3, 
-      path: '/analytics',
-      description: 'Business Insights'
+      path: '/bussiness-expense',
+      description: 'Financial Overview'
+    },
+    { 
+      name: 'Transactions', 
+      icon: Gem, 
+      path: '/transactions',
+      description: 'Transaction Management'
+    },
+    { 
+      name: 'Gold Buy/Sell', 
+      icon: TrendingUp, 
+      path: '/gold-buy-sell',
+      description: 'Gold Trading'
+    },
+    { 
+      name: 'Silver Buy/Sell', 
+      icon: Coins, 
+      path: '/silver-buy-sell',
+      description: 'Silver Bar Management'
+    },
+    { 
+      name: 'Analysis', 
+      icon: Settings, 
+      path: '/analysis',
+      description: 'Business Analysis'
+    },
+    { 
+      name: 'Setting', 
+      icon: Settings, 
+      path: '/setting',
+      description: 'System Settings'
     }
   ];
 
-  const handleNavigation = (path) => {
-    window.history.pushState({}, '', path);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-    if (isMobile) {
-      toggleSidebar();
-    }
-  };
-
   const isActivePath = (path) => {
-    return window.location.pathname === path || 
-           (path === '/dashboard' && window.location.pathname === '/');
+    return location.pathname === path || 
+           (path === '/dashboard' && location.pathname === '/');
   };
 
   return (
@@ -100,20 +137,23 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-2 h-full overflow-y-auto pb-20">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = isActivePath(item.path);
             
             return (
-              <button
+              <NavLink
                 key={item.name}
-                onClick={() => handleNavigation(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group ${
-                  isActive
+                to={item.path}
+                onClick={isMobile ? toggleSidebar : undefined}
+                className={({ isActive: navIsActive }) => `
+                  w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 group
+                  ${navIsActive || isActive
                     ? 'bg-blue-50 text-blue-700 border border-blue-100 shadow-sm'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
+                  }
+                `}
               >
                 <Icon 
                   size={20} 
@@ -131,21 +171,10 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
                     {item.description}
                   </div>
                 </div>
-              </button>
+              </NavLink>
             );
           })}
         </nav>
-
-        {/* Bottom Section */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-gray-50">
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-xl transition-colors">
-            <Settings size={20} className="text-gray-400" />
-            <div>
-              <div className="font-medium">Settings</div>
-              <div className="text-xs text-gray-400">Preferences & Config</div>
-            </div>
-          </button>
-        </div>
       </aside>
     </>
   );
