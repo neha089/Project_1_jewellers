@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 const Loan = () => {
-    
+
   // State Management
   const [loans, setLoans] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -1286,6 +1286,11 @@ const Loan = () => {
     );
   };
 
+
+
+
+
+  
   // Main Render
   return (
     <div className="min-h-screen bg-slate-50">
