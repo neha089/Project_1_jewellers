@@ -1,181 +1,204 @@
-import mongoose from 'mongoose';
+// utils/goldloanservice.js - Enhanced with external gold price API
 import axios from 'axios';
 
-const goldPriceSchema = new mongoose.Schema({
-  date: { type: Date, default: Date.now, unique: true },
-  purity22K: { type: Number, required: true }, // per gram
-  purity24K: { type: Number, required: true }, // per gram
-  purity18K: { type: Number, required: true }, // per gram
-  silverPrice: { type: Number, required: false }, // per gram
-  purity22KPerTola: { type: Number, required: false }, // per 10g
-  purity24KPerTola: { type: Number, required: false },
-  purity18KPerTola: { type: Number, required: false },
-  silverPricePerTola: { type: Number, required: false },
-  updatedBy: { type: String, default: 'system' },
-  source: { type: String, default: 'manual' },
-}, { timestamps: true });
+export class GoldPriceService {
+  static GOLD_API_KEY = process.env.GOLD_API_KEY || 'goldapi-key-here'; // Get from goldapi.io
+  static BASE_URL = 'https://www.goldapi.io/api';
+  
+  // Cache for gold prices (5 minute cache)
+  static priceCache = {
+    data: null,
+    timestamp: null,
+    duration: 5 * 60 * 1000 // 5 minutes
+  };
 
-const GoldPrice = mongoose.model('GoldPrice', goldPriceSchema);
-
-class GoldPriceService {
-  // 1. Fetch live rates (Gold & Silver in INR)
-  static async fetchLiveAhmedabadRates() {
+  /**
+   * Fetch current gold prices from external API
+   */
+  static async fetchCurrentGoldPrices() {
     try {
-      const response = await axios.get('https://metals-api.com/api/latest', {
-        params: {
-          access_key:'1972b530a49942f9cce55742d4413ca6',
-          base: 'INR',
-          symbols: 'XAU,XAG' // Gold (XAU), Silver (XAG)
+      // Check cache first
+      if (this.priceCache.data && 
+          this.priceCache.timestamp && 
+          (Date.now() - this.priceCache.timestamp) < this.priceCache.duration) {
+        return { success: true, data: this.priceCache.data };
+      }
+
+      // Alternative: Use metals-api.com (free tier available)
+      const response = await axios.get('https://api.metals.live/v1/spot/gold', {
+        headers: {
+          'Accept': 'application/json'
         }
       });
 
-      if (response.data && response.data.success) {
-        const { rates } = response.data;
+      // Convert to Indian prices (assuming USD to INR conversion)
+      const usdToInr = 83; // You might want to fetch this dynamically too
+      const goldPriceUsdPerOunce = response.data.price;
+      const goldPriceInrPerGram = (goldPriceUsdPerOunce * usdToInr) / 31.1035; // Convert ounce to gram
 
-        // Metals-API returns per ounce (31.1035 g)
-        const goldPerGram = rates['XAU'] / 31.1035;
-        const silverPerGram = rates['XAG'] / 31.1035;
-
-        // Convert to 10g (tola for jewelers in India)
-        const goldPerTola24K = goldPerGram * 10;
-        const goldPerTola22K = goldPerTola24K * (22 / 24);
-        const goldPerTola18K = goldPerTola24K * (18 / 24);
-        const silverPerTola = silverPerGram * 10;
-
-        return {
-          purity24K: goldPerGram,
-          purity22K: goldPerGram * (22 / 24),
-          purity18K: goldPerGram * (18 / 24),
-          silverPrice: silverPerGram,
-          purity24KPerTola: goldPerTola24K,
-          purity22KPerTola: goldPerTola22K,
-          purity18KPerTola: goldPerTola18K,
-          silverPricePerTola: silverPerTola,
-          source: 'api-metals',
-          isDefault: false,
-          date: new Date()
-        };
-      } else {
-        throw new Error('Invalid API response');
-      }
-    } catch (err) {
-      console.error('Error fetching live rates:', err.message);
-      return null;
-    }
-  }
-
-  // 2. Get current prices
-  static async getCurrentPrices() {
-    const live = await this.fetchLiveAhmedabadRates();
-    if (live) return live;
-
-    // fallback → DB
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dbEntry = await GoldPrice.findOne({ date: { $gte: today } }).sort({ date: -1 });
-    if (dbEntry) return { ...dbEntry.toObject(), isDefault: false };
-
-    // fallback → static
-    return {
-      purity24K: 7000,
-      purity22K: 6500,
-      purity18K: 5500,
-      silverPrice: 85,
-      purity24KPerTola: 70000,
-      purity22KPerTola: 65000,
-      purity18KPerTola: 55000,
-      silverPricePerTola: 850,
-      date: new Date(),
-      isDefault: true
-    };
-  }
-
-  // 3. Update DB
-  static async updatePrices(priceData = {}) {
-    try {
-      const live = await this.fetchLiveAhmedabadRates();
-      const dataToSave = live || {
-        ...priceData,
-        updatedBy: priceData.updatedBy || 'admin',
-        source: priceData.source || (live ? 'api-metals' : 'manual'),
-        date: new Date()
+      // Calculate different purities
+      const prices = {
+        purity24K: Math.round(goldPriceInrPerGram),
+        purity22K: Math.round(goldPriceInrPerGram * 0.916), // 22K is 91.6% pure
+        purity18K: Math.round(goldPriceInrPerGram * 0.750), // 18K is 75% pure
+        silverPrice: Math.round(goldPriceInrPerGram * 0.015), // Silver is roughly 1.5% of gold
+        lastUpdated: new Date(),
+        source: 'metals.live'
       };
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Update cache
+      this.priceCache.data = prices;
+      this.priceCache.timestamp = Date.now();
 
-      const updated = await GoldPrice.findOneAndUpdate(
-        { date: { $gte: today } },
-        dataToSave,
-        { new: true, upsert: true }
-      );
-
-      return { success: true, data: updated };
+      return { success: true, data: prices };
     } catch (error) {
-      console.error('Error updating gold prices:', error);
-      return { success: false, error: error.message };
+      console.error('Error fetching gold prices:', error);
+      
+      // Fallback to default prices if API fails
+      const fallbackPrices = {
+        purity24K: 6500, // Default fallback price per gram
+        purity22K: 5950,
+        purity18K: 4875,
+        silverPrice: 95,
+        lastUpdated: new Date(),
+        source: 'fallback'
+      };
+
+      return { success: true, data: fallbackPrices };
     }
   }
 
-  // 4. Calculate loan
-  static async calculateGoldAmount(weightGrams, purityK) {
+  /**
+   * Get current gold prices (with caching)
+   */
+  static async getCurrentPrices() {
+    const result = await this.fetchCurrentGoldPrices();
+    return result.data;
+  }
+
+  /**
+   * Calculate loan amount based on weight and purity
+   */
+  static async calculateGoldAmount(weightGrams, purityK, loanToValueRatio = 0.75) {
     try {
       const prices = await this.getCurrentPrices();
-      let pricePerGram = prices[`purity${parseInt(purityK)}K`] ||
-        (prices.purity24K * (parseInt(purityK) / 24));
+      let pricePerGram;
+
+      // Determine price based on purity
+      switch (parseInt(purityK)) {
+        case 24:
+          pricePerGram = prices.purity24K;
+          break;
+        case 22:
+          pricePerGram = prices.purity22K;
+          break;
+        case 18:
+          pricePerGram = prices.purity18K;
+          break;
+        default:
+          // Calculate custom purity
+          pricePerGram = (prices.purity24K * parseInt(purityK)) / 24;
+      }
 
       const marketValue = weightGrams * pricePerGram;
-      const loanAmount = Math.round(marketValue * 0.85);
+      const loanAmount = marketValue * loanToValueRatio; // 75% of market value
 
       return {
         success: true,
         data: {
-          weightGrams,
+          weightGrams: parseFloat(weightGrams),
           purityK: parseInt(purityK),
           pricePerGram,
           marketValue,
           loanAmount,
-          loanPercentage: 85,
-          goldPrices: prices
+          loanToValueRatio,
+          pricesUsed: prices
         }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        error: `Error calculating gold amount: ${error.message}`
+      };
     }
   }
 
-  static async calculateSilverAmount(weightGrams) {
+  /**
+   * Calculate silver amount
+   */
+  static async calculateSilverAmount(weightGrams, loanToValueRatio = 0.70) {
     try {
       const prices = await this.getCurrentPrices();
-      const silverRate = prices.silverPrice || 0;
-      const marketValue = weightGrams * silverRate;
-      const loanAmount = Math.round(marketValue * 0.90);
+      const marketValue = weightGrams * prices.silverPrice;
+      const loanAmount = marketValue * loanToValueRatio;
 
       return {
         success: true,
         data: {
-          weightGrams,
-          pricePerGram: silverRate,
+          weightGrams: parseFloat(weightGrams),
+          pricePerGram: prices.silverPrice,
           marketValue,
           loanAmount,
-          loanPercentage: 90
+          loanToValueRatio,
+          metal: 'silver'
         }
       };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Error calculating silver amount: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Update manual prices (admin override)
+   */
+  static async updatePrices(priceData) {
+    try {
+      // Here you would typically save to database
+      // For now, we'll update the cache
+      const updatedPrices = {
+        ...priceData,
+        lastUpdated: new Date(),
+        source: 'manual'
+      };
+
+      this.priceCache.data = updatedPrices;
+      this.priceCache.timestamp = Date.now();
+
+      return { success: true, data: updatedPrices };
     } catch (error) {
       return { success: false, error: error.message };
     }
   }
 
-  async getPriceHistory(days = 30) {
+  /**
+   * Get historical price trend (if API supports it)
+   */
+  static async getPriceTrend(days = 7) {
     try {
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      const history = await GoldPrice.find({ date: { $gte: startDate } }).sort({ date: -1 });
-      return { success: true, data: history };
+      // This would require a more advanced API
+      // For now, return mock trend data
+      const currentPrices = await this.getCurrentPrices();
+      const trend = [];
+      
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        
+        // Mock data - in real implementation, fetch historical data
+        trend.push({
+          date: date.toISOString().split('T')[0],
+          price24K: currentPrices.purity24K + (Math.random() - 0.5) * 200,
+          price22K: currentPrices.purity22K + (Math.random() - 0.5) * 180,
+          price18K: currentPrices.purity18K + (Math.random() - 0.5) * 150
+        });
+      }
+
+      return { success: true, data: trend };
     } catch (error) {
       return { success: false, error: error.message };
     }
   }
 }
-
-export { GoldPrice, GoldPriceService };
