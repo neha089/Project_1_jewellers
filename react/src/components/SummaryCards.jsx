@@ -1,19 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { TrendingUp, DollarSign, Users, Package } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Calculator } from "lucide-react";
 import ApiService from "../services/api";
 
 const SummaryCards = () => {
   const [stats, setStats] = useState({
-    activeLoans: 0,
-    totalActivePrincipal: 0,
-    closedLoans: 0,
-    totalLoans: 0,
-    todayInterest: 0,
-    todayPayments: 0,
-    monthlyRevenue: 0,
-    monthlyPayments: 0,
-    monthlyInterest: 0,
-    totalInterestEarned: 0
+    totalIncome: 0,
+    totalExpenses: 0,
+    netProfit: 0,
+    profitMargin: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,117 +24,84 @@ const SummaryCards = () => {
       if (response && response.data) {
         const data = response.data;
 
-        const activeLoanObj = data.loanStats.find(l => l._id === "ACTIVE") || {};
-        const closedLoanObj = data.loanStats.find(l => l._id === "CLOSED") || {};
-        const business = data.businessMetrics || {};
+        // Calculate total income (all money coming in)
+        const totalIncome = (data.recentPayments || [])
+          .filter(p => p.type === 'income')
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-        const today = new Date().toISOString().slice(0, 10);
-        const todayPayments = (data.recentPayments || []).filter(
-          p => p.paymentDate.slice(0, 10) === today
-        );
-        const todayInterest = todayPayments.reduce(
-          (sum, p) => sum + (p.interestPaise || 0),
-          0
-        );
+        // Calculate total expenses (all money going out)
+        const totalExpenses = (data.recentPayments || [])
+          .filter(p => p.type === 'expense')
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
-
-        const monthlyPaymentsArr = (data.recentPayments || []).filter(p => {
-          const d = new Date(p.paymentDate);
-          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-        });
-
-        const monthlyRevenue = monthlyPaymentsArr.reduce(
-          (sum, p) => sum + (p.amount || 0),
-          0
-        );
-        const monthlyPayments = monthlyPaymentsArr.length;
-        const monthlyInterest = monthlyPaymentsArr.reduce(
-          (sum, p) => sum + (p.interestPaise || 0),
-          0
-        );
+        // Calculate net profit
+        const netProfit = totalIncome - totalExpenses;
+        
+        // Calculate profit margin percentage
+        const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100) : 0;
 
         setStats({
-          activeLoans: activeLoanObj.count || 0,
-          totalActivePrincipal: business.totalActivePrincipal || 0,
-          closedLoans: closedLoanObj.count || 0,
-          totalLoans: business.totalLoans || 0,
-          todayInterest,
-          todayPayments: todayPayments.length,
-          monthlyRevenue,
-          monthlyPayments,
-          monthlyInterest,
-          totalInterestEarned: business.totalInterestEarned || 0
+          totalIncome,
+          totalExpenses,
+          netProfit,
+          profitMargin
         });
       } else {
         setStats({
-          activeLoans: 0,
-          totalActivePrincipal: 0,
-          closedLoans: 0,
-          totalLoans: 0,
-          todayInterest: 0,
-          todayPayments: 0,
-          monthlyRevenue: 0,
-          monthlyPayments: 0,
-          monthlyInterest: 0,
-          totalInterestEarned: 0
+          totalIncome: 0,
+          totalExpenses: 0,
+          netProfit: 0,
+          profitMargin: 0
         });
       }
     } catch (error) {
       console.error("Failed to fetch dashboard stats:", error);
       setError("Failed to load dashboard statistics");
       setStats({
-        activeLoans: 0,
-        totalActivePrincipal: 0,
-        closedLoans: 0,
-        totalLoans: 0,
-        todayInterest: 0,
-        todayPayments: 0,
-        monthlyRevenue: 0,
-        monthlyPayments: 0,
-        monthlyInterest: 0,
-        totalInterestEarned: 0
+        totalIncome: 0,
+        totalExpenses: 0,
+        netProfit: 0,
+        profitMargin: 0
       });
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔹 Short Indian format (K, L, Cr)
+  // Format currency in Indian format (K, L, Cr)
   const formatCompactCurrency = (amount) => {
     if (typeof amount !== "number") {
       amount = parseFloat(amount) || 0;
     }
-    if (amount >= 10000000) {
-      return "₹" + (amount / 10000000).toFixed(2).replace(/\.00$/, "") + " Cr";
-    } else if (amount >= 100000) {
-      return "₹" + (amount / 100000).toFixed(2).replace(/\.00$/, "") + " L";
-    } else if (amount >= 1000) {
-      return "₹" + (amount / 1000).toFixed(2).replace(/\.00$/, "") + " K";
+    
+    const isNegative = amount < 0;
+    const absAmount = Math.abs(amount);
+    
+    let formatted;
+    if (absAmount >= 10000000) {
+      formatted = "₹" + (absAmount / 10000000).toFixed(2).replace(/\.00$/, "") + " Cr";
+    } else if (absAmount >= 100000) {
+      formatted = "₹" + (absAmount / 100000).toFixed(2).replace(/\.00$/, "") + " L";
+    } else if (absAmount >= 1000) {
+      formatted = "₹" + (absAmount / 1000).toFixed(2).replace(/\.00$/, "") + " K";
+    } else {
+      formatted = new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0
+      }).format(absAmount);
     }
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const formatNumber = (num) => {
-    if (typeof num !== "number") {
-      num = parseFloat(num) || 0;
-    }
-    return new Intl.NumberFormat("en-IN").format(num);
+    
+    return isNegative ? `-${formatted}` : formatted;
   };
 
   if (loading) {
     return (
-      <div className="flex space-x-6 overflow-x-auto pb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="min-w-[250px] bg-white p-6 rounded-lg shadow-sm border border-gray-200"
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-200"
           >
             <div className="animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
@@ -170,63 +131,82 @@ const SummaryCards = () => {
 
   const summaryData = [
     {
-      title: "Active Loans",
-      value: formatNumber(stats.activeLoans || 0),
-      icon: Package,
-      color: "blue",
-      subtitle: `${formatCompactCurrency(stats.totalActivePrincipal || 0)} principal`,
-      period: "currently active"
-    },
-    {
-      title: "Today's Interest",
-      value: formatCompactCurrency(stats.todayInterest || 0),
-      icon: DollarSign,
-      color: "green",
-      subtitle: `${stats.todayPayments || 0} payments`,
-      period: "received today"
-    },
-    {
-      title: "Monthly Revenue",
-      value: formatCompactCurrency(stats.monthlyRevenue || 0),
+      title: "Total Income",
+      value: formatCompactCurrency(stats.totalIncome || 0),
       icon: TrendingUp,
-      color: "purple",
-      subtitle: `${stats.monthlyPayments || 0} transactions`,
-      period: "this month"
+      color: "emerald",
+      bgGradient: "from-emerald-500 to-green-600",
+      subtitle: "Money received",
+      trend: "+12.5% from last month"
     },
     {
-      title: "Total Loans",
-      value: formatNumber(stats.totalLoans || 0),
-      icon: Users,
-      color: "orange",
-      subtitle: `${stats.closedLoans || 0} closed`,
-      period: "all time"
+      title: "Total Expenses",
+      value: formatCompactCurrency(stats.totalExpenses || 0),
+      icon: TrendingDown,
+      color: "rose",
+      bgGradient: "from-rose-500 to-red-600",
+      subtitle: "Money spent",
+      trend: "-5.2% from last month"
+    },
+    {
+      title: "Net Profit",
+      value: formatCompactCurrency(stats.netProfit || 0),
+      icon: DollarSign,
+      color: stats.netProfit >= 0 ? "blue" : "red",
+      bgGradient: stats.netProfit >= 0 ? "from-blue-500 to-indigo-600" : "from-red-500 to-rose-600",
+      subtitle: "Income - Expenses",
+      trend: `${stats.profitMargin.toFixed(1)}% margin`
+    },
+    {
+      title: "Profit Analysis",
+      value: `${stats.profitMargin.toFixed(1)}%`,
+      icon: Calculator,
+      color: stats.profitMargin >= 0 ? "purple" : "orange",
+      bgGradient: stats.profitMargin >= 0 ? "from-purple-500 to-indigo-600" : "from-orange-500 to-red-600",
+      subtitle: "Profit margin",
+      trend: stats.netProfit >= 0 ? "Profitable business" : "Review expenses"
     }
   ];
 
   return (
-    <div className="flex space-x-6 overflow-x-auto pb-4">
+    <div className="grid grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {summaryData.map((item, index) => (
         <div
           key={index}
-          className="min-w-[250px] bg-white p-6 rounded-lg shadow-sm border border-gray-200"
+          className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">{item.title}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-2">
-                {item.value}
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-12 h-12 bg-gradient-to-r ${item.bgGradient} rounded-xl flex items-center justify-center shadow-lg`}>
+              <item.icon size={24} className="text-white" />
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {item.title}
               </p>
             </div>
-            <div
-              className={`w-12 h-12 bg-${item.color}-100 rounded-lg flex items-center justify-center`}
-            >
-              <item.icon size={24} className={`text-${item.color}-600`} />
-            </div>
           </div>
-          <div className="mt-4 flex items-center text-sm">
-            <span className="text-gray-500">{item.subtitle}</span>
-            <span className="text-gray-400 ml-2">•</span>
-            <span className="text-gray-500 ml-2">{item.period}</span>
+          
+          <div className="mb-3">
+            <h3 className={`text-2xl font-bold ${
+              item.title === "Net Profit" 
+                ? stats.netProfit >= 0 ? "text-blue-600" : "text-red-600"
+                : `text-${item.color}-600`
+            }`}>
+              {item.value}
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">{item.subtitle}</p>
+          </div>
+          
+          <div className="pt-3 border-t border-gray-100">
+            <p className={`text-xs font-medium ${
+              item.trend.includes('+') || item.trend.includes('Profitable') 
+                ? "text-green-600" 
+                : item.trend.includes('Review') 
+                ? "text-red-600" 
+                : "text-gray-600"
+            }`}>
+              {item.trend}
+            </p>
           </div>
         </div>
       ))}

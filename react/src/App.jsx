@@ -22,7 +22,7 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Transactions />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/udhaar" element={<Udhaar />} />
           <Route path="/gold-loan" element={<GoldLoan />} />

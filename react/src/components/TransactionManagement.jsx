@@ -16,8 +16,8 @@ const TransactionManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
-  const [currentStep, setCurrentStep] = useState("search"); // search, customer, category, form
-  const [transactionType, setTransactionType] = useState(""); // income or expense
+  const [currentStep, setCurrentStep] = useState("search"); 
+  const [transactionType, setTransactionType] = useState(""); 
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -25,7 +25,6 @@ const TransactionManagement = () => {
     {}
   );
 
-  // Navigation helper functions
   const goBack = () => {
     if (currentStep === "customer") {
       setCurrentStep("search");
@@ -50,11 +49,9 @@ const TransactionManagement = () => {
     setCurrentStep("category");
   };
 
-  // Fixed: Use useCallback to prevent re-renders and properly handle initial data
   const handleCreateCustomer = useCallback(() => {
     let initialData = {};
 
-    // Pre-fill with search term if it looks like a name
     if (searchTerm && !searchTerm.includes("+91") && searchTerm.length > 2) {
       const nameParts = searchTerm.trim().split(" ");
       initialData = {
@@ -86,19 +83,14 @@ const TransactionManagement = () => {
 
   const handleTransactionSuccess = () => {
     setShowSuccess(true);
-    // Trigger refresh of dashboard stats and recent transactions
     setRefreshTrigger((prev) => prev + 1);
-    // Remove the automatic reset - let user decide when to continue
   };
 
-  // New function to handle "Add Another Transaction" click
   const handleAddAnotherTransaction = () => {
-    // Keep the selected customer but reset other form states
-    // Go back to transaction type selection (income/expense page)
     setShowSuccess(false);
     setTransactionType("");
     setSelectedCategory(null);
-    setCurrentStep("category"); // This will show the income/expense selection
+    setCurrentStep("category"); 
   };
 
   const resetForm = () => {
@@ -114,13 +106,11 @@ const TransactionManagement = () => {
 
   const handleEditTransaction = (transaction) => {
     console.log("Edit transaction:", transaction);
-    // TODO: Implement edit functionality
   };
 
   const handleDeleteTransaction = async (id) => {
     if (window.confirm("Are you sure you want to delete this transaction?")) {
       try {
-        // TODO: Implement delete API call
         console.log("Delete transaction:", id);
         setRefreshTrigger((prev) => prev + 1);
       } catch (error) {

@@ -4,11 +4,12 @@ import SearchFilterBar from "./SearchFilterBar";
 import StatsCard from "./StatsCard";
 import AddCustomerModal from "./AddCustomerModal";
 import CustomerTableRow from "./CustomerTableRow";
+import CustomerDetailView from "./CustomerDetailView";
 // Fix the import - add .js extension and ensure correct path
 import ApiService from "../services/api.js";
-import { 
-  Download, 
-  UserPlus, 
+import {
+  Download,
+  UserPlus,
   Users,
   TrendingUp,
   DollarSign,
@@ -16,6 +17,9 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
+
+
+
 
 const CustomerManagement = () => {
   const [customers, setCustomers] = useState([]);
@@ -28,6 +32,13 @@ const CustomerManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
+  
+  // Customer detail view state
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [showDetailView, setShowDetailView] = useState(false);
+
+
+
 
   // Calculate stats
   const stats = {
@@ -37,27 +48,30 @@ const CustomerManagement = () => {
     totalAmount: customers.reduce((sum, c) => sum + (c.totalAmount || 0), 0)
   };
 
+
+
+
   // Enhanced load customers with better error handling and debugging
   const loadCustomers = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+     
       // Add debugging
       console.log('ApiService object:', ApiService);
       console.log('getAllCustomers method:', typeof ApiService.getAllCustomers);
-      
+     
       // Check if the method exists
       if (typeof ApiService.getAllCustomers !== 'function') {
         throw new Error('ApiService.getAllCustomers is not available. Check your API service import.');
       }
-      
+     
       const response = await ApiService.getAllCustomers(1, 1000);
       console.log('Raw API response:', response);
-      
+     
       // More flexible response handling
       let customersData = [];
-      
+     
       if (response && response.success && response.data) {
         // Handle different possible response structures
         if (Array.isArray(response.data.customers)) {
@@ -78,7 +92,13 @@ const CustomerManagement = () => {
         throw new Error(response?.message || 'Invalid response from server');
       }
 
+
+
+
       console.log('Customers data to transform:', customersData);
+
+
+
 
       // Transform API data to match frontend structure
       const transformedCustomers = customersData.map(customer => {
@@ -88,23 +108,26 @@ const CustomerManagement = () => {
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
 
+
+
+
         return {
           id: customer._id || customer.id,
           firstName,
           lastName,
           phone: customer.phone || '',
           email: customer.email || '',
-          address: customer.address ? 
+          address: customer.address ?
             `${customer.address.street || ''} ${customer.address.city || ''} ${customer.address.state || ''}`.trim() :
             `${customer.city || ''} ${customer.state || ''}`.trim(),
           city: customer.address?.city || customer.city || '',
           state: customer.address?.state || customer.state || '',
           pinCode: customer.address?.pincode || customer.pincode || '',
-          joinDate: customer.createdAt ? 
-            new Date(customer.createdAt).toLocaleDateString('en-US', { 
-              year: 'numeric', 
-              month: 'short', 
-              day: 'numeric' 
+          joinDate: customer.createdAt ?
+            new Date(customer.createdAt).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
             }) : 'Unknown',
           totalLoans: customer.totalLoans || 0,
           totalAmount: (customer.totalAmountTakenByUs || 0) / 100, // Convert paise to rupees
@@ -113,14 +136,14 @@ const CustomerManagement = () => {
           rawData: customer // Keep original data for reference
         };
       });
-      
+     
       console.log('Transformed customers:', transformedCustomers);
       setCustomers(transformedCustomers);
-      
+     
     } catch (error) {
       console.error('Error loading customers:', error);
       setError(error.message || 'Failed to load customers');
-      
+     
       // Set empty array to prevent further errors
       setCustomers([]);
     } finally {
@@ -128,11 +151,14 @@ const CustomerManagement = () => {
     }
   };
 
+
+
+
   // Search customers with API
   const searchCustomersAPI = async (searchQuery, status = 'active') => {
     try {
       setIsSearching(true);
-      
+     
       // Check if search method exists
       if (typeof ApiService.searchCustomers !== 'function') {
         console.warn('ApiService.searchCustomers not available, falling back to local search');
@@ -147,9 +173,9 @@ const CustomerManagement = () => {
           );
         });
       }
-      
+     
       const response = await ApiService.searchCustomers(searchQuery, 1, 1000, status);
-      
+     
       if (response && response.success && response.data?.customers) {
         const transformedCustomers = response.data.customers.map(customer => {
           const name = customer.name || '';
@@ -157,23 +183,26 @@ const CustomerManagement = () => {
           const firstName = nameParts[0] || '';
           const lastName = nameParts.slice(1).join(' ') || '';
 
+
+
+
           return {
             id: customer._id || customer.id,
             firstName,
             lastName,
             phone: customer.phone || '',
             email: customer.email || '',
-            address: customer.address ? 
+            address: customer.address ?
               `${customer.address.street || ''} ${customer.address.city || ''} ${customer.address.state || ''}`.trim() :
               `${customer.city || ''} ${customer.state || ''}`.trim(),
             city: customer.address?.city || customer.city || '',
             state: customer.address?.state || customer.state || '',
             pinCode: customer.address?.pincode || customer.pincode || '',
-            joinDate: customer.createdAt ? 
-              new Date(customer.createdAt).toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
+            joinDate: customer.createdAt ?
+              new Date(customer.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
               }) : 'Unknown',
             totalLoans: customer.totalLoans || 0,
             totalAmount: (customer.totalAmountTakenByUs || 0) / 100,
@@ -182,7 +211,7 @@ const CustomerManagement = () => {
             rawData: customer
           };
         });
-        
+       
         return transformedCustomers;
       } else {
         throw new Error('Search failed');
@@ -205,10 +234,16 @@ const CustomerManagement = () => {
     }
   };
 
+
+
+
   // Filter and sort customers
   useEffect(() => {
     const filterAndSort = async () => {
       let filtered = [...customers];
+
+
+
 
       // If there's a search term, use API search
       if (searchTerm.trim()) {
@@ -220,6 +255,9 @@ const CustomerManagement = () => {
           filtered = filtered.filter(customer => customer.status === statusFilter);
         }
       }
+
+
+
 
       // Apply sorting
       filtered.sort((a, b) => {
@@ -235,11 +273,20 @@ const CustomerManagement = () => {
         }
       });
 
+
+
+
       setFilteredCustomers(filtered);
     };
 
+
+
+
     filterAndSort();
   }, [customers, searchTerm, statusFilter, sortBy]);
+
+
+
 
   // Load customers on component mount
   useEffect(() => {
@@ -248,19 +295,25 @@ const CustomerManagement = () => {
       loadCustomers();
     }, 100);
 
+
+
+
     return () => clearTimeout(timer);
   }, []);
+
+
+
 
   const handleAddCustomer = async (formData) => {
     try {
       setLoading(true);
       setError(null);
-      
+     
       // Check if create method exists
       if (typeof ApiService.createCustomer !== 'function') {
         throw new Error('ApiService.createCustomer is not available');
       }
-      
+     
       // Transform form data to API format
       const customerData = {
         name: `${formData.firstName} ${formData.lastName}`,
@@ -278,9 +331,12 @@ const CustomerManagement = () => {
         }
       };
 
+
+
+
       console.log('Creating customer with data:', customerData);
       const response = await ApiService.createCustomer(customerData);
-      
+     
       if (response && response.success) {
         // Reload customers to get the updated list
         await loadCustomers();
@@ -296,35 +352,29 @@ const CustomerManagement = () => {
     }
   };
 
+
+
+
   const handleEdit = (customer) => {
     alert(`Edit functionality for ${customer.firstName} ${customer.lastName} will be implemented in the next phase`);
   };
 
-  const handleView = async (customer) => {
-    try {
-      // Check if methods exist before calling
-      const promises = [];
-      
-      if (typeof ApiService.getGoldLoansByCustomer === 'function') {
-        promises.push(ApiService.getGoldLoansByCustomer(customer.id));
-      }
-      
-      if (typeof ApiService.getLoansByCustomer === 'function') {
-        promises.push(ApiService.getLoansByCustomer(customer.id));
-      }
 
-      if (promises.length > 0) {
-        const responses = await Promise.all(promises);
-        console.log('Customer loans:', responses);
-      }
-      
-      // For now, show alert - replace with detailed view modal
-      alert(`Detailed view for ${customer.firstName} ${customer.lastName} - Customer data loaded`);
-    } catch (error) {
-      console.error('Error loading customer details:', error);
-      alert(`Error loading details for ${customer.firstName} ${customer.lastName}: ${error.message}`);
-    }
+
+
+  const handleView = (customer) => {
+    setSelectedCustomerId(customer.id);
+    setShowDetailView(true);
   };
+
+
+  const handleBackFromDetail = () => {
+    setShowDetailView(false);
+    setSelectedCustomerId(null);
+  };
+
+
+
 
   const handleExport = () => {
     try {
@@ -346,7 +396,7 @@ const CustomerManagement = () => {
           c.joinDate
         ])
       ].map(row => row.join(',')).join('\n');
-      
+     
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -360,9 +410,15 @@ const CustomerManagement = () => {
     }
   };
 
+
+
+
   const handleRefresh = () => {
     loadCustomers();
   };
+
+
+
 
   // Debug component - shows API service status
   const debugApiService = () => {
@@ -374,10 +430,27 @@ const CustomerManagement = () => {
     console.log('========================');
   };
 
+
+
+
   // Call debug on component mount
   useEffect(() => {
     debugApiService();
   }, []);
+
+
+  // Show customer detail view if selected
+  if (showDetailView && selectedCustomerId) {
+    return (
+      <CustomerDetailView 
+        customerId={selectedCustomerId} 
+        onBack={handleBackFromDetail}
+      />
+    );
+  }
+
+
+
 
   if (loading && customers.length === 0) {
     return (
@@ -396,6 +469,9 @@ const CustomerManagement = () => {
       </div>
     );
   }
+
+
+
 
   if (error && customers.length === 0) {
     return (
@@ -422,6 +498,9 @@ const CustomerManagement = () => {
       </div>
     );
   }
+
+
+
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
@@ -455,6 +534,9 @@ const CustomerManagement = () => {
           </div>
         </div>
 
+
+
+
         {/* Error Banner */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
@@ -471,6 +553,9 @@ const CustomerManagement = () => {
             </button>
           </div>
         )}
+
+
+
 
         {/* Stats Cards */}
         <div className="grid grid-cols sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -504,6 +589,9 @@ const CustomerManagement = () => {
           />
         </div>
 
+
+
+
         {/* Search and Filter Bar */}
         <SearchFilterBar
           searchTerm={searchTerm}
@@ -516,6 +604,9 @@ const CustomerManagement = () => {
           setViewMode={setViewMode}
           isSearching={isSearching}
         />
+
+
+
 
         {/* Results Count */}
         <div className="flex items-center justify-between">
@@ -533,14 +624,17 @@ const CustomerManagement = () => {
           )}
         </div>
 
+
+
+
         {/* Customer Grid/Table View */}
         {filteredCustomers.length === 0 && !loading ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
             <Users size={48} className="text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No customers found</h3>
             <p className="text-gray-600 mb-6">
-              {searchTerm || statusFilter !== 'all' 
-                ? 'Try adjusting your search or filter criteria' 
+              {searchTerm || statusFilter !== 'all'
+                ? 'Try adjusting your search or filter criteria'
                 : 'Get started by adding your first customer'}
             </p>
             {!searchTerm && statusFilter === 'all' && (
@@ -611,6 +705,9 @@ const CustomerManagement = () => {
           </div>
         )}
 
+
+
+
         {/* Add Customer Modal */}
         <AddCustomerModal
           isOpen={showAddModal}
@@ -622,5 +719,8 @@ const CustomerManagement = () => {
     </div>
   );
 };
+
+
+
 
 export default CustomerManagement;
