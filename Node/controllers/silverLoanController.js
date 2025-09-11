@@ -1,23 +1,23 @@
-// controllers/goldLoanController.js
+// controllers/silverLoanController.js
 import Transaction from '../models/Transaction.js';
 import mongoose from 'mongoose';
-import GoldLoan from '../models/GoldLoan.js';
-import { GoldPriceService } from '../utils/goldloanservice.js';
-// controllers/goldLoanController.js - COMPLETE ENHANCED VERSION
+import SilverLoan from '../models/SilverLoan.js';
+import { SilverPriceService } from '../utils/silverloanservice.js';
+// controllers/silverLoanController.js - COMPLETE ENHANCED VERSION
 
-// Create new gold loan with auto-calculated amounts based on current gold prices
-export const createGoldLoan = async (req, res) => {
+// Create new silver loan with auto-calculated amounts based on current silver prices
+export const createSilverLoan = async (req, res) => {
   try {
     const { customer, items, interestRateMonthlyPct, startDate, dueDate, notes } = req.body;
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ 
         success: false, 
-        error: 'At least one item is required for gold loan' 
+        error: 'At least one item is required for silver loan' 
       });
     }
 
-    // Auto-calculate amounts for items based on current gold prices
+    // Auto-calculate amounts for items based on current silver prices
     const processedItems = [];
     let totalPrincipalPaise = 0;
     const currentPrices = await GoldPriceService.getCurrentPrices();
@@ -30,7 +30,7 @@ export const createGoldLoan = async (req, res) => {
         });
       }
 
-      // Auto-calculate amount based on current gold price
+      // Auto-calculate amount based on current silver price
       const calculation = await GoldPriceService.calculateGoldAmount(
         parseFloat(item.weightGram), 
         parseInt(item.purityK)
@@ -38,7 +38,7 @@ export const createGoldLoan = async (req, res) => {
       
       if (calculation.success) {
         const processedItem = {
-          name: item.name || 'Gold Item',
+          name: item.name || 'silver Item',
           weightGram: parseFloat(item.weightGram),
           amountPaise: Math.round(calculation.data.loanAmount * 100),
           purityK: parseInt(item.purityK),
@@ -58,7 +58,7 @@ export const createGoldLoan = async (req, res) => {
       }
     }
 
-    const goldLoan = new GoldLoan({
+    const silverLoan = new SilverLoan({
       customer,
       items: processedItems,
       interestRateMonthlyPct: parseFloat(interestRateMonthlyPct),
@@ -68,7 +68,7 @@ export const createGoldLoan = async (req, res) => {
       status: 'ACTIVE',
       notes,
       currentPrincipalPaise: totalPrincipalPaise,
-      goldPriceAtCreation: {
+      silverPriceAtCreation: {
         purity22K: currentPrices.purity22K,
         purity24K: currentPrices.purity24K,
         purity18K: currentPrices.purity18K,
@@ -76,20 +76,20 @@ export const createGoldLoan = async (req, res) => {
       }
     });
 
-    await goldLoan.save();
+    await silverLoan.save();
    
     // Create transaction record for loan disbursement
     const transaction = new Transaction({
-      type: 'GOLD_LOAN_GIVEN',
-      customer: goldLoan.customer,
-      amount: goldLoan.principalPaise,
+      type: 'SILVER_LOAN_GIVEN',
+      customer: silverLoan.customer,
+      amount: silverLoan.principalPaise,
       direction: 1, // outgoing
-      description: `Gold loan given - ${goldLoan.items.length} items (Auto-calculated at ₹${currentPrices.purity24K}/gram)`,
-      relatedDoc: goldLoan._id,
-      relatedModel: 'GoldLoan',
+      description: `silver loan given - ${silverLoan.items.length} items (Auto-calculated at ₹${currentPrices.purity24K}/gram)`,
+      relatedDoc: silverLoan._id,
+      relatedModel: 'SilverLoan',
       category: 'EXPENSE',
       metadata: {
-        goldPrice: currentPrices.purity24K,
+        silverPrice: currentPrices.purity24K,
         weightGrams: processedItems.reduce((sum, item) => sum + item.weightGram, 0),
         itemCount: processedItems.length,
         paymentType: 'DISBURSEMENT'
@@ -106,11 +106,11 @@ export const createGoldLoan = async (req, res) => {
 
     res.status(201).json({ 
       success: true, 
-      data: goldLoan,
+      data: silverLoan,
       calculationDetails: {
         totalItems: processedItems.length,
         totalAmount: totalPrincipalPaise / 100,
-        goldPriceUsed: currentPrices,
+        silverPriceUsed: currentPrices,
         calculatedAt: new Date(),
         itemBreakdown: processedItems.map(item => ({
           name: item.name,
@@ -120,7 +120,7 @@ export const createGoldLoan = async (req, res) => {
           pricePerGram: item.pricePerGramUsed
         }))
       },
-      message: `Gold loan created successfully. Total amount: ₹${(totalPrincipalPaise / 100).toFixed(2)}`
+      message: `silver loan created successfully. Total amount: ₹${(totalPrincipalPaise / 100).toFixed(2)}`
     });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
@@ -138,12 +138,12 @@ export const addInterestPayment = async (req, res) => {
       customAmount = false
     } = req.body;
    
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    if (goldLoan.status !== 'ACTIVE') {
+    if (silverLoan.status !== 'ACTIVE') {
       return res.status(400).json({ 
         success: false, 
         error: 'Cannot add interest payment to inactive loan' 
@@ -151,7 +151,7 @@ export const addInterestPayment = async (req, res) => {
     }
 
     // Get current active principal (excluding returned items)
-    const activeItems = goldLoan.items.filter(item => !item.returnDate);
+    const activeItems = silverLoan.items.filter(item => !item.returnDate);
     let currentActivePrincipal = 0;
     
     for (const item of activeItems) {
@@ -160,16 +160,16 @@ export const addInterestPayment = async (req, res) => {
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
 
-    const monthlyInterestAmount = Math.round((currentActivePrincipal * goldLoan.interestRateMonthlyPct) / 100);
+    const monthlyInterestAmount = Math.round((currentActivePrincipal * silverLoan.interestRateMonthlyPct) / 100);
 
     // Calculate total pending interest up to current month
-    const startDate = new Date(goldLoan.startDate);
+    const startDate = new Date(silverLoan.startDate);
     const currentDate1 = new Date();
     const monthsElapsed = (currentDate1.getFullYear() - startDate.getFullYear()) * 12 + 
                          (currentDate1.getMonth() - startDate.getMonth()) + 1;
     
     const totalInterestDue = monthsElapsed * monthlyInterestAmount;
-    const totalInterestReceived = goldLoan.payments.reduce((sum, p) => sum + p.interestPaise, 0);
+    const totalInterestReceived = silverLoan.payments.reduce((sum, p) => sum + p.interestPaise, 0);
     const totalPendingInterest = Math.max(0, totalInterestDue - totalInterestReceived);
 
     // Auto-fill with current pending interest if not provided
@@ -208,7 +208,7 @@ export const addInterestPayment = async (req, res) => {
     const nextMonthTotalPending = remainingPendingAfterPayment + monthlyInterestAmount;
 
     // Create payment record
-    goldLoan.payments.push({
+    silverLoan.payments.push({
       date: new Date(),
       principalPaise: 0,
       interestPaise: receivedAmount,
@@ -224,17 +224,17 @@ export const addInterestPayment = async (req, res) => {
       nextMonthProjectedPending: nextMonthTotalPending
     });
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     // Create transaction record
     const interestTransaction = new Transaction({
-      type: 'GOLD_LOAN_INTEREST_RECEIVED',
-      customer: goldLoan.customer._id,
+      type: 'SILVER_LOAN_INTEREST_RECEIVED',
+      customer: silverLoan.customer._id,
       amount: receivedAmount,
       direction: -1, // incoming
-      description: `Interest payment - ${goldLoan.customer.name}${receivedAmount < totalPendingInterest ? ' (Partial)' : ''}`,
-      relatedDoc: goldLoan._id,
-      relatedModel: 'GoldLoan',
+      description: `Interest payment - ${silverLoan.customer.name}${receivedAmount < totalPendingInterest ? ' (Partial)' : ''}`,
+      relatedDoc: silverLoan._id,
+      relatedModel: 'SilverLoan',
       category: 'INCOME',
       metadata: {
         paymentType: 'INTEREST',
@@ -247,7 +247,7 @@ export const addInterestPayment = async (req, res) => {
     await interestTransaction.save();
 
     // Get last 3 payment records for response
-    const recentPayments = goldLoan.payments
+    const recentPayments = silverLoan.payments
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 3)
       .map(p => ({
@@ -263,7 +263,7 @@ export const addInterestPayment = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: goldLoan,
+      data: silverLoan,
       interestSummary: {
         monthlyInterestAmount: monthlyInterestAmount / 100,
         totalPendingBefore: totalPendingInterest / 100,
@@ -286,7 +286,7 @@ export const addInterestPayment = async (req, res) => {
   }
 };
 
-// Enhanced item-specific repayment with current gold price calculations (KEY FEATURE)
+// Enhanced item-specific repayment with current silver price calculations (KEY FEATURE)
 export const processItemRepayment = async (req, res) => {
   try {
     const { 
@@ -304,9 +304,9 @@ export const processItemRepayment = async (req, res) => {
       });
     }
 
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
     const repaymentAmountPaise = Math.round(parseFloat(repaymentAmount) * 100);
@@ -314,7 +314,7 @@ export const processItemRepayment = async (req, res) => {
     // Recalculate current values for all unreturned items
     const itemAnalysis = [];
     
-    for (const item of goldLoan.items) {
+    for (const item of silverLoan.items) {
       if (!item.returnDate) {
         const calculation = await GoldPriceService.calculateGoldAmount(
           item.weightGram, 
@@ -387,11 +387,11 @@ export const processItemRepayment = async (req, res) => {
       excessAmount: excessAmount
     };
 
-    goldLoan.payments.push(paymentRecord);
+    silverLoan.payments.push(paymentRecord);
 
     // Mark returned items
     itemsToReturn.forEach(returnItem => {
-      const loanItem = goldLoan.items.id(returnItem._id);
+      const loanItem = silverLoan.items.id(returnItem._id);
       if (loanItem) {
         loanItem.returnDate = currentDate;
         loanItem.returnImages = photos;
@@ -401,7 +401,7 @@ export const processItemRepayment = async (req, res) => {
     });
 
     // Update current principal based on remaining items
-    const remainingItems = goldLoan.items.filter(item => !item.returnDate);
+    const remainingItems = silverLoan.items.filter(item => !item.returnDate);
     let newPrincipalPaise = 0;
     
     for (const item of remainingItems) {
@@ -410,26 +410,26 @@ export const processItemRepayment = async (req, res) => {
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
     
-    goldLoan.currentPrincipalPaise = newPrincipalPaise;
+    silverLoan.currentPrincipalPaise = newPrincipalPaise;
 
     // Update loan status if all items are returned
     if (remainingItems.length === 0) {
-      goldLoan.status = 'COMPLETED';
-      goldLoan.completionDate = currentDate;
+      silverLoan.status = 'COMPLETED';
+      silverLoan.completionDate = currentDate;
     }
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     // Create transaction records
     if (totalReturnValue > 0) {
       const repaymentTransaction = new Transaction({
-        type: 'GOLD_LOAN_PAYMENT',
-        customer: goldLoan.customer._id,
+        type: 'SILVER_LOAN_PAYMENT',
+        customer: silverLoan.customer._id,
         amount: totalReturnValue,
         direction: -1, // incoming
         description: `Item repayment - ${itemsToReturn.length} items returned (${itemsToReturn.map(i => i.name).join(', ')})`,
-        relatedDoc: goldLoan._id,
-        relatedModel: 'GoldLoan',
+        relatedDoc: silverLoan._id,
+        relatedModel: 'SilverLoan',
         category: 'INCOME',
         metadata: {
           paymentType: 'PRINCIPAL',
@@ -451,12 +451,12 @@ export const processItemRepayment = async (req, res) => {
     if (excessAmount > 0) {
       const excessTransaction = new Transaction({
         type: 'EXCESS_PAYMENT',
-        customer: goldLoan.customer._id,
+        customer: silverLoan.customer._id,
         amount: excessAmount,
         direction: -1,
         description: `Excess payment - ₹${(excessAmount / 100).toFixed(2)}`,
-        relatedDoc: goldLoan._id,
-        relatedModel: 'GoldLoan',
+        relatedDoc: silverLoan._id,
+        relatedModel: 'SilverLoan',
         category: 'INCOME',
         metadata: {
           paymentType: 'EXCESS',
@@ -468,7 +468,7 @@ export const processItemRepayment = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: goldLoan,
+      data: silverLoan,
       repaymentSummary: {
         amountPaid: repaymentAmountPaise / 100,
         itemsReturned: itemsToReturn.length,
@@ -484,7 +484,7 @@ export const processItemRepayment = async (req, res) => {
           originalValue: item.originalValuePaise / 100,
           priceChange: (item.currentValuePaise - item.originalValuePaise) / 100
         })),
-        newMonthlyInterest: Math.round((newPrincipalPaise * goldLoan.interestRateMonthlyPct) / 100) / 100
+        newMonthlyInterest: Math.round((newPrincipalPaise * silverLoan.interestRateMonthlyPct) / 100) / 100
       },
       message: itemsToReturn.length > 0 
         ? `${itemsToReturn.length} items returned. ${excessAmount > 0 ? `Excess: ₹${(excessAmount / 100).toFixed(2)}` : ''}`
@@ -498,16 +498,16 @@ export const processItemRepayment = async (req, res) => {
 // Get repayment options with pre-filled amounts and item selection (KEY FEATURE)
 export const getRepaymentOptions = async (req, res) => {
   try {
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
     // Calculate current values for all active items
     const itemOptions = [];
     let totalCurrentValue = 0;
     
-    for (const item of goldLoan.items) {
+    for (const item of silverLoan.items) {
       if (!item.returnDate) {
         const calculation = await GoldPriceService.calculateGoldAmount(
           item.weightGram, 
@@ -581,12 +581,12 @@ export const getRepaymentOptions = async (req, res) => {
       success: true,
       data: {
         loan: {
-          id: goldLoan._id,
-          customerName: goldLoan.customer.name,
-          status: goldLoan.status,
+          id: silverLoan._id,
+          customerName: silverLoan.customer.name,
+          status: silverLoan.status,
           totalActiveItems: itemOptions.length,
-          totalReturnedItems: goldLoan.items.length - itemOptions.length,
-          interestRate: goldLoan.interestRateMonthlyPct
+          totalReturnedItems: silverLoan.items.length - itemOptions.length,
+          interestRate: silverLoan.interestRateMonthlyPct
         },
         totalCurrentLoanValue: totalCurrentValue / 100,
         allItems: itemOptions,
@@ -613,13 +613,13 @@ export const getRepaymentOptions = async (req, res) => {
 // Get interest calculation with pre-filled amounts (KEY FEATURE)
 export const getInterestCalculation = async (req, res) => {
   try {
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    // Get current active principal (based on current gold prices)
-    const activeItems = goldLoan.items.filter(item => !item.returnDate);
+    // Get current active principal (based on current silver prices)
+    const activeItems = silverLoan.items.filter(item => !item.returnDate);
     let currentActivePrincipal = 0;
     
     for (const item of activeItems) {
@@ -628,20 +628,20 @@ export const getInterestCalculation = async (req, res) => {
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
 
-    const monthlyInterestAmount = Math.round((currentActivePrincipal * goldLoan.interestRateMonthlyPct) / 100);
+    const monthlyInterestAmount = Math.round((currentActivePrincipal * silverLoan.interestRateMonthlyPct) / 100);
     
     // Calculate accumulated pending interest
-    const startDate = new Date(goldLoan.startDate);
+    const startDate = new Date(silverLoan.startDate);
     const currentDate = new Date();
     const monthsElapsed = (currentDate.getFullYear() - startDate.getFullYear()) * 12 + 
                          (currentDate.getMonth() - startDate.getMonth()) + 1;
     
     const totalInterestDue = monthsElapsed * monthlyInterestAmount;
-    const totalInterestReceived = goldLoan.payments.reduce((sum, p) => sum + p.interestPaise, 0);
+    const totalInterestReceived = silverLoan.payments.reduce((sum, p) => sum + p.interestPaise, 0);
     const totalPendingInterest = Math.max(0, totalInterestDue - totalInterestReceived);
 
     // Get payment history for last 3 months
-    const recentPayments = goldLoan.payments
+    const recentPayments = silverLoan.payments
       .filter(p => p.interestPaise > 0)
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 3)
@@ -659,12 +659,12 @@ export const getInterestCalculation = async (req, res) => {
       success: true,
       data: {
         loan: {
-          id: goldLoan._id,
-          customerName: goldLoan.customer.name,
-          customerPhone: goldLoan.customer.phone,
-          interestRate: goldLoan.interestRateMonthlyPct,
-          startDate: goldLoan.startDate,
-          status: goldLoan.status,
+          id: silverLoan._id,
+          customerName: silverLoan.customer.name,
+          customerPhone: silverLoan.customer.phone,
+          interestRate: silverLoan.interestRateMonthlyPct,
+          startDate: silverLoan.startDate,
+          status: silverLoan.status,
           activeItems: activeItems.length
         },
         calculation: {
@@ -703,7 +703,7 @@ export const getInterestCalculation = async (req, res) => {
   }
 };
 
-// Get current gold prices for auto-calculation
+// Get current silver prices for auto-calculation
 export const getCurrentGoldPrices = async (req, res) => {
   try {
     const prices = await GoldPriceService.getCurrentPrices();
@@ -716,7 +716,7 @@ export const getCurrentGoldPrices = async (req, res) => {
 // Calculate loan amount based on weight and purity (pre-fill helper)
 export const calculateLoanAmount = async (req, res) => {
   try {
-    const { weightGrams, purityK, metal = 'gold' } = req.query;
+    const { weightGrams, purityK, metal = 'silver' } = req.query;
     
     if (!weightGrams || !purityK) {
       return res.status(400).json({ 
@@ -798,16 +798,16 @@ export const calculateInterest = async (req, res) => {
 // Enhanced interest payment tracking with detailed history
 export const getInterestPaymentHistory = async (req, res) => {
   try {
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    const startDate = new Date(goldLoan.startDate);
+    const startDate = new Date(silverLoan.startDate);
     const currentDate = new Date();
     
     // Get current active principal for interest calculations
-    const activeItems = goldLoan.items.filter(item => !item.returnDate);
+    const activeItems = silverLoan.items.filter(item => !item.returnDate);
     let currentActivePrincipal = 0;
     
     for (const item of activeItems) {
@@ -816,7 +816,7 @@ export const getInterestPaymentHistory = async (req, res) => {
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
 
-    const monthlyInterest = Math.round((currentActivePrincipal * goldLoan.interestRateMonthlyPct) / 100);
+    const monthlyInterest = Math.round((currentActivePrincipal * silverLoan.interestRateMonthlyPct) / 100);
     
     // Generate month-wise interest tracking
     const interestHistory = [];
@@ -828,7 +828,7 @@ export const getInterestPaymentHistory = async (req, res) => {
       const year = currentMonth.getFullYear();
       
       // Find all payments for this month
-      const monthPayments = goldLoan.payments.filter(p => p.forMonth === monthKey && p.interestPaise > 0);
+      const monthPayments = silverLoan.payments.filter(p => p.forMonth === monthKey && p.interestPaise > 0);
       const totalPaidForMonth = monthPayments.reduce((sum, p) => sum + p.interestPaise, 0);
       const remainingForMonth = Math.max(0, monthlyInterest - totalPaidForMonth);
       
@@ -870,7 +870,7 @@ export const getInterestPaymentHistory = async (req, res) => {
     };
 
     // Get last 3 payments for quick reference
-    const lastThreePayments = goldLoan.payments
+    const lastThreePayments = silverLoan.payments
       .filter(p => p.interestPaise > 0)
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 3)
@@ -887,7 +887,7 @@ export const getInterestPaymentHistory = async (req, res) => {
     res.json({
       success: true,
       data: {
-        loan: goldLoan,
+        loan: silverLoan,
         interestHistory: interestHistory.reverse(), // Most recent first
         summary: {
           ...summary,
@@ -913,7 +913,7 @@ export const getInterestPaymentHistory = async (req, res) => {
   }
 };
 
-// Update gold prices
+// Update silver prices
 export const updateGoldPrices = async (req, res) => {
   try {
     const { purity22K, purity24K, purity18K, silverPrice, updatedBy = 'admin' } = req.body;
@@ -934,7 +934,7 @@ export const updateGoldPrices = async (req, res) => {
     res.json({ 
       success: true, 
       data: result.data,
-      message: 'Gold prices updated successfully'
+      message: 'silver prices updated successfully'
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -942,7 +942,7 @@ export const updateGoldPrices = async (req, res) => {
 };
 
 // Rest of the controller functions remain the same...
-export const getAllGoldLoans = async (req, res) => {
+export const getAllSilverLoans = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, customer } = req.query;
     const query = {};
@@ -950,17 +950,17 @@ export const getAllGoldLoans = async (req, res) => {
     if (status) query.status = status;
     if (customer) query.customer = customer;
 
-    const goldLoans = await GoldLoan.find(query)
+    const silverLoans = await SilverLoan.find(query)
       .populate('customer', 'name phone email')
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
 
-    const total = await GoldLoan.countDocuments(query);
+    const total = await SilverLoan.countDocuments(query);
 
     res.json({
       success: true,
-      data: goldLoans,
+      data: silverLoans,
       pagination: {
         current: parseInt(page),
         pages: Math.ceil(total / limit),
@@ -972,19 +972,19 @@ export const getAllGoldLoans = async (req, res) => {
   }
 };
 
-export const getGoldLoanById = async (req, res) => {
+export const getSilverLoanById = async (req, res) => {
   try {
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    const paymentsByMonth = goldLoan.getPaymentsByMonth ? goldLoan.getPaymentsByMonth() : [];
+    const paymentsByMonth = silverLoan.getPaymentsByMonth ? silverLoan.getPaymentsByMonth() : [];
 
     res.json({ 
       success: true, 
       data: {
-        ...goldLoan.toObject(),
+        ...silverLoan.toObject(),
         paymentsByMonth
       }
     });
@@ -996,15 +996,15 @@ export const addPayment = async (req, res) => {
   try {
     const { principalPaise = 0, interestPaise = 0, photos = [], forMonth, notes } = req.body;
    
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
     // Auto-calculate interest for current month if not provided
     let calculatedInterestPaise = interestPaise;
     if (!interestPaise && !principalPaise) {
-      calculatedInterestPaise = goldLoan.calculateMonthlyInterest();
+      calculatedInterestPaise = silverLoan.calculateMonthlyInterest();
     }
 
     // Determine payment month
@@ -1022,7 +1022,7 @@ export const addPayment = async (req, res) => {
     const monthName = monthNames[parseInt(month) - 1];
 
     // Add payment record
-    goldLoan.payments.push({
+    silverLoan.payments.push({
       date: new Date(),
       principalPaise: Math.round(parseFloat(principalPaise)),
       interestPaise: Math.round(parseFloat(calculatedInterestPaise)),
@@ -1034,24 +1034,24 @@ export const addPayment = async (req, res) => {
     });
 
     // Check if loan is fully paid
-    const totalPaid = goldLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
-    if (totalPaid >= goldLoan.principalPaise) {
-      goldLoan.status = 'CLOSED';
-      goldLoan.closureDate = new Date();
+    const totalPaid = silverLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
+    if (totalPaid >= silverLoan.principalPaise) {
+      silverLoan.status = 'CLOSED';
+      silverLoan.closureDate = new Date();
     }
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     // Create transaction records
     if (principalPaise > 0) {
       const principalTransaction = new Transaction({
-        type: 'GOLD_LOAN_PAYMENT',
-        customer: goldLoan.customer._id,
+        type: 'SILVER_LOAN_PAYMENT',
+        customer: silverLoan.customer._id,
         amount: Math.round(parseFloat(principalPaise)),
         direction: -1, // incoming
-        description: `Principal payment for ${monthName} ${year} - ${goldLoan.customer.name}`,
-        relatedDoc: goldLoan._id,
-        relatedModel: 'GoldLoan',
+        description: `Principal payment for ${monthName} ${year} - ${silverLoan.customer.name}`,
+        relatedDoc: silverLoan._id,
+        relatedModel: 'SilverLoan',
         category: 'INCOME'
       });
       await principalTransaction.save();
@@ -1059,13 +1059,13 @@ export const addPayment = async (req, res) => {
 
     if (calculatedInterestPaise > 0) {
       const interestTransaction = new Transaction({
-        type: 'GOLD_LOAN_INTEREST_RECEIVED',
-        customer: goldLoan.customer._id,
+        type: 'SILVER_LOAN_INTEREST_RECEIVED',
+        customer: silverLoan.customer._id,
         amount: Math.round(parseFloat(calculatedInterestPaise)),
         direction: -1, // incoming
-        description: `Interest for ${monthName} ${year} - ${goldLoan.customer.name}`,
-        relatedDoc: goldLoan._id,
-        relatedModel: 'GoldLoan',
+        description: `Interest for ${monthName} ${year} - ${silverLoan.customer.name}`,
+        relatedDoc: silverLoan._id,
+        relatedModel: 'SilverLoan',
         category: 'INCOME'
       });
       await interestTransaction.save();
@@ -1073,7 +1073,7 @@ export const addPayment = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: goldLoan,
+      data: silverLoan,
       paymentSummary: {
         month: `${monthName} ${year}`,
         principalPaid: principalPaise / 100,
@@ -1087,7 +1087,7 @@ export const addPayment = async (req, res) => {
 };
 
 // Continue with existing functions...
-export const getGoldLoansByCustomer = async (req, res) => {
+export const getSilverLoansByCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
     
@@ -1098,11 +1098,11 @@ export const getGoldLoansByCustomer = async (req, res) => {
       });
     }
 
-    const goldLoans = await GoldLoan.find({ customer: customerId })
+    const silverLoans = await SilverLoan.find({ customer: customerId })
       .populate('customer', 'name phone email')
       .sort({ createdAt: -1 });
     
-    const loansWithSummary = goldLoans.map(loan => {
+    const loansWithSummary = silverLoans.map(loan => {
       const totalPrincipalPaid = loan.payments.reduce((sum, p) => sum + p.principalPaise, 0);
       const totalInterestReceived = loan.payments.reduce((sum, p) => sum + p.interestPaise, 0);
       const outstandingPrincipal = loan.principalPaise - totalPrincipalPaid;
@@ -1123,7 +1123,7 @@ export const getGoldLoansByCustomer = async (req, res) => {
       data: loansWithSummary 
     });
   } catch (error) {
-    console.error('Error fetching gold loans by customer:', error);
+    console.error('Error fetching silver loans by customer:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -1132,7 +1132,7 @@ export const getCustomerLoanSummary = async (req, res) => {
   try {
     const { customerId } = req.params;
     
-    const loans = await GoldLoan.find({ customer: customerId })
+    const loans = await SilverLoan.find({ customer: customerId })
       .populate('customer', 'name phone email')
       .sort({ createdAt: -1 });
 
@@ -1225,7 +1225,7 @@ export const getAllPaymentHistory = async (req, res) => {
       { $limit: parseInt(limit) }
     ];
 
-    const payments = await GoldLoan.aggregate(pipeline);
+    const payments = await SilverLoan.aggregate(pipeline);
     
     const countPipeline = [
       { $match: matchCriteria },
@@ -1235,7 +1235,7 @@ export const getAllPaymentHistory = async (req, res) => {
       { $count: 'total' }
     ];
     
-    const countResult = await GoldLoan.aggregate(countPipeline);
+    const countResult = await SilverLoan.aggregate(countPipeline);
     const total = countResult[0]?.total || 0;
 
     res.json({
@@ -1254,7 +1254,7 @@ export const getAllPaymentHistory = async (req, res) => {
 
 export const getPendingInterest = async (req, res) => {
   try {
-    const activeLoans = await GoldLoan.find({ status: 'ACTIVE' })
+    const activeLoans = await SilverLoan.find({ status: 'ACTIVE' })
       .populate('customer', 'name phone');
 
     const pendingData = activeLoans.map(loan => {
@@ -1316,7 +1316,7 @@ export const getPendingInterest = async (req, res) => {
 
 export const getDashboardStats = async (req, res) => {
   try {
-    const stats = await GoldLoan.aggregate([
+    const stats = await SilverLoan.aggregate([
       {
         $group: {
           _id: '$status',
@@ -1335,7 +1335,7 @@ export const getDashboardStats = async (req, res) => {
       }
     ]);
 
-    const recentPayments = await GoldLoan.aggregate([
+    const recentPayments = await SilverLoan.aggregate([
       { $unwind: '$payments' },
       {
         $lookup: {
@@ -1382,13 +1382,13 @@ export const getDashboardStats = async (req, res) => {
 
 export const validateLoanClosure = async (req, res) => {
   try {
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    const totalPaid = goldLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
-    const outstanding = goldLoan.principalPaise - totalPaid;
+    const totalPaid = silverLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
+    const outstanding = silverLoan.principalPaise - totalPaid;
     
     const canClose = outstanding <= 0;
     
@@ -1397,7 +1397,7 @@ export const validateLoanClosure = async (req, res) => {
       data: {
         canClose,
         outstandingAmount: outstanding,
-        totalPrincipal: goldLoan.principalPaise,
+        totalPrincipal: silverLoan.principalPaise,
         totalPaid,
         message: canClose 
           ? 'Loan can be closed' 
@@ -1411,17 +1411,17 @@ export const validateLoanClosure = async (req, res) => {
 
 export const getOutstandingSummary = async (req, res) => {
   try {
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    const totalPrincipalPaid = goldLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
-    const totalInterestReceived = goldLoan.payments.reduce((sum, payment) => sum + payment.interestPaise, 0);
-    const outstandingPrincipal = goldLoan.principalPaise - totalPrincipalPaid;
+    const totalPrincipalPaid = silverLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
+    const totalInterestReceived = silverLoan.payments.reduce((sum, payment) => sum + payment.interestPaise, 0);
+    const outstandingPrincipal = silverLoan.principalPaise - totalPrincipalPaid;
     
-    const monthlyInterest = goldLoan.calculateMonthlyInterest();
-    const startDate = new Date(goldLoan.startDate);
+    const monthlyInterest = silverLoan.calculateMonthlyInterest();
+    const startDate = new Date(silverLoan.startDate);
     const currentDate = new Date();
     const monthsElapsed = (currentDate.getFullYear() - startDate.getFullYear()) * 12 + 
                          (currentDate.getMonth() - startDate.getMonth()) + 1;
@@ -1433,17 +1433,17 @@ export const getOutstandingSummary = async (req, res) => {
       success: true,
       data: {
         loan: {
-          id: goldLoan._id,
-          customer: goldLoan.customer.name,
-          status: goldLoan.status
+          id: silverLoan._id,
+          customer: silverLoan.customer.name,
+          status: silverLoan.status
         },
         principal: {
-          original: goldLoan.principalPaise,
+          original: silverLoan.principalPaise,
           paid: totalPrincipalPaid,
           outstanding: outstandingPrincipal
         },
         interest: {
-          monthlyRate: goldLoan.interestRateMonthlyPct,
+          monthlyRate: silverLoan.interestRateMonthlyPct,
           monthlyAmount: monthlyInterest,
           monthsElapsed,
           totalDue: totalInterestDue,
@@ -1462,21 +1462,21 @@ export const getOutstandingSummary = async (req, res) => {
   }
 };
 
-export const closeGoldLoan = async (req, res) => {
+export const closeSilverLoan = async (req, res) => {
   try {
     const { closureImages = [], notes } = req.body;
 
-    const goldLoan = await GoldLoan.findById(req.params.id).populate("customer");
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: "Gold loan not found" });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate("customer");
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: "silver loan not found" });
     }
 
-    if (goldLoan.status === "CLOSED" || goldLoan.status === "COMPLETED") {
+    if (silverLoan.status === "CLOSED" || silverLoan.status === "COMPLETED") {
       return res.status(400).json({ success: false, error: "Loan is already closed or completed" });
     }
 
-    const totalPaid = goldLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
-    const outstanding = goldLoan.principalPaise - totalPaid;
+    const totalPaid = silverLoan.payments.reduce((sum, payment) => sum + payment.principalPaise, 0);
+    const outstanding = silverLoan.principalPaise - totalPaid;
 
     if (outstanding > 0) {
       return res.status(400).json({
@@ -1485,48 +1485,48 @@ export const closeGoldLoan = async (req, res) => {
       });
     }
 
-    goldLoan.status = "CLOSED";
-    goldLoan.closureDate = new Date();
-    goldLoan.closureImages = closureImages;
-    if (notes) goldLoan.notes = notes;
+    silverLoan.status = "CLOSED";
+    silverLoan.closureDate = new Date();
+    silverLoan.closureImages = closureImages;
+    if (notes) silverLoan.notes = notes;
 
-    goldLoan.items.forEach((item) => {
+    silverLoan.items.forEach((item) => {
       if (!item.returnDate) {
         item.returnDate = new Date();
         item.returnImages = closureImages;
       }
     });
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     const closureTransaction = new Transaction({
-      type: "GOLD_LOAN_CLOSURE",
-      customer: goldLoan.customer._id,
+      type: "SILVER_LOAN_CLOSURE",
+      customer: silverLoan.customer._id,
       amount: 0,
       direction: 0,
-      description: `Gold loan closed - ${goldLoan.items.length} items returned to ${goldLoan.customer.name}`,
-      relatedDoc: goldLoan._id,
-      relatedModel: "GoldLoan",
+      description: `silver loan closed - ${silverLoan.items.length} items returned to ${silverLoan.customer.name}`,
+      relatedDoc: silverLoan._id,
+      relatedModel: "SilverLoan",
       category: "CLOSURE",
     });
     await closureTransaction.save();
 
-    res.json({ success: true, data: goldLoan });
+    res.json({ success: true, data: silverLoan });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-export const completeGoldLoan = async (req, res) => {
+export const completeSilverLoan = async (req, res) => {
   try {
     const { finalPayment = 0, photos = [], notes } = req.body;
     
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    if (goldLoan.status === 'COMPLETED' || goldLoan.status === 'CLOSED') {
+    if (silverLoan.status === 'COMPLETED' || silverLoan.status === 'CLOSED') {
       return res.status(400).json({ 
         success: false, 
         error: 'Loan is already completed or closed' 
@@ -1539,7 +1539,7 @@ export const completeGoldLoan = async (req, res) => {
     if (finalPayment > 0) {
       const finalPaymentPaise = Math.round(parseFloat(finalPayment) * 100);
       
-      goldLoan.payments.push({
+      silverLoan.payments.push({
         date: currentDate,
         principalPaise: finalPaymentPaise,
         interestPaise: 0,
@@ -1551,47 +1551,47 @@ export const completeGoldLoan = async (req, res) => {
       });
 
       const finalPaymentTransaction = new Transaction({
-        type: 'GOLD_LOAN_PAYMENT',
-        customer: goldLoan.customer._id,
+        type: 'SILVER_LOAN_PAYMENT',
+        customer: silverLoan.customer._id,
         amount: finalPaymentPaise,
         direction: -1,
-        description: `Final payment - loan completion - ${goldLoan.customer.name}`,
-        relatedDoc: goldLoan._id,
-        relatedModel: 'GoldLoan',
+        description: `Final payment - loan completion - ${silverLoan.customer.name}`,
+        relatedDoc: silverLoan._id,
+        relatedModel: 'SilverLoan',
         category: 'INCOME'
       });
       await finalPaymentTransaction.save();
     }
 
-    goldLoan.status = 'COMPLETED';
-    goldLoan.completionDate = currentDate;
-    if (photos.length > 0) goldLoan.completionImages = photos;
+    silverLoan.status = 'COMPLETED';
+    silverLoan.completionDate = currentDate;
+    if (photos.length > 0) silverLoan.completionImages = photos;
 
-    goldLoan.items.forEach(item => {
+    silverLoan.items.forEach(item => {
       if (!item.returnDate) {
         item.returnDate = currentDate;
         item.returnImages = photos;
       }
     });
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     const completionTransaction = new Transaction({
-      type: 'GOLD_LOAN_COMPLETION',
-      customer: goldLoan.customer._id,
+      type: 'SILVER_LOAN_COMPLETION',
+      customer: silverLoan.customer._id,
       amount: 0,
       direction: 0,
-      description: `Gold loan completed - All money returned, gold items returned to ${goldLoan.customer.name}`,
-      relatedDoc: goldLoan._id,
-      relatedModel: 'GoldLoan',
+      description: `silver loan completed - All money returned, silver items returned to ${silverLoan.customer.name}`,
+      relatedDoc: silverLoan._id,
+      relatedModel: 'SilverLoan',
       category: 'COMPLETION'
     });
     await completionTransaction.save();
 
     res.json({ 
       success: true, 
-      data: goldLoan,
-      message: 'Gold loan completed successfully. Customer has received their gold back.'
+      data: silverLoan,
+      message: 'silver loan completed successfully. Customer has received their silver back.'
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1600,17 +1600,17 @@ export const completeGoldLoan = async (req, res) => {
 
 export const getLoanReport = async (req, res) => {
   try {
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    const startDate = new Date(goldLoan.startDate);
-    const currentDate = goldLoan.status === 'CLOSED' || goldLoan.status === 'COMPLETED' ? 
-                        new Date(goldLoan.closureDate || goldLoan.completionDate) : new Date();
+    const startDate = new Date(silverLoan.startDate);
+    const currentDate = silverLoan.status === 'CLOSED' || silverLoan.status === 'COMPLETED' ? 
+                        new Date(silverLoan.closureDate || silverLoan.completionDate) : new Date();
     
     const monthlyBreakdown = [];
-    const monthlyInterest = goldLoan.calculateMonthlyInterest();
+    const monthlyInterest = silverLoan.calculateMonthlyInterest();
     
     let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
     
@@ -1619,7 +1619,7 @@ export const getLoanReport = async (req, res) => {
       const monthName = current.toLocaleString('default', { month: 'long' });
       const year = current.getFullYear();
       
-      const payment = goldLoan.payments.find(p => p.forMonth === monthKey);
+      const payment = silverLoan.payments.find(p => p.forMonth === monthKey);
       
       monthlyBreakdown.push({
         month: monthKey,
@@ -1638,11 +1638,11 @@ export const getLoanReport = async (req, res) => {
     }
 
     const report = {
-      loanDetails: goldLoan.toObject(),
+      loanDetails: silverLoan.toObject(),
       monthlyBreakdown,
       summary: {
         totalInterestDue: monthlyBreakdown.reduce((sum, m) => sum + m.interestDue, 0),
-        totalInterestReceived: goldLoan.payments.reduce((sum, p) => sum + p.interestPaise, 0),
+        totalInterestReceived: silverLoan.payments.reduce((sum, p) => sum + p.interestPaise, 0),
         pendingInterest: monthlyBreakdown
           .filter(m => !m.isPaid && m.month <= new Date().toISOString().substr(0, 7))
           .reduce((sum, m) => sum + m.interestDue, 0),
@@ -1669,13 +1669,13 @@ export const returnItems = async (req, res) => {
       });
     }
 
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
     let returnedItems = [];
-    goldLoan.items.forEach(item => {
+    silverLoan.items.forEach(item => {
       if (itemIds.includes(item._id.toString()) && !item.returnDate) {
         item.returnDate = new Date();
         item.returnImages = returnImages;
@@ -1690,16 +1690,16 @@ export const returnItems = async (req, res) => {
       });
     }
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     const returnTransaction = new Transaction({
       type: 'ITEM_RETURN',
-      customer: goldLoan.customer._id,
+      customer: silverLoan.customer._id,
       amount: 0,
       direction: 0,
-      description: `Returned ${returnedItems.length} items to ${goldLoan.customer.name}`,
-      relatedDoc: goldLoan._id,
-      relatedModel: 'GoldLoan',
+      description: `Returned ${returnedItems.length} items to ${silverLoan.customer.name}`,
+      relatedDoc: silverLoan._id,
+      relatedModel: 'SilverLoan',
       category: 'RETURN'
     });
     await returnTransaction.save();
@@ -1707,7 +1707,7 @@ export const returnItems = async (req, res) => {
     res.json({ 
       success: true, 
       data: {
-        loan: goldLoan,
+        loan: silverLoan,
         returnedItems,
         message: `Successfully returned ${returnedItems.length} items`
       }
@@ -1728,12 +1728,12 @@ export const addItems = async (req, res) => {
       });
     }
 
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    if (goldLoan.status === 'CLOSED' || goldLoan.status === 'COMPLETED') {
+    if (silverLoan.status === 'CLOSED' || silverLoan.status === 'COMPLETED') {
       return res.status(400).json({ 
         success: false, 
         error: 'Cannot add items to a closed or completed loan' 
@@ -1741,7 +1741,7 @@ export const addItems = async (req, res) => {
     }
 
     const newItems = items.map(item => ({
-      name: item.name || 'Gold Item',
+      name: item.name || 'silver Item',
       weightGram: parseFloat(item.weightGram),
       amountPaise: Math.round(parseFloat(item.amount) * 100),
       purityK: parseInt(item.purityK),
@@ -1749,22 +1749,22 @@ export const addItems = async (req, res) => {
       addedDate: new Date()
     }));
 
-    goldLoan.items.push(...newItems);
+    silverLoan.items.push(...newItems);
     
     const additionalAmount = newItems.reduce((sum, item) => sum + item.amountPaise, 0);
-    goldLoan.principalPaise += additionalAmount;
+    silverLoan.principalPaise += additionalAmount;
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     if (additionalAmount > 0) {
       const transaction = new Transaction({
-        type: 'GOLD_LOAN_ADDITION',
-        customer: goldLoan.customer._id,
+        type: 'SILVER_LOAN_ADDITION',
+        customer: silverLoan.customer._id,
         amount: additionalAmount,
         direction: 1,
         description: `Additional items added to loan - ${newItems.length} items (₹${(additionalAmount / 100).toFixed(2)})`,
-        relatedDoc: goldLoan._id,
-        relatedModel: 'GoldLoan',
+        relatedDoc: silverLoan._id,
+        relatedModel: 'SilverLoan',
         category: 'EXPENSE'
       });
       await transaction.save();
@@ -1772,7 +1772,7 @@ export const addItems = async (req, res) => {
 
     res.json({ 
       success: true, 
-      data: goldLoan,
+      data: silverLoan,
       addedItems: newItems,
       message: `Successfully added ${newItems.length} items worth ₹${(additionalAmount / 100).toFixed(2)}`
     });
@@ -1786,12 +1786,12 @@ export const updateItem = async (req, res) => {
     const { itemId } = req.params;
     const updateData = req.body;
 
-    const goldLoan = await GoldLoan.findById(req.params.id);
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id);
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    const item = goldLoan.items.id(itemId);
+    const item = silverLoan.items.id(itemId);
     if (!item) {
       return res.status(404).json({ success: false, error: 'Item not found' });
     }
@@ -1802,11 +1802,11 @@ export const updateItem = async (req, res) => {
     if (updateData.images) item.images = updateData.images;
     if (updateData.amountPaise) item.amountPaise = Math.round(parseFloat(updateData.amount) * 100);
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     res.json({ 
       success: true, 
-      data: goldLoan,
+      data: silverLoan,
       updatedItem: item,
       message: 'Item updated successfully'
     });
@@ -1819,17 +1819,17 @@ export const removeItem = async (req, res) => {
   try {
     const { itemId } = req.params;
 
-    const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-    if (!goldLoan) {
-      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'silver loan not found' });
     }
 
-    const item = goldLoan.items.id(itemId);
+    const item = silverLoan.items.id(itemId);
     if (!item) {
       return res.status(404).json({ success: false, error: 'Item not found' });
     }
 
-    if (goldLoan.status === 'CLOSED' || goldLoan.status === 'COMPLETED') {
+    if (silverLoan.status === 'CLOSED' || silverLoan.status === 'COMPLETED') {
       return res.status(400).json({ 
         success: false, 
         error: 'Cannot remove items from a closed or completed loan' 
@@ -1839,25 +1839,25 @@ export const removeItem = async (req, res) => {
     const removedAmount = item.amountPaise;
     item.remove();
 
-    goldLoan.principalPaise -= removedAmount;
+    silverLoan.principalPaise -= removedAmount;
 
-    await goldLoan.save();
+    await silverLoan.save();
 
     const transaction = new Transaction({
-      type: 'GOLD_LOAN_ITEM_REMOVAL',
-      customer: goldLoan.customer._id,
+      type: 'SILVER_LOAN_ITEM_REMOVAL',
+      customer: silverLoan.customer._id,
       amount: removedAmount,
       direction: -1,
       description: `Item removed from loan - ${item.name} (₹${(removedAmount / 100).toFixed(2)})`,
-      relatedDoc: goldLoan._id,
-      relatedModel: 'GoldLoan',
+      relatedDoc: silverLoan._id,
+      relatedModel: 'SilverLoan',
       category: 'INCOME'
     });
     await transaction.save();
 
     res.json({ 
       success: true, 
-      data: goldLoan,
+      data: silverLoan,
       removedAmount,
       message: `Item removed successfully. Loan amount reduced by ₹${(removedAmount / 100).toFixed(2)}`
     });
@@ -1891,8 +1891,8 @@ export const getBusinessAnalytics = async (req, res) => {
         break;
     }
 
-    // Gold Loans Analytics
-    const loanStats = await GoldLoan.aggregate([
+    // silver Loans Analytics
+    const loanStats = await SilverLoan.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate }
@@ -1918,7 +1918,7 @@ export const getBusinessAnalytics = async (req, res) => {
     ]);
 
     // Interest Collection
-    const interestStats = await GoldLoan.aggregate([
+    const interestStats = await SilverLoan.aggregate([
       { $unwind: '$payments' },
       {
         $match: {
@@ -1937,7 +1937,7 @@ export const getBusinessAnalytics = async (req, res) => {
     ]);
 
     // Daily breakdown for the period
-    const dailyBreakdown = await GoldLoan.aggregate([
+    const dailyBreakdown = await SilverLoan.aggregate([
       {
         $match: {
           createdAt: { $gte: startDate, $lte: endDate }
@@ -2004,7 +2004,7 @@ export const getDirectionalAnalytics = async (req, res) => {
       {
         $match: {
           date: { $gte: startDate, $lte: endDate },
-          type: { $in: ['GOLD_LOAN_GIVEN', 'GOLD_LOAN_PAYMENT', 'GOLD_LOAN_INTEREST_RECEIVED'] }
+          type: { $in: ['SILVER_LOAN_GIVEN', 'SILVER_LOAN_PAYMENT', 'SILVER_LOAN_INTEREST_RECEIVED'] }
         }
       },
       {

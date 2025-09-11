@@ -15,12 +15,12 @@ import customerRoutes from "./routes/customerRoutes.js";
 import goldLoanRoutes from "./routes/goldLoanRoutes.js";
 import loanRoutes from "./routes/loanRoutes.js";
 import udhariRoutes from "./routes/udhariRoutes.js";
-import metalSaleRoutes from "./routes/metalSaleRoutes.js";
-import goldPurchaseRoutes from "./routes/goldPurchaseRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
-
+import silverLoanRoutes from "./routes/silverLoanRoutes.js";
+import goldRoutes from "./routes/goldRoutes.js";
+import silverRoutes from "./routes/silverRoutes.js";
 // Import middleware and utilities
 import { generateDailyReminders } from "./utils/reminderService.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -44,10 +44,11 @@ app.use("/exports", express.static(exportsDir));
 // Routes
 app.use("/api/customers", customerRoutes);
 app.use("/api/gold-loans", goldLoanRoutes);
+app.use("/api/silver-loans", silverLoanRoutes);
 app.use("/api/loans", loanRoutes);
 app.use("/api/udhari", udhariRoutes);
-app.use("/api/metal-sales", metalSaleRoutes);
-app.use("/api/gold-purchases", goldPurchaseRoutes);
+app.use('/api/gold', goldRoutes);
+app.use('/api/silver', silverRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/transactions", transactionRoutes);
