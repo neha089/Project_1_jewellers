@@ -97,34 +97,37 @@ const SummaryCards = () => {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-200"
-          >
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-              <div className="h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+      <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8 mb-6 sm:mb-8">
+        <div className="flex flex-wrap -mx-1 sm:-mx-2 lg:-mx-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="w-full sm:w-1/2 lg:w-1/4 px-1 sm:px-2 lg:px-3 mb-2 sm:mb-4">
+              <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 h-full">
+                <div className="animate-pulse">
+                  <div className="h-3 sm:h-4 bg-gray-200 rounded w-1/2 mb-3 sm:mb-4"></div>
+                  <div className="h-6 sm:h-8 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-2 sm:h-3 bg-gray-200 rounded w-1/3"></div>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
-        <div className="text-red-800 font-medium">Dashboard Error</div>
-        <div className="text-red-600 text-sm mt-1">{error}</div>
-        <button
-          onClick={fetchDashboardStats}
-          className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-        >
-          Retry
-        </button>
+      <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8 mb-6 sm:mb-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="text-red-800 font-medium text-sm sm:text-base">Dashboard Error</div>
+          <div className="text-red-600 text-xs sm:text-sm mt-1">{error}</div>
+          <button
+            onClick={fetchDashboardStats}
+            className="mt-2 px-3 py-1 bg-red-600 text-white text-xs sm:text-sm rounded hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -169,48 +172,63 @@ const SummaryCards = () => {
   ];
 
   return (
-    <div className="grid grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8 mb-6 sm:mb-8">
+    {/* Flex container for cards */}
+    <div className="flex flex-wrap gap-4">
       {summaryData.map((item, index) => (
         <div
           key={index}
-          className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+          className="flex-1 min-w-[250px] sm:min-w-[350px] lg:min-w-[400px] bg-white p-4 sm:p-5 lg:p-6 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow h-full"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 bg-gradient-to-r ${item.bgGradient} rounded-xl flex items-center justify-center shadow-lg`}>
-              <item.icon size={24} className="text-white" />
+          {/* Header with Icon and Title */}
+          <div className="flex items-start justify-between mb-3 sm:mb-4">
+            <div
+              className={`w-9 h-9 sm:w-11 sm:h-11 lg:w-12 lg:h-12 bg-gradient-to-r ${item.bgGradient} rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg flex-shrink-0`}
+            >
+              <item.icon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-white" />
             </div>
-            <div className="text-right">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <div className="text-right ml-2 flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider leading-tight truncate">
                 {item.title}
               </p>
             </div>
           </div>
-          
+  
+          {/* Value and Subtitle */}
           <div className="mb-3">
-            <h3 className={`text-2xl font-bold ${
-              item.title === "Net Profit" 
-                ? stats.netProfit >= 0 ? "text-blue-600" : "text-red-600"
-                : `text-${item.color}-600`
-            }`}>
+            <h3
+              className={`text-base sm:text-lg lg:text-xl xl:text-2xl font-bold leading-tight ${
+                item.title === "Net Profit"
+                  ? stats.netProfit >= 0
+                    ? "text-blue-600"
+                    : "text-red-600"
+                  : `text-${item.color}-600`
+              } truncate`}
+            >
               {item.value}
             </h3>
-            <p className="text-sm text-gray-500 mt-1">{item.subtitle}</p>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">{item.subtitle}</p>
           </div>
-          
-          <div className="pt-3 border-t border-gray-100">
-            <p className={`text-xs font-medium ${
-              item.trend.includes('+') || item.trend.includes('Profitable') 
-                ? "text-green-600" 
-                : item.trend.includes('Review') 
-                ? "text-red-600" 
-                : "text-gray-600"
-            }`}>
+  
+          {/* Trend */}
+          <div className="pt-2 sm:pt-3 border-t border-gray-100">
+            <p
+              className={`text-xs font-medium leading-tight truncate ${
+                item.trend.includes("+") || item.trend.includes("Profitable")
+                  ? "text-green-600"
+                  : item.trend.includes("Review")
+                  ? "text-red-600"
+                  : "text-gray-600"
+              }`}
+            >
               {item.trend}
             </p>
           </div>
         </div>
       ))}
     </div>
+  </div>
+  
   );
 };
 
