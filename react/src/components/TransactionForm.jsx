@@ -331,160 +331,207 @@ const TransactionForm = ({
   const isGoldLoanRepayment = selectedCategory?.id === "gold-loan-repayment";
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 bg-${selectedCategory.color}-100 rounded-lg flex items-center justify-center`}>
-            <selectedCategory.icon size={20} className={`text-${selectedCategory.color}-600`} />
+    <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Main Form Container */}
+        <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
+          
+          {/* Header Section */}
+          <div className="p-4 sm:p-5 lg:p-6 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              
+              {/* Transaction Info */}
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-${selectedCategory.color}-100 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0`}>
+                  <selectedCategory.icon size={20} className={`sm:w-6 sm:h-6 text-${selectedCategory.color}-600`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900 truncate">
+                    {selectedCategory.label}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-500 truncate">
+                    Customer: {selectedCustomer.name}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Close Button */}
+              <button 
+                onClick={onBack} 
+                className="text-gray-500 hover:text-gray-700 p-1 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              >
+                <X size={18} className="sm:w-5 sm:h-5" />
+              </button>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">{selectedCategory.label}</h3>
-            <p className="text-sm text-gray-500">{selectedCustomer.name}</p>
+
+          {/* Form Content */}
+          <div className="p-4 sm:p-5 lg:p-6">
+            
+            {/* Error Message */}
+            {errors.submit && (
+              <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                {errors.submit}
+              </div>
+            )}
+
+            {/* Form Fields */}
+            <div className="space-y-4 sm:space-y-6">
+              
+              {/* Loan Selection for Interest Payments and Repayments */}
+              {(isInterestPayment || isRepayment) && (
+                <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <LoanSelector
+                    availableLoans={availableLoans}
+                    selectedLoanId={transactionData.selectedLoanId}
+                    loading={loading}
+                    loadingLoans={loadingLoans}
+                    errors={errors}
+                    onLoanSelect={(loanId) => updateTransactionData({ selectedLoanId: loanId })}
+                  />
+                </div>
+              )}
+
+              {/* Interest Summary Card for Interest Payments */}
+              {isInterestPayment && transactionData.selectedLoanId && (
+                <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <InterestSummaryCard
+                    selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
+                    interestSummary={interestSummary}
+                    categoryId={selectedCategory.id}
+                    currentGoldPrice={currentGoldPrice}
+                  />
+                </div>
+              )}
+
+              {/* Gold Loan Repayment Component */}
+              {isGoldLoanRepayment && transactionData.selectedLoanId && (
+                <div className="bg-amber-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <GoldLoanRepayment
+                    selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
+                    currentGoldPrice={currentGoldPrice}
+                    onRepayment={onSuccess}
+                  />
+                </div>
+              )}
+
+              {/* Gold Loan Items Management */}
+              {isGoldLoan && (
+                <div className="bg-amber-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <GoldLoanItems
+                    items={transactionData.items}
+                    errors={errors}
+                    loading={loading}
+                    onItemsChange={(items) => updateTransactionData({ items })}
+                    currentGoldPrice={currentGoldPrice}
+                  />
+                </div>
+              )}
+
+              {/* Regular Amount Field for Non-Gold-Loan Transactions */}
+              {!isGoldLoan && !isGoldLoanRepayment && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  <AmountField
+                    amount={transactionData.amount}
+                    date={transactionData.date}
+                    errors={errors}
+                    loading={loading}
+                    onChange={handleDataChange}
+                  />
+                </div>
+              )}
+
+              {/* Gold Transaction Fields */}
+              {selectedCategory?.id.includes("gold") && !isGoldLoan && !isGoldLoanRepayment && (
+                <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <GoldTransactionFields
+                    transactionData={transactionData}
+                    errors={errors}
+                    loading={loading}
+                    onChange={handleDataChange}
+                    metalType={selectedCategory?.id.includes("silver") ? "Silver" : "Gold"}
+                    currentGoldPrice={currentGoldPrice}
+                  />
+                </div>
+              )}
+
+              {/* Loan Fields */}
+              {selectedCategory?.id.includes("loan") && !isInterestPayment && !isRepayment && (
+                <div className="bg-indigo-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <LoanFields
+                    transactionData={transactionData}
+                    loading={loading}
+                    onChange={handleDataChange}
+                  />
+                </div>
+              )}
+
+              {/* Description Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  name="description"
+                  value={transactionData.description}
+                  onChange={handleDataChange}
+                  rows={3}
+                  className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base resize-none"
+                  placeholder="Enter transaction details..."
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Photo Upload */}
+              {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("loan")) && !isGoldLoanRepayment && (
+                <div className="bg-green-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <PhotoUpload
+                    photos={transactionData.photos}
+                    loading={loading}
+                    onPhotosChange={(photos) => updateTransactionData({ photos })}
+                  />
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Action Buttons */}
+          {!isGoldLoanRepayment && (
+            <div className="p-4 sm:p-5 lg:p-6 border-t border-gray-100 bg-gray-50">
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                
+                {/* Back Button */}
+                <button
+                  onClick={onBack}
+                  className="text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2 px-3 py-2 hover:bg-gray-200 rounded-lg transition-colors text-sm sm:text-base"
+                  disabled={loading}
+                >
+                  ← Back to Category
+                </button>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                  <button
+                    onClick={onCancel}
+                    className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base font-medium"
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitTransaction}
+                    disabled={loading}
+                    className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm sm:text-base font-medium"
+                  >
+                    <Save size={16} className="sm:w-5 sm:h-5" />
+                    {loading ? "Saving..." : "Save Transaction"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <button onClick={onBack} className="text-gray-500 hover:text-gray-700">
-          <X size={20} />
-        </button>
       </div>
-
-      {errors.submit && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-          {errors.submit}
-        </div>
-      )}
-
-      <div className="space-y-6">
-        {/* Loan Selection for Interest Payments and Repayments */}
-        {(isInterestPayment || isRepayment) && (
-          <LoanSelector
-            availableLoans={availableLoans}
-            selectedLoanId={transactionData.selectedLoanId}
-            loading={loading}
-            loadingLoans={loadingLoans}
-            errors={errors}
-            onLoanSelect={(loanId) => updateTransactionData({ selectedLoanId: loanId })}
-          />
-        )}
-
-        {/* Interest Summary Card for Interest Payments */}
-        {isInterestPayment && transactionData.selectedLoanId && (
-          <InterestSummaryCard
-            selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
-            interestSummary={interestSummary}
-            categoryId={selectedCategory.id}
-            currentGoldPrice={currentGoldPrice}
-          />
-        )}
-
-        {/* Gold Loan Repayment Component */}
-        {isGoldLoanRepayment && transactionData.selectedLoanId && (
-          <GoldLoanRepayment
-            selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
-            currentGoldPrice={currentGoldPrice}
-            onRepayment={onSuccess}
-          />
-        )}
-
-        {/* Gold Loan Items Management */}
-        {isGoldLoan && (
-          <GoldLoanItems
-            items={transactionData.items}
-            errors={errors}
-            loading={loading}
-            onItemsChange={(items) => updateTransactionData({ items })}
-            currentGoldPrice={currentGoldPrice}
-          />
-        )}
-
-        {/* Regular Amount Field for Non-Gold-Loan Transactions */}
-        {!isGoldLoan && !isGoldLoanRepayment && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AmountField
-              amount={transactionData.amount}
-              date={transactionData.date}
-              errors={errors}
-              loading={loading}
-              onChange={handleDataChange}
-            />
-          </div>
-        )}
-
-        {/* Gold Transaction Fields */}
-        {selectedCategory?.id.includes("gold") && !isGoldLoan && !isGoldLoanRepayment && (
-          <GoldTransactionFields
-            transactionData={transactionData}
-            errors={errors}
-            loading={loading}
-            onChange={handleDataChange}
-            metalType={selectedCategory?.id.includes("silver") ? "Silver" : "Gold"}
-            currentGoldPrice={currentGoldPrice}
-          />
-        )}
-
-        {/* Loan Fields */}
-        {selectedCategory?.id.includes("loan") && !isInterestPayment && !isRepayment && (
-          <LoanFields
-            transactionData={transactionData}
-            loading={loading}
-            onChange={handleDataChange}
-          />
-        )}
-
-        {/* Description Field */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description
-          </label>
-          <textarea
-            name="description"
-            value={transactionData.description}
-            onChange={handleDataChange}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter transaction details..."
-            disabled={loading}
-          />
-        </div>
-
-        {/* Photo Upload */}
-        {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("loan")) && !isGoldLoanRepayment && (
-          <PhotoUpload
-            photos={transactionData.photos}
-            loading={loading}
-            onPhotosChange={(photos) => updateTransactionData({ photos })}
-          />
-        )}
-      </div>
-
-      {/* Action Buttons */}
-      {!isGoldLoanRepayment && (
-        <div className="flex justify-between gap-3 mt-6">
-          <button
-            onClick={onBack}
-            className="text-gray-600 hover:text-gray-800 flex items-center gap-2"
-            disabled={loading}
-          >
-            ← Back to Category
-          </button>
-          <div className="flex gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={submitTransaction}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-            >
-              <Save size={16} />
-              {loading ? "Saving..." : "Save Transaction"}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

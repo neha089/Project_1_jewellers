@@ -1,4 +1,4 @@
-// TransactionManagement.js - Main Component with API Integration
+// TransactionManagement.js - Main Component with API Integration (Responsive)
 import React, { useState, useCallback } from "react";
 import { CheckCircle2 } from "lucide-react";
 import SummaryCards from "./SummaryCards";
@@ -120,22 +120,22 @@ const TransactionManagement = () => {
   };
 
   const renderSuccessMessage = () => (
-    <div className="text-center py-12">
-      <CheckCircle2 size={64} className="mx-auto text-green-500 mb-4" />
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+    <div className="text-center py-8 px-4 sm:py-12">
+      <CheckCircle2 size={48} className="mx-auto text-green-500 mb-4 sm:w-16 sm:h-16" />
+      <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
         Transaction Saved Successfully!
       </h3>
-      <p className="text-gray-500 mb-6">Your transaction has been recorded.</p>
-      <div className="flex gap-4 justify-center">
+      <p className="text-sm sm:text-base text-gray-500 mb-6">Your transaction has been recorded.</p>
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
         <button
           onClick={handleAddAnotherTransaction}
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-2 text-sm sm:text-base rounded-lg hover:bg-blue-700 transition-colors order-1 sm:order-none"
         >
           Add Another Transaction
         </button>
         <button
           onClick={handleCancel}
-          className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+          className="bg-gray-300 text-gray-700 px-4 sm:px-6 py-2 sm:py-2 text-sm sm:text-base rounded-lg hover:bg-gray-400 transition-colors order-2 sm:order-none"
         >
           Cancel
         </button>
@@ -146,23 +146,21 @@ const TransactionManagement = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Transaction Header */}
-      <div className="mb-8">
-        <TransactionHeader />
-      </div>
+      
 
-      {/* Summary Cards */}
-      <div className="mb-8">
+      {/* Summary Cards - Full width on all devices */}
+      <div className="w-full px-0">
         <SummaryCards key={refreshTrigger} />
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-6">
+      {/* Main Content - Constrained width with proper padding */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         <div className="max-w-7xl mx-auto">
           {showSuccess && renderSuccessMessage()}
 
           {!showSuccess && (
-            <div>
-              <div className="p-8">
+            <div className="w-full">
+              <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6 lg:p-8">
                 {currentStep === "search" && (
                   <CustomerSearch
                     onCustomerSelect={handleCustomerSelect}
@@ -215,13 +213,15 @@ const TransactionManagement = () => {
         </div>
       </div>
 
-      {/* Recent Transactions */}
-      <div className="px-6 py-4">
-        <RecentTransactions
-          onEdit={handleEditTransaction}
-          onDelete={handleDeleteTransaction}
-          refreshTrigger={refreshTrigger}
-        />
+      {/* Recent Transactions - Full width with proper padding */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto">
+          <RecentTransactions
+            onEdit={handleEditTransaction}
+            onDelete={handleDeleteTransaction}
+            refreshTrigger={refreshTrigger}
+          />
+        </div>
       </div>
     </div>
   );

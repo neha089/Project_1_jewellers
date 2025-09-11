@@ -69,14 +69,12 @@ const Udhaar = () => {
       const customerBalances = await Promise.all(
         customersData.map(async (customer) => {
           try {
-            // Get gold loans and regular loans for this customer
-            const [goldLoansResponse, loansResponse] = await Promise.all([
-              ApiService.getGoldLoansByCustomer(customer._id).catch(() => ({ data: { loans: [] } })),
-              ApiService.getLoansByCustomer(customer._id).catch(() => ({ data: { loans: [] } }))
+            // Get udhaar data
+            const [UdhaarResponse] = await Promise.all([
+              //ApiService.getcustomeridudhaar 
             ]);
 
-            const goldLoans = goldLoansResponse.data?.loans || [];
-            const regularLoans = loansResponse.data?.loans || [];
+            
 
             // Calculate totals from gold loans
             let totalBorrowed = 0;
@@ -84,38 +82,9 @@ const Udhaar = () => {
             let totalLent = 0;
             let lastTransactionDate = customer.createdAt;
 
-            // Process gold loans
-            goldLoans.forEach(loan => {
-              const principal = (loan.principalPaise || 0) / 100;
-              const totalPaid = (loan.totalPaidPaise || 0) / 100;
-              
-              totalBorrowed += principal;
-              totalReturned += totalPaid;
-              
-              if (loan.updatedAt && new Date(loan.updatedAt) > new Date(lastTransactionDate)) {
-                lastTransactionDate = loan.updatedAt;
-              }
-            });
+         
 
-            // Process regular loans
-            regularLoans.forEach(loan => {
-              const principal = (loan.principalPaise || 0) / 100;
-              const totalPaid = (loan.totalPaidPaise || 0) / 100;
-              
-              if (loan.direction === 'INCOMING') {
-                totalBorrowed += principal;
-                totalReturned += totalPaid;
-              } else if (loan.direction === 'OUTGOING') {
-                totalLent += principal;
-                // For outgoing loans, payments reduce what they owe us
-                totalLent -= totalPaid;
-              }
-              
-              if (loan.updatedAt && new Date(loan.updatedAt) > new Date(lastTransactionDate)) {
-                lastTransactionDate = loan.updatedAt;
-              }
-            });
-
+            
             const netBalance = totalBorrowed - totalReturned - totalLent;
 
             return {
@@ -123,16 +92,15 @@ const Udhaar = () => {
               customerName: customer.name || 'Unknown Customer',
               customerPhone: customer.phone || '',
               customerEmail: customer.email || '',
+              udhaarcount:UdhaarResponse.length,
               totalBorrowed,
               totalReturned,
               totalLent,
               netBalance,
               lastTransactionDate,
-              goldLoansCount: goldLoans.length,
-              regularLoansCount: regularLoans.length,
-              rawData: customer,
-              goldLoans,
-              regularLoans
+              UdhaarResponse,
+              rawData: customer
+             
             };
           } catch (error) {
             console.error(`Error processing customer ${customer._id}:`, error);
@@ -147,11 +115,9 @@ const Udhaar = () => {
               totalLent: 0,
               netBalance: 0,
               lastTransactionDate: customer.createdAt,
-              goldLoansCount: 0,
-              regularLoansCount: 0,
+              udhaarcount:0,
               rawData: customer,
-              goldLoans: [],
-              regularLoans: []
+               UdhaarResponse
             };
           }
         })
@@ -221,63 +187,8 @@ const Udhaar = () => {
   const getCustomerTransactionHistory = (customer) => {
     const transactions = [];
     
-    // Add gold loan transactions
-    customer.goldLoans.forEach(loan => {
-      transactions.push({
-        id: `gl-${loan._id}`,
-        type: 'borrowed',
-        amount: (loan.principalPaise || 0) / 100,
-        date: loan.startDate || loan.createdAt,
-        description: `Gold Loan - ${loan.items?.length || 0} items`,
-        loanId: loan._id,
-        loanType: 'gold'
-      });
-
-      // Add payment records if available
-      if (loan.payments && loan.payments.length > 0) {
-        loan.payments.forEach(payment => {
-          transactions.push({
-            id: `glp-${payment._id}`,
-            type: 'returned',
-            amount: ((payment.principalPaise || 0) + (payment.interestPaise || 0)) / 100,
-            date: payment.createdAt,
-            description: `Payment for Gold Loan`,
-            loanId: loan._id,
-            loanType: 'gold'
-          });
-        });
-      }
-    });
-
-    // Add regular loan transactions
-    customer.regularLoans.forEach(loan => {
-      const amount = (loan.principalPaise || 0) / 100;
-      transactions.push({
-        id: `rl-${loan._id}`,
-        type: loan.direction === 'INCOMING' ? 'borrowed' : 'lent',
-        amount,
-        date: loan.startDate || loan.createdAt,
-        description: loan.note || `${loan.direction === 'INCOMING' ? 'Regular Loan' : 'Advance Given'}`,
-        loanId: loan._id,
-        loanType: 'regular'
-      });
-
-      // Add payment records
-      if (loan.payments && loan.payments.length > 0) {
-        loan.payments.forEach(payment => {
-          transactions.push({
-            id: `rlp-${payment._id}`,
-            type: loan.direction === 'INCOMING' ? 'returned' : 'received',
-            amount: ((payment.principalPaise || 0) + (payment.interestPaise || 0)) / 100,
-            date: payment.createdAt,
-            description: `Payment for ${loan.direction === 'INCOMING' ? 'Loan' : 'Advance'}`,
-            loanId: loan._id,
-            loanType: 'regular'
-          });
-        });
-      }
-    });
-
+    // Add udhaar transactions only
+   
     // Sort by date and calculate running balance
     transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
     
