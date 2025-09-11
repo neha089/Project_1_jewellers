@@ -1,4 +1,4 @@
-// CreateCustomerForm.js
+// CreateCustomerForm.js - Responsive Version
 import React, { useState, useEffect } from 'react';
 import { X, Save, ArrowLeft } from 'lucide-react';
 import ApiService from '../services/api';
@@ -155,253 +155,274 @@ const CreateCustomerForm = ({ onCancel, onBack, onCustomerCreated, initialData =
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-      <div className="flex items-center justify-between p-6 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Create New Customer</h3>
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+        <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Create New Customer</h3>
         <button
           onClick={onCancel}
-          className="text-gray-500 hover:text-gray-700 transition-colors"
+          className="text-gray-500 hover:text-gray-700 transition-colors p-1"
           disabled={loading}
+          aria-label="Close form"
         >
-          <X size={20} />
+          <X size={20} className="sm:w-6 sm:h-6" />
         </button>
       </div>
 
-      <div className="p-6">
+      {/* Form Content */}
+      <div className="p-4 sm:p-6">
         {errors.submit && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-600 text-sm font-medium">Error</p>
             <p className="text-red-600 text-sm">{errors.submit}</p>
           </div>
         )}
 
-        <form onKeyPress={handleKeyPress} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* First Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                First Name *
-              </label>
-              <input
-                type="text"
-                name="firstName"
-                value={customerData.firstName}
-                onChange={handleDataChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
-                placeholder="Enter first name"
-                disabled={loading}
-                autoComplete="given-name"
-              />
-              {errors.firstName && (
-                <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
-              )}
-            </div>
-
-            {/* Last Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Last Name *
-              </label>
-              <input
-                type="text"
-                name="lastName"
-                value={customerData.lastName}
-                onChange={handleDataChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
-                placeholder="Enter last name"
-                disabled={loading}
-                autoComplete="family-name"
-              />
-              {errors.lastName && (
-                <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
-              )}
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number *
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={customerData.phone}
-                onChange={handleDataChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
-                placeholder="+91 98765 43210"
-                disabled={loading}
-                autoComplete="tel"
-              />
-              {errors.phone && (
-                <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
-              )}
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={customerData.email}
-                onChange={handleDataChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
-                placeholder="customer@email.com"
-                disabled={loading}
-                autoComplete="email"
-              />
-              {errors.email && (
-                <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Address */}
+        <form onKeyPress={handleKeyPress} className="space-y-4 sm:space-y-6">
+          {/* Personal Information */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Address
-            </label>
-            <input
-              type="text"
-              name="address"
-              value={customerData.address}
-              onChange={handleDataChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter street address"
-              disabled={loading}
-              autoComplete="street-address"
-            />
+            <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Personal Information</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* First Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  First Name *
+                </label>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={customerData.firstName}
+                  onChange={handleDataChange}
+                  className={`w-full px-3 py-2 sm:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm sm:text-base ${
+                    errors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter first name"
+                  disabled={loading}
+                  autoComplete="given-name"
+                />
+                {errors.firstName && (
+                  <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
+                )}
+              </div>
+
+              {/* Last Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  Last Name *
+                </label>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={customerData.lastName}
+                  onChange={handleDataChange}
+                  className={`w-full px-3 py-2 sm:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm sm:text-base ${
+                    errors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter last name"
+                  disabled={loading}
+                  autoComplete="family-name"
+                />
+                {errors.lastName && (
+                  <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* City */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                City
+          {/* Contact Information */}
+          <div>
+            <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Contact Information</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={customerData.phone}
+                  onChange={handleDataChange}
+                  className={`w-full px-3 py-2 sm:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm sm:text-base ${
+                    errors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="+91 98765 43210"
+                  disabled={loading}
+                  autoComplete="tel"
+                />
+                {errors.phone && (
+                  <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={customerData.email}
+                  onChange={handleDataChange}
+                  className={`w-full px-3 py-2 sm:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm sm:text-base ${
+                    errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="customer@email.com"
+                  disabled={loading}
+                  autoComplete="email"
+                />
+                {errors.email && (
+                  <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Address Information */}
+          <div>
+            <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Address Information</h4>
+            
+            {/* Street Address */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                Address
               </label>
               <input
                 type="text"
-                name="city"
-                value={customerData.city}
+                name="address"
+                value={customerData.address}
                 onChange={handleDataChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter city"
+                className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                placeholder="Enter street address"
                 disabled={loading}
-                autoComplete="address-level2"
+                autoComplete="street-address"
               />
             </div>
 
-            {/* State */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                State
-              </label>
-              <select
-                name="state"
-                value={customerData.state}
-                onChange={handleDataChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
-              >
-                <option value="Gujarat">Gujarat</option>
-                <option value="Maharashtra">Maharashtra</option>
-                <option value="Rajasthan">Rajasthan</option>
-                <option value="Karnataka">Karnataka</option>
-                <option value="Tamil Nadu">Tamil Nadu</option>
-                {/* Add more states as needed */}
-              </select>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* City */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  City
+                </label>
+                <input
+                  type="text"
+                  name="city"
+                  value={customerData.city}
+                  onChange={handleDataChange}
+                  className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  placeholder="Enter city"
+                  disabled={loading}
+                  autoComplete="address-level2"
+                />
+              </div>
 
-            {/* PIN Code */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                PIN Code
-              </label>
-              <input
-                type="text"
-                name="pinCode"
-                value={customerData.pinCode}
-                onChange={handleDataChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-                  errors.pinCode ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
-                placeholder="395007"
-                disabled={loading}
-                maxLength="6"
-                autoComplete="postal-code"
-              />
-              {errors.pinCode && (
-                <p className="text-red-500 text-xs mt-1">{errors.pinCode}</p>
-              )}
+              {/* State */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  State
+                </label>
+                <select
+                  name="state"
+                  value={customerData.state}
+                  onChange={handleDataChange}
+                  className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base bg-white"
+                  disabled={loading}
+                >
+                  <option value="Gujarat">Gujarat</option>
+                  <option value="Maharashtra">Maharashtra</option>
+                  <option value="Rajasthan">Rajasthan</option>
+                  <option value="Karnataka">Karnataka</option>
+                  <option value="Tamil Nadu">Tamil Nadu</option>
+                  {/* Add more states as needed */}
+                </select>
+              </div>
+
+              {/* PIN Code */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  PIN Code
+                </label>
+                <input
+                  type="text"
+                  name="pinCode"
+                  value={customerData.pinCode}
+                  onChange={handleDataChange}
+                  className={`w-full px-3 py-2 sm:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-sm sm:text-base ${
+                    errors.pinCode ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
+                  placeholder="395007"
+                  disabled={loading}
+                  maxLength="6"
+                  autoComplete="postal-code"
+                />
+                {errors.pinCode && (
+                  <p className="text-red-500 text-xs mt-1">{errors.pinCode}</p>
+                )}
+              </div>
             </div>
           </div>
 
           {/* ID Proof Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* ID Proof Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ID Proof Type
-              </label>
-              <select
-                name="idProofType"
-                value={customerData.idProofType}
-                onChange={handleDataChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
-              >
-                <option value="aadhar">Aadhar Card</option>
-                <option value="pan">PAN Card</option>
-                <option value="passport">Passport</option>
-                <option value="driving_license">Driving License</option>
-                <option value="voter_id">Voter ID</option>
-              </select>
-            </div>
+          <div>
+            <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">ID Proof (Optional)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* ID Proof Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  ID Proof Type
+                </label>
+                <select
+                  name="idProofType"
+                  value={customerData.idProofType}
+                  onChange={handleDataChange}
+                  className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base bg-white"
+                  disabled={loading}
+                >
+                  <option value="aadhar">Aadhar Card</option>
+                  <option value="pan">PAN Card</option>
+                  <option value="passport">Passport</option>
+                  <option value="driving_license">Driving License</option>
+                  <option value="voter_id">Voter ID</option>
+                </select>
+              </div>
 
-            {/* ID Proof Number */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ID Proof Number
-              </label>
-              <input
-                type="text"
-                name="idProofNumber"
-                value={customerData.idProofNumber}
-                onChange={handleDataChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter ID proof number"
-                disabled={loading}
-              />
+              {/* ID Proof Number */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                  ID Proof Number
+                </label>
+                <input
+                  type="text"
+                  name="idProofNumber"
+                  value={customerData.idProofNumber}
+                  onChange={handleDataChange}
+                  className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  placeholder="Enter ID proof number"
+                  disabled={loading}
+                />
+              </div>
             </div>
           </div>
         </form>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-between items-center p-6 border-t border-gray-200 bg-gray-50">
+      <div className="flex flex-col sm:flex-row sm:justify-between items-stretch sm:items-center p-4 sm:p-6 border-t border-gray-200 bg-gray-50 gap-3 sm:gap-0">
         <button
           onClick={onBack}
-          className="px-4 py-2 text-gray-600 hover:text-gray-800 flex items-center gap-2 transition-colors"
+          className="px-4 py-2 sm:py-2 text-gray-600 hover:text-gray-800 flex items-center justify-center sm:justify-start gap-2 transition-colors text-sm sm:text-base order-3 sm:order-1"
           disabled={loading}
         >
           <ArrowLeft size={16} />
           Back to Search
         </button>
         
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 order-1 sm:order-2">
           <button
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 sm:py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
             disabled={loading}
           >
             Cancel
@@ -409,7 +430,7 @@ const CreateCustomerForm = ({ onCancel, onBack, onCustomerCreated, initialData =
           <button
             onClick={saveCustomer}
             disabled={loading || !customerData.firstName.trim() || !customerData.lastName.trim() || !customerData.phone.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="px-4 py-2 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-sm sm:text-base"
           >
             <Save size={16} />
             {loading ? (
