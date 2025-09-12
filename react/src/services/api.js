@@ -375,40 +375,116 @@ class ApiService {
     return this.request("/api/loans/", {
       method: "POST",
       body: {
-        items: loanData.items || [],
         customer: loanData.customerId,
+        loanType: direction === -1 ? 'GIVEN' : 'TAKEN',
         principalPaise: Math.round(parseFloat(loanData.amount) * 100),
         interestRateMonthlyPct: parseFloat(loanData.interestRate),
-        startDate: loanData.date,
         dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
-        status: "ACTIVE",
         direction: direction, // -1 for given, 1 for taken
         note: loanData.description,
       },
     });
   }
 
-  async makeLoanInterestPayment(loanId, interestAmount) {
+  // Get loans by customer ID
+  async getLoansByCustomer(customerId) {
+    return this.request(`/api/loans/customer/${customerId}`);
+  }
+
+  // Get specific loan details
+  async getLoanDetails(loanId) {
+    return this.request(`/api/loans/${loanId}`);
+  }
+
+  // Make loan interest payment
+  async makeLoanInterestPayment(loanId, interestAmount, note = null) {
     return this.request(`/api/loans/${loanId}/interest-payment`, {
       method: "POST",
       body: {
         interestPaise: Math.round(parseFloat(interestAmount) * 100),
         forMonth: this.getCurrentMonth(),
+        note: note,
       },
     });
   }
 
+  // Make loan principal payment (partial or full)
+  async makeLoanPrincipalPayment(loanId, principalAmount, note = null) {
+    return this.request(`/api/loans/${loanId}/principal-payment`, {
+      method: "POST",
+      body: {
+        principalPaise: Math.round(parseFloat(principalAmount) * 100),
+        note: note,
+      },
+    });
+  }
+
+  // Make combined loan payment (principal + interest)
   async makeLoanPayment(loanId, paymentData) {
     return this.request(`/api/loans/${loanId}/payments`, {
       method: "POST",
       body: {
-        principalPaise: Math.round(parseFloat(paymentData.principal || 0) * 100),
-        interestPaise: Math.round(parseFloat(paymentData.interest || 0) * 100),
+        principalPaise: paymentData.principal ? Math.round(parseFloat(paymentData.principal) * 100) : 0,
+        interestPaise: paymentData.interest ? Math.round(parseFloat(paymentData.interest) * 100) : 0,
         photos: paymentData.photos || [],
         notes: paymentData.notes || "",
       },
     });
   }
+
+  // Get loan reminders (overdue payments)
+  async getLoanReminders(daysAhead = 0) {
+    return this.request(`/api/loans/reminders?days=${daysAhead}`);
+  }
+
+  // Update loan interest rate
+  async updateLoanInterestRate(loanId, newRate, note) {
+    return this.request(`/api/loans/${loanId}/interest-rate`, {
+      method: "PATCH",
+      body: {
+        interestRateMonthlyPct: parseFloat(newRate),
+        note: note,
+      },
+    });
+  }
+
+  // Mark reminder as sent
+  async markLoanReminderSent(loanId) {
+    return this.request(`/api/loans/${loanId}/reminder-sent`, {
+      method: "PATCH",
+    });
+  }
+
+  // Helper function to calculate due date
+  calculateDueDate(startDate, durationMonths) {
+    const start = new Date(startDate);
+    const dueDate = new Date(start);
+    dueDate.setMonth(start.getMonth() + parseInt(durationMonths));
+    return dueDate.toISOString();
+  }
+
+  // Helper function to get current month in YYYY-MM format
+  getCurrentMonth() {
+    return new Date().toISOString().substring(0, 7);
+  }
+
+  // Get all loans with filtering
+  async getAllLoans(filters = {}) {
+    const queryParams = new URLSearchParams();
+    
+    if (filters.page) queryParams.append('page', filters.page);
+    if (filters.limit) queryParams.append('limit', filters.limit);
+    if (filters.status) queryParams.append('status', filters.status);
+    if (filters.customer) queryParams.append('customer', filters.customer);
+    if (filters.loanType) queryParams.append('loanType', filters.loanType);
+    if (filters.overdue) queryParams.append('overdue', filters.overdue);
+    if (filters.sortBy) queryParams.append('sortBy', filters.sortBy);
+    if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder);
+
+    const queryString = queryParams.toString();
+    return this.request(`/api/loans${queryString ? '?' + queryString : ''}`);
+  }
+
 
   // Udhari APIs
   async giveUdhari(udhariData) {
