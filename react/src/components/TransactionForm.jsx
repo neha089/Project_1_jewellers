@@ -55,6 +55,10 @@ const TransactionForm = ({
         images: [],
       },
     ],
+    // For loan repayment
+    repaymentType: "partial", // "partial" or "full"
+    principalAmount: "",
+    interestAmount: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -85,6 +89,13 @@ const TransactionForm = ({
       calculateAndSetInterestAmount();
     }
   }, [transactionData.selectedLoanId]);
+
+  // Calculate suggested amounts for loan repayment
+  useEffect(() => {
+    if (transactionData.selectedLoanId && selectedCategory?.id === "loan-repayment") {
+      calculateLoanRepaymentAmounts();
+    }
+  }, [transactionData.selectedLoanId, selectedCategory?.id]);
 
   // Auto-calculate total amount for gold/silver sales
   useEffect(() => {
@@ -136,7 +147,7 @@ const TransactionForm = ({
         const response = await ApiService.getLoansByCustomer(selectedCustomer._id);
         loans = response.data || [];
       }
-      setAvailableLoans(loans.filter(loan => loan.status === 'ACTIVE'));
+      setAvailableLoans(loans.filter(loan => loan.status === 'ACTIVE' || loan.status === 'PARTIALLY_PAID'));
     } catch (error) {
       console.error("Failed to fetch loans:", error);
       setErrors(prev => ({...prev, loans: "Failed to load loans"}));
@@ -163,9 +174,9 @@ const TransactionForm = ({
           }));
         }
       } else if (selectedCategory.id === "interest-received-l") {
-        // Calculate regular loan interest
-        const monthlyInterest = selectedLoan.principalPaise ? 
-          (selectedLoan.principalPaise * selectedLoan.interestRateMonthlyPct) / 100 / 100 : 0;
+        // Calculate regular loan interest based on CURRENT outstanding principal
+        const monthlyInterest = selectedLoan.outstandingPrincipal ? 
+          (selectedLoan.outstandingPrincipal * selectedLoan.interestRateMonthlyPct) / 100 / 100 : 0;
         
         setTransactionData(prev => ({
           ...prev,
@@ -177,11 +188,54 @@ const TransactionForm = ({
     }
   };
 
+  const calculateLoanRepaymentAmounts = async () => {
+    const selectedLoan = availableLoans.find(loan => loan._id === transactionData.selectedLoanId);
+    if (!selectedLoan) return;
+
+    try {
+      // Get loan details with payment status
+      const response = await ApiService.getLoanDetails(selectedLoan._id);
+      const loanDetails = response.data;
+      
+      // Calculate suggested amounts
+      const outstandingPrincipal = loanDetails.outstandingPrincipal / 100; // Convert from paise to rupees
+      const pendingInterest = loanDetails.paymentStatus?.pendingAmount / 100 || 0; // Convert from paise to rupees
+      
+      setTransactionData(prev => ({
+        ...prev,
+        principalAmount: outstandingPrincipal.toFixed(2),
+        interestAmount: pendingInterest.toFixed(2),
+        amount: transactionData.repaymentType === "full" 
+          ? (outstandingPrincipal + pendingInterest).toFixed(2)
+          : prev.amount
+      }));
+    } catch (error) {
+      console.error("Failed to calculate loan repayment amounts:", error);
+    }
+  };
+
   const handleDataChange = (e) => {
     const { name, value } = e.target;
     setTransactionData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+
+    // Handle repayment type changes
+    if (name === "repaymentType" && selectedCategory?.id === "loan-repayment") {
+      if (value === "full") {
+        const principal = parseFloat(transactionData.principalAmount) || 0;
+        const interest = parseFloat(transactionData.interestAmount) || 0;
+        setTransactionData(prev => ({
+          ...prev,
+          amount: (principal + interest).toFixed(2)
+        }));
+      } else {
+        setTransactionData(prev => ({
+          ...prev,
+          amount: ""
+        }));
+      }
     }
   };
 
@@ -207,6 +261,12 @@ const TransactionForm = ({
             newErrors[`item_${index}_amount`] = "Valid amount is required";
           }
         });
+      }
+    } else if (selectedCategory?.id === "loan-repayment") {
+      // Validate loan repayment
+      if (transactionData.repaymentType === "partial" && 
+          (!transactionData.amount.trim() || parseFloat(transactionData.amount) <= 0)) {
+        newErrors.amount = "Valid amount is required for partial repayment";
       }
     } else if (selectedCategory?.id !== "gold-loan-repayment") {
       if (!transactionData.amount.trim() || parseFloat(transactionData.amount) <= 0) {
@@ -315,58 +375,75 @@ const TransactionForm = ({
           );
           break;
 
-        
-
         case "gold-loan-repayment":
           // This will be handled by GoldLoanRepayment component
           response = { success: true };
           break;
 
-       
-
-          case "business-loan-taken":
-            response = await ApiService.createLoan({
-              customerId: selectedCustomer._id,
-              amount: transactionData.amount,
-              interestRate: transactionData.interestRate,
-              durationMonths: transactionData.durationMonths,
-              description: transactionData.description,
-              date: transactionData.date,
-            }, 1); // direction: 1 for taken loan (we receive money)
-            break;
-          
-          case "business-loan-given":
-            response = await ApiService.createLoan({
-              customerId: selectedCustomer._id,
-              amount: transactionData.amount,
-              interestRate: transactionData.interestRate,
-              durationMonths: transactionData.durationMonths,
-              description: transactionData.description,
-              date: transactionData.date,
-            }, -1); // direction: -1 for given loan (we give money)
-            break;
-          
-          case "interest-received-l":
-            response = await ApiService.makeLoanInterestPayment(
-              transactionData.selectedLoanId,
-              parseFloat(transactionData.amount),
-              transactionData.description || 'Interest payment received'
-            );
-            break;
-          
-          case "loan-repayment":
-            // Use the combined payment endpoint for flexibility
+        case "business-loan-taken":
+          response = await ApiService.createLoan({
+            customerId: selectedCustomer._id,
+            amount: transactionData.amount,
+            interestRate: transactionData.interestRate,
+            durationMonths: transactionData.durationMonths,
+            description: transactionData.description,
+            date: transactionData.date,
+          }, 1); // direction: 1 for taken loan (we receive money)
+          break;
+        
+        case "business-loan-given":
+          response = await ApiService.createLoan({
+            customerId: selectedCustomer._id,
+            amount: transactionData.amount,
+            interestRate: transactionData.interestRate,
+            durationMonths: transactionData.durationMonths,
+            description: transactionData.description,
+            date: transactionData.date,
+          }, -1); // direction: -1 for given loan (we give money)
+          break;
+        
+        case "interest-received-l":
+          response = await ApiService.makeLoanInterestPayment(
+            transactionData.selectedLoanId,
+            parseFloat(transactionData.amount),
+            transactionData.description || 'Interest payment received'
+          );
+          break;
+        
+        case "loan-repayment":
+          if (transactionData.repaymentType === "full") {
+            // Full repayment with both principal and interest
+            const principal = parseFloat(transactionData.principalAmount) || 0;
+            const interest = parseFloat(transactionData.interestAmount) || 0;
+            
             const paymentData = {
-              principal: transactionData.amount,
-              interest: 0,
+              principal: principal,
+              interest: interest,
               photos: transactionData.photos,
-              notes: transactionData.description,
+              notes: transactionData.description || 'Full loan repayment'
             };
+            
             response = await ApiService.makeLoanPayment(
               transactionData.selectedLoanId,
               paymentData
             );
-            break;
+          } else {
+            // Partial repayment - user specifies the amount
+            const paymentAmount = parseFloat(transactionData.amount);
+            
+            const paymentData = {
+              principal: paymentAmount,
+              interest: 0,
+              photos: transactionData.photos,
+              notes: transactionData.description || 'Partial loan repayment'
+            };
+            
+            response = await ApiService.makeLoanPayment(
+              transactionData.selectedLoanId,
+              paymentData
+            );
+          }
+          break;
 
         case "udhari-given":
           response = await ApiService.giveUdhari({
@@ -420,6 +497,7 @@ const TransactionForm = ({
   const isRepayment = selectedCategory?.id.includes("repayment");
   const isGoldLoan = selectedCategory?.id === "gold-loan";
   const isGoldLoanRepayment = selectedCategory?.id === "gold-loan-repayment";
+  const isLoanRepayment = selectedCategory?.id === "loan-repayment";
   const isMetalSale = selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell";
 
   return (
@@ -496,126 +574,72 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Gold Loan Repayment Component */}
-              {isGoldLoanRepayment && transactionData.selectedLoanId && (
-                <div className="bg-amber-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <GoldLoanRepayment
-                    selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
-                    currentGoldPrice={currentGoldPrice}
-                    onRepayment={onSuccess}
-                  />
-                </div>
-              )}
-
-              {/* Gold Loan Items Management */}
-              {isGoldLoan && (
-                <div className="bg-amber-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <GoldLoanItems
-                    items={transactionData.items}
-                    errors={errors}
-                    loading={loading}
-                    onItemsChange={(items) => updateTransactionData({ items })}
-                    currentGoldPrice={currentGoldPrice}
-                  />
-                </div>
-              )}
-
-              {/* Enhanced Fields for Metal Sales */}
-              {isMetalSale && (
-                <div className="space-y-4">
-                  {/* Item Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Item Name
+              {/* Loan Repayment Type Selection */}
+              {isLoanRepayment && transactionData.selectedLoanId && (
+                <div className="bg-indigo-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Repayment Type</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="repaymentType"
+                        value="partial"
+                        checked={transactionData.repaymentType === "partial"}
+                        onChange={handleDataChange}
+                        className="mr-2"
+                      />
+                      <span className="text-sm">Partial Repayment</span>
                     </label>
-                    <input
-                      type="text"
-                      name="itemName"
-                      value={transactionData.itemName}
-                      onChange={handleDataChange}
-                      className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                      placeholder={`Enter ${selectedCategory?.id.includes("gold") ? "gold" : "silver"} item name`}
-                      disabled={loading}
-                    />
-                    {errors.itemName && (
-                      <p className="text-red-500 text-xs mt-1">{errors.itemName}</p>
-                    )}
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="repaymentType"
+                        value="full"
+                        checked={transactionData.repaymentType === "full"}
+                        onChange={handleDataChange}
+                        className="mr-2"
+                      />
+                      <span className="text-sm">Full Repayment</span>
+                    </label>
                   </div>
 
-                  {/* Additional charges */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Making Charges (₹)
-                      </label>
-                      <input
-                        type="number"
-                        name="makingCharges"
-                        value={transactionData.makingCharges}
-                        onChange={handleDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="0"
-                        min="0"
-                        step="0.01"
-                        disabled={loading}
-                      />
+                  {transactionData.repaymentType === "full" && (
+                    <div className="mt-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Outstanding Principal (₹)
+                          </label>
+                          <input
+                            type="text"
+                            value={transactionData.principalAmount}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            placeholder="0"
+                            min="0"
+                            step="0.01"
+                            disabled={loading}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Pending Interest (₹)
+                          </label>
+                          <input
+                            type="text"
+                            value={transactionData.interestAmount}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            placeholder="0"
+                            min="0"
+                            step="0.01"
+                            disabled={loading}
+                          />
+                        </div>
+                      </div>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Wastage (%)
-                      </label>
-                      <input
-                        type="number"
-                        name="wastage"
-                        value={transactionData.wastage}
-                        onChange={handleDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="0"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tax Amount (₹)
-                      </label>
-                      <input
-                        type="number"
-                        name="taxAmount"
-                        value={transactionData.taxAmount}
-                        onChange={handleDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="0"
-                        min="0"
-                        step="0.01"
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Advance Amount (₹)
-                      </label>
-                      <input
-                        type="number"
-                        name="advanceAmount"
-                        value={transactionData.advanceAmount}
-                        onChange={handleDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="0"
-                        min="0"
-                        step="0.01"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   {/* Payment Mode and Bill Number */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Payment Mode
@@ -634,7 +658,6 @@ const TransactionForm = ({
                         <option value="CHEQUE">Cheque</option>
                       </select>
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Bill Number
@@ -654,7 +677,7 @@ const TransactionForm = ({
               )}
 
               {/* Regular Amount Field for Non-Gold-Loan Transactions */}
-              {!isGoldLoan && !isGoldLoanRepayment && (
+              {!isGoldLoan && !isGoldLoanRepayment && (transactionData.repaymentType !== "full" || !isLoanRepayment) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <AmountField
                     amount={transactionData.amount}
@@ -783,43 +806,42 @@ const TransactionForm = ({
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Action Buttons */}
-          {!isGoldLoanRepayment && (
-            <div className="p-4 sm:p-5 lg:p-6 border-t border-gray-100 bg-gray-50">
-              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-                
-                {/* Back Button */}
-                <button
-                  onClick={onBack}
-                  className="text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2 px-3 py-2 hover:bg-gray-200 rounded-lg transition-colors text-sm sm:text-base"
-                  disabled={loading}
-                >
-                  ← Back to Category
-                </button>
-                
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            {/* Action Buttons */}
+            {!isGoldLoanRepayment && (
+              <div className="p-4 sm:p-5 lg:p-6 border-t border-gray-100 bg-gray-50">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                  {/* Back Button */}
                   <button
-                    onClick={onCancel}
-                    className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base font-medium"
+                    onClick={onBack}
+                    className="text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2 px-3 py-2 hover:bg-gray-200 rounded-lg transition-colors text-sm sm:text-base"
                     disabled={loading}
                   >
-                    Cancel
+                    ← Back to Category
                   </button>
-                  <button
-                    onClick={submitTransaction}
-                    disabled={loading}
-                    className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm sm:text-base font-medium"
-                  >
-                    <Save size={16} className="sm:w-5 sm:h-5" />
-                    {loading ? "Saving..." : "Save Transaction"}
-                  </button>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                    <button
+                      onClick={onCancel}
+                      className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base font-medium"
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitTransaction}
+                      disabled={loading}
+                      className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm sm:text-base font-medium"
+                    >
+                      <Save size={16} className="sm:w-5 sm:h-5" />
+                      {loading ? "Saving..." : "Save Transaction"}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
