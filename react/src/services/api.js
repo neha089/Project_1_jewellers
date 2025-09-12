@@ -500,18 +500,17 @@ class ApiService {
   }
 
   async receiveUdhariPayment(paymentData) {
-    return this.request("/api/udhari/receive", {
-      method: "POST",
-      body: {
-        customer: paymentData.customerId,
-        principalPaise: Math.round(parseFloat(paymentData.amount) * 100),
-        sourceRef: paymentData.udhariId,
-        note: paymentData.description,
-        installmentNumber: parseInt(paymentData.installmentNumber || 1),
-      },
-    });
-  }
-
+  return this.request("/api/udhari/receive-payment", {
+    method: "POST",
+    body: {
+      customer: paymentData.customerId,
+      principalPaise: Math.round(parseFloat(paymentData.amount) * 100),
+      sourceRef: paymentData.sourceRef,  // ✅ Fixed: use sourceRef instead of udhariId
+      note: paymentData.description,
+      installmentNumber: parseInt(paymentData.installmentNumber || 1),
+    },
+  });
+}
   
   //gol silver sell buy 
 
@@ -672,6 +671,232 @@ async createGoldPurchase  (transactionData) {
     throw error;
   }
 };
+static async giveUdhari(data) {
+    try {
+      const response = await fetch('/api/udhari/give', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Add your auth headers here
+        },
+        body: JSON.stringify({
+          customer: data.customerId,
+          principalPaise: Math.round(parseFloat(data.amount) * 100), // Convert to paise
+          note: data.description,
+          totalInstallments: data.totalInstallments || 1,
+          returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to give udhari');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Give Udhari API Error:', error);
+      throw error;
+    }
+  }
+
+  // Take Udhari (Borrow money from someone)
+  static async takeUdhari(data) {
+    try {
+      const response = await fetch('/api/udhari/take', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer: data.customerId,
+          principalPaise: Math.round(parseFloat(data.amount) * 100),
+          note: data.description,
+          totalInstallments: data.totalInstallments || 1,
+          returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to take udhari');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Take Udhari API Error:', error);
+      throw error;
+    }
+  }
+
+  // Receive Udhari Payment (when someone returns money they borrowed from you)
+  static async receiveUdhariPayment(data) {
+    console.log('Receiving Udhari Payment with data:', data);
+    try {
+      const response = await fetch('/api/udhari/receive-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer: data.customerId,
+          principalPaise: Math.round(parseFloat(data.amount) * 100),
+          sourceRef: data.sourceRef, // Original udhari transaction ID
+          note: data.description,
+          installmentNumber: data.installmentNumber || 1
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to receive udhari payment');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Receive Udhari Payment API Error:', error);
+      throw error;
+    }
+  }
+
+  // Make Udhari Payment (when you return money you borrowed)
+  static async makeUdhariPayment(data) {
+    try {
+      const response = await fetch('/api/udhari/make-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer: data.customerId,
+          principalPaise: Math.round(parseFloat(data.amount) * 100),
+          sourceRef: data.sourceRef,
+          note: data.description,
+          installmentNumber: data.installmentNumber || 1
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to make udhari payment');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Make Udhari Payment API Error:', error);
+      throw error;
+    }
+  }
+
+  // Get customer udhari summary
+ async getCustomerUdhariSummary(customerId) {
+    try {
+      const response = await fetch(`${BASE_URL}/api/udhari/customer/${customerId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      console.log('Response:', response);
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch customer udhari summary');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Get Customer Udhari Summary API Error:', error);
+      throw error;
+    }
+  }
+
+  // Get outstanding amounts to collect
+  static async getOutstandingToCollect() {
+    try {
+      const response = await fetch(`${BASE_URL}/api/udhari/outstanding/collect`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch outstanding amounts to collect');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Get Outstanding To Collect API Error:', error);
+      throw error;
+    }
+  }
+
+  // Get outstanding amounts to pay back
+  static async getOutstandingToPay() {
+    try {
+      const response = await fetch(`${BASE_URL}/api/udhari/outstanding/pay`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch outstanding amounts to pay');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Get Outstanding To Pay API Error:', error);
+      throw error;
+    }
+  }
+
+  // Get overall udhari summary
+  static async getUdhariSummary() {
+    try {
+      const response = await fetch(`${BASE_URL}/api/udhari/summary`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch udhari summary');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Get Udhari Summary API Error:', error);
+      throw error;
+    }
+  }
+
+  // Get payment history for specific udhari transaction
+  static async getUdhariPaymentHistory(udhariId) {
+    try {
+      const response = await fetch(`${BASE_URL}/api/udhari/payment-history/${udhariId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch payment history');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Get Udhari Payment History API Error:', error);
+      throw error;
+    }
+  }
 
 // Create Silver Purchase Transaction  
 async createSilverPurchase (transactionData)  {

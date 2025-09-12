@@ -3,23 +3,26 @@ import * as udhariController from '../controllers/udhariController.js';
 
 const router = express.Router();
 
-// Udhari management routes
-router.post('/give', udhariController.giveUdhari);                    // Give udhari to someone
-router.post('/take', udhariController.takeUdhari);                    // Take udhari from someone
-router.post('/receive-payment', udhariController.receiveUdhariPayment); // Receive payment from someone who borrowed
-router.post('/make-payment', udhariController.makeUdhariPayment);     // Make payment to someone from whom you borrowed
+// Core udhari operations
+router.post('/give', udhariController.giveUdhari);                    // Give money to someone (lend)
+router.post('/take', udhariController.takeUdhari);                    // Take money from someone (borrow)
 
-// Get udhari data
-router.get('/', udhariController.getAllUdhariTransactions);           // Get all udhari transactions with filters
-router.get('/customer/:customerId', udhariController.getCustomerUdhariTransactions); // Get specific customer udhari details
-router.get('/payment-history/:udhariId', udhariController.getUdhariPaymentHistory); // Get payment history for specific udhari
+// Payment operations
+router.post('/receive-payment', udhariController.receiveUdhariPayment); // Receive payment from someone who borrowed
+router.post('/make-payment', udhariController.makeUdhariPayment);       // Make payment to someone you borrowed from
+
+// Customer specific data
+router.get('/customer/:customerId', udhariController.getCustomerUdhariSummary); // Get all udhari data for specific customer
 
 // Outstanding amounts
-router.get('/outstanding/collect', udhariController.getOutstandingUdhariToCollect);   // Money you need to collect
-router.get('/outstanding/payback', udhariController.getOutstandingUdhariToPayBack);   // Money you need to pay back
+
+router.get('/outstanding/collect', udhariController.getOutstandingToCollect);   // Money you need to collect from others
+router.get('/outstanding/pay', udhariController.getOutstandingToPay);           // Money you need to pay to others
 
 // Summary and analytics
-router.get('/summary', udhariController.getUdhariSummary);            // Overall udhari summary
-router.get('/customers', udhariController.getUdhariCustomers);        // All customers with udhari transactions
+router.get('/summary', udhariController.getOverallUdhariSummary);               // Overall udhari summary
+
+// Payment history
+router.get('/payment-history/:udhariId', udhariController.getPaymentHistory);   // Payment history for specific udhari
 
 export default router;

@@ -42,6 +42,7 @@ const incomeCategories = [
     color: "purple",
     shortLabel: "Gold Repay"
   },
+  
   {
     id: "udhari-received",
     label: "Udhari Payment Received",
@@ -49,6 +50,13 @@ const incomeCategories = [
     color: "emerald",
     shortLabel: "Udhari Received"
   },
+   {
+    id: "business-loan-taken",
+    label: "Business Loan Taken",
+    icon: CreditCard,
+    color: "orange",
+    shortLabel: "Loan Taken"
+  }
 ];
 
 const expenseCategories = [
@@ -60,13 +68,7 @@ const expenseCategories = [
     color: "red",
     shortLabel: "Udhari Given"
   },
-  {
-    id: "business-loan-taken",
-    label: "Business Loan Taken",
-    icon: CreditCard,
-    color: "orange",
-    shortLabel: "Loan Taken"
-  },
+ 
   {
     id: "business-loan-given",
     label: "Business Loan Given",
@@ -87,14 +89,7 @@ const expenseCategories = [
     icon: Gem,
     color: "gray",
     shortLabel: "Silver Purchase"
-  },
-  {
-    id: "business-expense",
-    label: "Business Expense",
-    icon: FileText,
-    color: "slate",
-    shortLabel: "Expense"
-  },
+  }
 ];
 
 const TransactionTypeSelection = ({

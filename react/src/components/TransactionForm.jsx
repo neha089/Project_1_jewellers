@@ -10,6 +10,8 @@ import LoanFields from "./LoanFields";
 import PhotoUpload from "./PhotoUpload";
 import InterestSummaryCard from "./InterestSummaryCard";
 import GoldLoanRepayment from "./GoldLoanRepayment";
+import UdhariSelector from "./UdhariSelector";
+import UdhariTransactionForm from "./UdhariTransactionForm";
 
 const TransactionForm = ({
   selectedCustomer,
@@ -19,6 +21,26 @@ const TransactionForm = ({
   onCancel,
   onSuccess,
 }) => {
+  // Check if this is an Udhari transaction
+  const isUdhariTransaction = selectedCategory?.id.includes("udhari");
+  
+  // If it's an Udhari transaction, render the specialized form
+  if (isUdhariTransaction) {
+    return (
+      <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
+        <div className="max-w-5xl mx-auto">
+          <UdhariTransactionForm
+            selectedCustomer={selectedCustomer}
+            selectedCategory={selectedCategory}
+            onSuccess={onSuccess}
+            onCancel={onCancel}
+            onBack={onBack}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const [transactionData, setTransactionData] = useState({
     amount: "",
     description: "",
@@ -59,6 +81,8 @@ const TransactionForm = ({
     repaymentType: "partial", // "partial" or "full"
     principalAmount: "",
     interestAmount: "",
+    // For udhari selection
+    selectedUdhariId: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -85,7 +109,7 @@ const TransactionForm = ({
 
   // Auto-calculate interest amount when loan is selected
   useEffect(() => {
-    if (transactionData.selectedLoanId && isInterestPayment) {
+    if (transactionData.selectedLoanId && selectedCategory?.id.includes("interest-received")) {
       calculateAndSetInterestAmount();
     }
   }, [transactionData.selectedLoanId]);
@@ -237,6 +261,17 @@ const TransactionForm = ({
         }));
       }
     }
+  };
+
+  const handleUdhariSelect = (udhariId) => {
+    setTransactionData(prev => ({ ...prev, selectedUdhariId: udhariId }));
+    if (errors.selectedUdhariId) {
+      setErrors(prev => ({ ...prev, selectedUdhariId: "" }));
+    }
+  };
+
+  const handleAmountSuggestion = (suggestedAmount) => {
+    setTransactionData(prev => ({ ...prev, amount: suggestedAmount }));
   };
 
   const updateTransactionData = (updates) => {
@@ -443,13 +478,6 @@ const TransactionForm = ({
               paymentData
             );
           }
-          break;
-
-        case "udhari-given":
-          response = await ApiService.giveUdhari({
-            ...commonData,
-            installments: 3,
-          });
           break;
 
         case "gold-purchase":
@@ -676,6 +704,29 @@ const TransactionForm = ({
                 </div>
               )}
 
+              {/* Gold Loan Items */}
+              {isGoldLoan && (
+                <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <GoldLoanItems
+                    items={transactionData.items}
+                    errors={errors}
+                    loading={loading}
+                    onItemsChange={(items) => updateTransactionData({ items })}
+                  />
+                </div>
+              )}
+
+              {/* Gold Loan Repayment */}
+              {isGoldLoanRepayment && transactionData.selectedLoanId && (
+                <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <GoldLoanRepayment
+                    selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
+                    onSuccess={onSuccess}
+                    onCancel={onBack}
+                  />
+                </div>
+              )}
+
               {/* Regular Amount Field for Non-Gold-Loan Transactions */}
               {!isGoldLoan && !isGoldLoanRepayment && (transactionData.repaymentType !== "full" || !isLoanRepayment) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -809,35 +860,33 @@ const TransactionForm = ({
 
             {/* Action Buttons */}
             {!isGoldLoanRepayment && (
-              <div className="p-4 sm:p-5 lg:p-6 border-t border-gray-100 bg-gray-50">
-                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-                  {/* Back Button */}
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-6 pt-6 border-t border-gray-100">
+                {/* Back Button */}
+                <button
+                  onClick={onBack}
+                  className="text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2 px-3 py-2 hover:bg-gray-200 rounded-lg transition-colors text-sm sm:text-base"
+                  disabled={loading}
+                >
+                  ← Back to Category
+                </button>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <button
-                    onClick={onBack}
-                    className="text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2 px-3 py-2 hover:bg-gray-200 rounded-lg transition-colors text-sm sm:text-base"
+                    onClick={onCancel}
+                    className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base font-medium"
                     disabled={loading}
                   >
-                    ← Back to Category
+                    Cancel
                   </button>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                    <button
-                      onClick={onCancel}
-                      className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base font-medium"
-                      disabled={loading}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={submitTransaction}
-                      disabled={loading}
-                      className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm sm:text-base font-medium"
-                    >
-                      <Save size={16} className="sm:w-5 sm:h-5" />
-                      {loading ? "Saving..." : "Save Transaction"}
-                    </button>
-                  </div>
+                  <button
+                    onClick={submitTransaction}
+                    disabled={loading}
+                    className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm sm:text-base font-medium"
+                  >
+                    <Save size={16} className="sm:w-5 sm:h-5" />
+                    {loading ? "Saving..." : "Save Transaction"}
+                  </button>
                 </div>
               </div>
             )}
