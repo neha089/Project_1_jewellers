@@ -1,4 +1,4 @@
-// api.js - Enhanced API Service Layer with Gold Loan Interest and Repayment Features
+  // api.js - Enhanced API Service Layer with Gold Loan Interest and Repayment Features
 const BASE_URL = "http://localhost:3000";
 
 class ApiService {
