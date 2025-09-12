@@ -285,22 +285,40 @@ export const addInterestPayment = async (req, res) => {
   }
 };
 
-// Enhanced item-specific repayment with current gold price calculations (KEY FEATURE)
 export const processItemRepayment = async (req, res) => {
   try {
     const { 
       repaymentAmount, 
       selectedItemIds = [], 
+      returnedItemIds = [], // Support both field names
+      cashPaymentPaise,
+      cashPayment,
       photos = [], 
       notes,
+      summary,
       autoSelectItems = true
     } = req.body;
-   
-    if (!repaymentAmount || repaymentAmount <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Repayment amount is required and must be greater than 0' 
-      });
+
+    // Handle different input formats from frontend
+    const finalRepaymentAmount = repaymentAmount || (cashPayment ? parseFloat(cashPayment) : 0) || (cashPaymentPaise ? cashPaymentPaise / 100 : 0);
+    const finalSelectedItemIds = selectedItemIds.length > 0 ? selectedItemIds : returnedItemIds;
+    const finalCashPaymentPaise = cashPaymentPaise || Math.round(finalRepaymentAmount * 100);
+
+    console.log('Processing repayment:', {
+      finalRepaymentAmount,
+      finalSelectedItemIds,
+      finalCashPaymentPaise,
+      originalBody: req.body
+    });
+
+    if (!finalRepaymentAmount || finalRepaymentAmount <= 0) {
+      // Allow item-only returns without cash payment
+      if (finalSelectedItemIds.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Either repayment amount or selected items are required' 
+        });
+      }
     }
 
     const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
@@ -308,74 +326,97 @@ export const processItemRepayment = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Gold loan not found' });
     }
 
-    const repaymentAmountPaise = Math.round(parseFloat(repaymentAmount) * 100);
+    // Get all unreturned items
+    const unreturnedItems = goldLoan.items.filter(item => !item.returnDate);
     
     // Recalculate current values for all unreturned items
     const itemAnalysis = [];
     
-    for (const item of goldLoan.items) {
-      if (!item.returnDate) {
-        const calculation = await GoldPriceService.calculateGoldAmount(
-          item.weightGram, 
-          item.purityK
-        );
-        
-        const currentValue = calculation.success ? 
-          Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
-        
-        const itemInfo = {
-          ...item.toObject(),
-          currentValuePaise: currentValue,
-          originalValuePaise: item.amountPaise,
-          canReturnWithPayment: repaymentAmountPaise >= currentValue,
-          priceChange: currentValue - item.amountPaise,
-          isSelected: selectedItemIds.includes(item._id.toString())
-        };
-        
-        itemAnalysis.push(itemInfo);
-      }
+    for (const item of unreturnedItems) {
+      const calculation = await GoldPriceService.calculateGoldAmount(
+        item.weightGram, 
+        item.purityK
+      );
+      
+      const currentValue = calculation.success ? 
+        Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
+      
+      const itemInfo = {
+        ...item.toObject(),
+        currentValuePaise: currentValue,
+        originalValuePaise: item.amountPaise,
+        canReturnWithPayment: finalCashPaymentPaise >= currentValue,
+        priceChange: currentValue - item.amountPaise,
+        isSelected: finalSelectedItemIds.includes(item._id.toString())
+      };
+      
+      itemAnalysis.push(itemInfo);
     }
 
     // Determine which items to return
     let itemsToReturn = [];
-    let remainingPayment = repaymentAmountPaise;
+    let totalItemValue = 0;
     
-    if (selectedItemIds.length > 0) {
-      // Use specifically selected items
+    if (finalSelectedItemIds.length > 0) {
+      // Use specifically selected items - return them regardless of cash payment
       itemsToReturn = itemAnalysis.filter(item => 
-        selectedItemIds.includes(item._id.toString()) && 
-        item.currentValuePaise <= repaymentAmountPaise
+        finalSelectedItemIds.includes(item._id.toString())
       );
-    } else if (autoSelectItems) {
+      totalItemValue = itemsToReturn.reduce((sum, item) => sum + item.currentValuePaise, 0);
+    } else if (autoSelectItems && finalCashPaymentPaise > 0) {
       // Auto-select items starting with lowest value first
       const sortedItems = [...itemAnalysis].sort((a, b) => a.currentValuePaise - b.currentValuePaise);
+      let remainingPayment = finalCashPaymentPaise;
       
       for (const item of sortedItems) {
         if (remainingPayment >= item.currentValuePaise) {
           itemsToReturn.push(item);
+          totalItemValue += item.currentValuePaise;
           remainingPayment -= item.currentValuePaise;
         }
       }
     }
 
-    // Calculate final amounts
-    const totalReturnValue = itemsToReturn.reduce((sum, item) => sum + item.currentValuePaise, 0);
-    const excessAmount = repaymentAmountPaise - totalReturnValue;
+    // Calculate payment allocation
+    const totalCredit = finalCashPaymentPaise + totalItemValue;
+    const currentPrincipalPaise = goldLoan.currentPrincipalPaise || goldLoan.principalPaise;
+    
+    // Calculate outstanding interest
+    const monthlyRate = goldLoan.interestRateMonthlyPct / 100;
+    const startDate = new Date(goldLoan.startDate);
+    const monthsDiff = Math.max(1, Math.ceil((new Date() - startDate) / (1000 * 60 * 60 * 24 * 30)));
+    const outstandingInterestPaise = Math.round(((currentPrincipalPaise / 100) * monthlyRate * monthsDiff) * 100);
+    
+    // Allocate payment: interest first, then principal
+    let interestPayment = Math.min(finalCashPaymentPaise, outstandingInterestPaise);
+    let principalPayment = Math.max(0, finalCashPaymentPaise - interestPayment);
+    let excessAmount = 0;
+    
+    // If total credit exceeds what's owed
+    const totalOwed = currentPrincipalPaise + outstandingInterestPaise;
+    if (totalCredit > totalOwed) {
+      excessAmount = totalCredit - totalOwed;
+      // Adjust payments
+      if (totalCredit - excessAmount > 0) {
+        interestPayment = Math.min(totalCredit - excessAmount, outstandingInterestPaise);
+        principalPayment = Math.max(0, (totalCredit - excessAmount) - interestPayment);
+      }
+    }
 
-    // Update loan with payment record
+    // Create payment record
     const currentDate = new Date();
     const forMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
     const monthName = currentDate.toLocaleString('default', { month: 'long' });
 
     const paymentRecord = {
       date: currentDate,
-      principalPaise: totalReturnValue,
-      interestPaise: 0,
+      principalPaise: principalPayment + totalItemValue, // Include item value in principal payment
+      interestPaise: interestPayment,
       forMonth,
       forYear: currentDate.getFullYear(),
       forMonthName: monthName,
       photos,
-      notes: notes || `Item repayment - ${itemsToReturn.length} items returned`,
+      notes: notes || `${itemsToReturn.length > 0 ? `Item repayment - ${itemsToReturn.length} items returned` : 'Cash payment'}${finalCashPaymentPaise > 0 ? ` + ₹${(finalCashPaymentPaise/100).toFixed(2)} cash` : ''}`,
       itemsReturned: itemsToReturn.map(item => ({
         itemId: item._id,
         name: item.name,
@@ -383,7 +424,10 @@ export const processItemRepayment = async (req, res) => {
         currentValue: item.currentValuePaise,
         originalValue: item.originalValuePaise
       })),
-      excessAmount: excessAmount
+      excessAmount,
+      cashPaymentPaise: finalCashPaymentPaise,
+      itemsValuePaise: totalItemValue,
+      totalCreditPaise: totalCredit
     };
 
     goldLoan.payments.push(paymentRecord);
@@ -411,8 +455,9 @@ export const processItemRepayment = async (req, res) => {
     
     goldLoan.currentPrincipalPaise = newPrincipalPaise;
 
-    // Update loan status if all items are returned
-    if (remainingItems.length === 0) {
+    // Update loan status if all items are returned and no outstanding amount
+    const newOutstandingInterest = Math.max(0, outstandingInterestPaise - interestPayment);
+    if (remainingItems.length === 0 && newPrincipalPaise === 0 && newOutstandingInterest === 0) {
       goldLoan.status = 'COMPLETED';
       goldLoan.completionDate = currentDate;
     }
@@ -420,13 +465,32 @@ export const processItemRepayment = async (req, res) => {
     await goldLoan.save();
 
     // Create transaction records
-    if (totalReturnValue > 0) {
+    if (interestPayment > 0) {
+      const interestTransaction = new Transaction({
+        type: 'GOLD_LOAN_INTEREST',
+        customer: goldLoan.customer._id,
+        amount: interestPayment,
+        direction: -1, // incoming
+        description: `Gold loan interest payment - ₹${(interestPayment / 100).toFixed(2)}`,
+        relatedDoc: goldLoan._id,
+        relatedModel: 'GoldLoan',
+        category: 'INCOME',
+        metadata: {
+          paymentType: 'INTEREST',
+          months: monthsDiff,
+          photos
+        }
+      });
+      await interestTransaction.save();
+    }
+
+    if (principalPayment + totalItemValue > 0) {
       const repaymentTransaction = new Transaction({
         type: 'GOLD_LOAN_PAYMENT',
         customer: goldLoan.customer._id,
-        amount: totalReturnValue,
+        amount: principalPayment + totalItemValue,
         direction: -1, // incoming
-        description: `Item repayment - ${itemsToReturn.length} items returned (${itemsToReturn.map(i => i.name).join(', ')})`,
+        description: `Gold loan principal payment${itemsToReturn.length > 0 ? ` - ${itemsToReturn.length} items returned` : ''} ${principalPayment > 0 ? `+ ₹${(principalPayment / 100).toFixed(2)} cash` : ''}`,
         relatedDoc: goldLoan._id,
         relatedModel: 'GoldLoan',
         category: 'INCOME',
@@ -434,6 +498,8 @@ export const processItemRepayment = async (req, res) => {
           paymentType: 'PRINCIPAL',
           itemCount: itemsToReturn.length,
           weightGrams: itemsToReturn.reduce((sum, item) => sum + item.weightGram, 0),
+          cashAmount: principalPayment,
+          itemsValue: totalItemValue,
           photos
         },
         affectedItems: itemsToReturn.map(item => ({
@@ -469,12 +535,17 @@ export const processItemRepayment = async (req, res) => {
       success: true, 
       data: goldLoan,
       repaymentSummary: {
-        amountPaid: repaymentAmountPaise / 100,
+        amountPaid: finalCashPaymentPaise / 100,
         itemsReturned: itemsToReturn.length,
-        totalReturnValue: totalReturnValue / 100,
+        totalItemValue: totalItemValue / 100,
+        interestPaid: interestPayment / 100,
+        principalPaid: (principalPayment + totalItemValue) / 100,
         excessAmount: excessAmount / 100,
         remainingItems: remainingItems.length,
         newLoanAmount: newPrincipalPaise / 100,
+        outstandingInterest: Math.max(0, outstandingInterestPaise - interestPayment) / 100,
+        totalCredit: totalCredit / 100,
+        loanStatus: goldLoan.status,
         returnedItems: itemsToReturn.map(item => ({
           name: item.name,
           weight: item.weightGram,
@@ -483,13 +554,27 @@ export const processItemRepayment = async (req, res) => {
           originalValue: item.originalValuePaise / 100,
           priceChange: (item.currentValuePaise - item.originalValuePaise) / 100
         })),
-        newMonthlyInterest: Math.round((newPrincipalPaise * goldLoan.interestRateMonthlyPct) / 100) / 100
+        newMonthlyInterest: newPrincipalPaise > 0 ? Math.round((newPrincipalPaise * goldLoan.interestRateMonthlyPct) / 100) / 100 : 0
       },
-      message: itemsToReturn.length > 0 
-        ? `${itemsToReturn.length} items returned. ${excessAmount > 0 ? `Excess: ₹${(excessAmount / 100).toFixed(2)}` : ''}`
-        : 'Payment recorded but no items returned'
+      message: (() => {
+        const parts = [];
+        if (itemsToReturn.length > 0) {
+          parts.push(`${itemsToReturn.length} items returned (₹${(totalItemValue/100).toFixed(2)})`);
+        }
+        if (finalCashPaymentPaise > 0) {
+          parts.push(`Cash payment: ₹${(finalCashPaymentPaise/100).toFixed(2)}`);
+        }
+        if (excessAmount > 0) {
+          parts.push(`Excess: ₹${(excessAmount/100).toFixed(2)}`);
+        }
+        if (goldLoan.status === 'COMPLETED') {
+          parts.push('LOAN COMPLETED');
+        }
+        return parts.join(' | ') || 'Payment processed';
+      })()
     });
   } catch (error) {
+    console.error('Repayment processing error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
