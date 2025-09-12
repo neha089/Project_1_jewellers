@@ -2,7 +2,7 @@
 import Transaction from '../models/Transaction.js';
 import mongoose from 'mongoose';
 import SilverLoan from '../models/SilverLoan.js';
-import { SilverPriceService } from '../utils/silverloanservice.js';
+import { silverPriceService } from '../utils/silverloanservice.js';
 // controllers/silverLoanController.js - COMPLETE ENHANCED VERSION
 
 // Create new silver loan with auto-calculated amounts based on current silver prices
@@ -20,7 +20,7 @@ export const createSilverLoan = async (req, res) => {
     // Auto-calculate amounts for items based on current silver prices
     const processedItems = [];
     let totalPrincipalPaise = 0;
-    const currentPrices = await GoldPriceService.getCurrentPrices();
+    const currentPrices = await silverPriceService.getCurrentPrices();
 
     for (const item of items) {
       if (!item.weightGram || !item.purityK) {
@@ -31,7 +31,7 @@ export const createSilverLoan = async (req, res) => {
       }
 
       // Auto-calculate amount based on current silver price
-      const calculation = await GoldPriceService.calculateGoldAmount(
+      const calculation = await silverPriceService.calculateGoldAmount(
         parseFloat(item.weightGram), 
         parseInt(item.purityK)
       );
@@ -155,7 +155,7 @@ export const addInterestPayment = async (req, res) => {
     let currentActivePrincipal = 0;
     
     for (const item of activeItems) {
-      const calculation = await GoldPriceService.calculateGoldAmount(item.weightGram, item.purityK);
+      const calculation = await silverPriceService.calculateGoldAmount(item.weightGram, item.purityK);
       currentActivePrincipal += calculation.success ? 
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
@@ -316,7 +316,7 @@ export const processItemRepayment = async (req, res) => {
     
     for (const item of silverLoan.items) {
       if (!item.returnDate) {
-        const calculation = await GoldPriceService.calculateGoldAmount(
+        const calculation = await silverPriceService.calculateGoldAmount(
           item.weightGram, 
           item.purityK
         );
@@ -405,7 +405,7 @@ export const processItemRepayment = async (req, res) => {
     let newPrincipalPaise = 0;
     
     for (const item of remainingItems) {
-      const calculation = await GoldPriceService.calculateGoldAmount(item.weightGram, item.purityK);
+      const calculation = await silverPriceService.calculateGoldAmount(item.weightGram, item.purityK);
       newPrincipalPaise += calculation.success ? 
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
@@ -509,7 +509,7 @@ export const getRepaymentOptions = async (req, res) => {
     
     for (const item of silverLoan.items) {
       if (!item.returnDate) {
-        const calculation = await GoldPriceService.calculateGoldAmount(
+        const calculation = await silverPriceService.calculateGoldAmount(
           item.weightGram, 
           item.purityK
         );
@@ -598,7 +598,7 @@ export const getRepaymentOptions = async (req, res) => {
           halfValue: scenarios[3].preFilledAmount,
           fullValue: scenarios[4].preFilledAmount
         },
-        currentGoldPrices: await GoldPriceService.getCurrentPrices(),
+        currentGoldPrices: await silverPriceService.getCurrentPrices(),
         itemsByValue: {
           cheapest: itemOptions.length > 0 ? itemOptions.reduce((min, item) => item.currentValuePaise < min.currentValuePaise ? item : min) : null,
           mostExpensive: itemOptions.length > 0 ? itemOptions.reduce((max, item) => item.currentValuePaise > max.currentValuePaise ? item : max) : null
@@ -623,7 +623,7 @@ export const getInterestCalculation = async (req, res) => {
     let currentActivePrincipal = 0;
     
     for (const item of activeItems) {
-      const calculation = await GoldPriceService.calculateGoldAmount(item.weightGram, item.purityK);
+      const calculation = await silverPriceService.calculateGoldAmount(item.weightGram, item.purityK);
       currentActivePrincipal += calculation.success ? 
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
@@ -706,7 +706,7 @@ export const getInterestCalculation = async (req, res) => {
 // Get current silver prices for auto-calculation
 export const getCurrentGoldPrices = async (req, res) => {
   try {
-    const prices = await GoldPriceService.getCurrentPrices();
+    const prices = await silverPriceService.getCurrentPrices();
     res.json({ success: true, data: prices });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -727,9 +727,9 @@ export const calculateLoanAmount = async (req, res) => {
 
     let calculation;
     if (metal.toLowerCase() === 'silver') {
-      calculation = await GoldPriceService.calculateSilverAmount(parseFloat(weightGrams));
+      calculation = await silverPriceService.calculateSilverAmount(parseFloat(weightGrams));
     } else {
-      calculation = await GoldPriceService.calculateGoldAmount(
+      calculation = await silverPriceService.calculateGoldAmount(
         parseFloat(weightGrams), 
         parseInt(purityK)
       );
@@ -811,7 +811,7 @@ export const getInterestPaymentHistory = async (req, res) => {
     let currentActivePrincipal = 0;
     
     for (const item of activeItems) {
-      const calculation = await GoldPriceService.calculateGoldAmount(item.weightGram, item.purityK);
+      const calculation = await silverPriceService.calculateGoldAmount(item.weightGram, item.purityK);
       currentActivePrincipal += calculation.success ? 
         Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
     }
@@ -918,7 +918,7 @@ export const updateGoldPrices = async (req, res) => {
   try {
     const { purity22K, purity24K, purity18K, silverPrice, updatedBy = 'admin' } = req.body;
     
-    const result = await GoldPriceService.updatePrices({
+    const result = await silverPriceService.updatePrices({
       purity22K: parseFloat(purity22K),
       purity24K: parseFloat(purity24K),
       purity18K: parseFloat(purity18K),

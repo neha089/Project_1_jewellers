@@ -23,19 +23,13 @@ const SummaryCards = () => {
 
       if (response && response.data) {
         const data = response.data;
-
         // Calculate total income (all money coming in)
-        const totalIncome = (data.recentPayments || [])
-          .filter(p => p.type === 'income')
-          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        const totalIncome = data.financials.daily.income || 0;
 
         // Calculate total expenses (all money going out)
-        const totalExpenses = (data.recentPayments || [])
-          .filter(p => p.type === 'expense')
-          .reduce((sum, p) => sum + (p.amount || 0), 0);
-
+        const totalExpenses = data.financials.daily.expense || 0;
         // Calculate net profit
-        const netProfit = totalIncome - totalExpenses;
+        const netProfit =data.financials.daily.netIncome || 0;
         
         // Calculate profit margin percentage
         const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100) : 0;

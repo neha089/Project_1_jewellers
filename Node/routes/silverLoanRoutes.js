@@ -26,13 +26,13 @@ router.get('/payments/history', silverLoanController.getAllPaymentHistory);
 router.get('/reports/monthly-income', reportController.getMonthlyIncomeReport);
 
 // CUSTOMER SPECIFIC ROUTES (Before /:id route)
-router.get('/customer/:customerId', silverLoanController.getGoldLoansByCustomer);
+// router.get('/customer/:customerId', silverLoanController.getGoldLoansByCustomer);
 router.get('/customer/:customerId/summary', silverLoanController.getCustomerLoanSummary);
 
 // BASIC CRUD OPERATIONS
-router.post('/', silverLoanController.createGoldLoan);
-router.get('/', silverLoanController.getAllGoldLoans);
-router.get('/:id', silverLoanController.getGoldLoanById);
+// router.post('/', silverLoanController.createGoldLoan);
+// router.get('/', silverLoanController.getAllGoldLoans);
+// router.get('/:id', silverLoanController.getGoldLoanById);
 
 // LOAN SPECIFIC OPERATIONS
 router.get('/:id/report', silverLoanController.getLoanReport);
@@ -56,9 +56,9 @@ router.put('/:id/items/:itemId', silverLoanController.updateItem);
 router.delete('/:id/items/:itemId', silverLoanController.removeItem);
 
 // LOAN MANAGEMENT
-router.put('/:id/close', silverLoanController.closeGoldLoan);
+// router.put('/:id/close', silverLoanController.closeGoldLoan);
 router.post('/:id/return-items', silverLoanController.returnItems);
-router.put('/:id/complete', silverLoanController.completeGoldLoan);
+// router.put('/:id/complete', silverLoanController.completeGoldLoan);
 
 // VALIDATION ENDPOINTS
 router.get('/:id/validate-closure', silverLoanController.validateLoanClosure);

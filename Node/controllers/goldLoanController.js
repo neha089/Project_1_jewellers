@@ -20,7 +20,7 @@ export const createGoldLoan = async (req, res) => {
     // Auto-calculate amounts for items based on current gold prices
     const processedItems = [];
     let totalPrincipalPaise = 0;
-    const currentPrices = await GoldPriceService.getCurrentPrices();
+    const currentPrices = await GoldPriceService.fetchCurrentGoldPrices();
 
     for (const item of items) {
       if (!item.weightGram || !item.purityK) {
@@ -598,7 +598,7 @@ export const getRepaymentOptions = async (req, res) => {
           halfValue: scenarios[3].preFilledAmount,
           fullValue: scenarios[4].preFilledAmount
         },
-        currentGoldPrices: await GoldPriceService.getCurrentPrices(),
+        currentGoldPrices: await GoldPriceService.fetchCurrentGoldPrices(),
         itemsByValue: {
           cheapest: itemOptions.length > 0 ? itemOptions.reduce((min, item) => item.currentValuePaise < min.currentValuePaise ? item : min) : null,
           mostExpensive: itemOptions.length > 0 ? itemOptions.reduce((max, item) => item.currentValuePaise > max.currentValuePaise ? item : max) : null
@@ -706,7 +706,7 @@ export const getInterestCalculation = async (req, res) => {
 // Get current gold prices for auto-calculation
 export const getCurrentGoldPrices = async (req, res) => {
   try {
-    const prices = await GoldPriceService.getCurrentPrices();
+    const prices = await GoldPriceService.fetchCurrentGoldPrices();
     res.json({ success: true, data: prices });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

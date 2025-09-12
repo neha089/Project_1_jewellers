@@ -263,5 +263,4 @@ class SilverPriceService {
 }
 
 // Create singleton instance
-export const SilverPriceService = new SilverPriceService();
-export default SilverPriceService;
+export const silverPriceService = new SilverPriceService();  

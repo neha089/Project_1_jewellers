@@ -31,6 +31,20 @@ const TransactionForm = ({
     durationMonths: "6",
     selectedLoanId: "",
     photos: [],
+    // New fields for gold/silver transactions
+    itemName: "",
+    makingCharges: "0",
+    wastage: "0",
+    taxAmount: "0",
+    advanceAmount: "0",
+    paymentMode: "CASH",
+    billNumber: "",
+    // For purchases
+    partyName: "",
+    supplierName: "",
+    supplierPhone: "",
+    supplierAddress: "",
+    supplierGST: "",
     items: [
       {
         id: Date.now(),
@@ -60,7 +74,7 @@ const TransactionForm = ({
     }
 
     // Fetch current gold price for gold-related transactions
-    if (selectedCategory?.id.includes("gold")) {
+    if (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver")) {
       fetchCurrentGoldPrice();
     }
   }, [selectedCategory, selectedCustomer]);
@@ -72,10 +86,40 @@ const TransactionForm = ({
     }
   }, [transactionData.selectedLoanId]);
 
+  // Auto-calculate total amount for gold/silver sales
+  useEffect(() => {
+    if ((selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell") && 
+        transactionData.goldWeight && transactionData.goldRate) {
+      const weight = parseFloat(transactionData.goldWeight) || 0;
+      const rate = parseFloat(transactionData.goldRate) || 0;
+      const makingCharges = parseFloat(transactionData.makingCharges) || 0;
+      const wastage = parseFloat(transactionData.wastage) || 0;
+      const taxAmount = parseFloat(transactionData.taxAmount) || 0;
+      
+      const baseAmount = weight * rate;
+      const wastageAmount = (baseAmount * wastage) / 100;
+      const totalAmount = baseAmount + wastageAmount + makingCharges + taxAmount;
+      
+      setTransactionData(prev => ({
+        ...prev,
+        amount: totalAmount.toFixed(2)
+      }));
+    }
+  }, [transactionData.goldWeight, transactionData.goldRate, transactionData.makingCharges, 
+      transactionData.wastage, transactionData.taxAmount, selectedCategory?.id]);
+
   const fetchCurrentGoldPrice = async () => {
     try {
       const price = await GoldPriceService.getCurrentGoldPrice();
       setCurrentGoldPrice(price);
+      
+      // Auto-set current gold price if not already set
+      if (price && !transactionData.goldRate) {
+        setTransactionData(prev => ({
+          ...prev,
+          goldRate: price.toString()
+        }));
+      }
     } catch (error) {
       console.error("Failed to fetch gold price:", error);
     }
@@ -170,9 +214,15 @@ const TransactionForm = ({
       }
     }
 
-    const isGoldTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
-    if (isGoldTransaction && selectedCategory?.id !== "gold-loan" && !transactionData.goldWeight.trim()) {
+    // Validation for gold/silver transactions
+    const isMetalTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
+    if (isMetalTransaction && selectedCategory?.id !== "gold-loan" && !transactionData.goldWeight.trim()) {
       newErrors.goldWeight = "Weight is required";
+    }
+
+    if ((selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell") && 
+        !transactionData.goldRate.trim()) {
+      newErrors.goldRate = "Rate per gram is required";
     }
 
     const isInterestPayment = selectedCategory?.id.includes("interest-received");
@@ -222,13 +272,38 @@ const TransactionForm = ({
           break;
 
         case "gold-sell":
-        case "silver-sell":
-          response = await ApiService.createMetalSale({
-            ...commonData,
-            metal: selectedCategory.id.includes("gold") ? "GOLD" : "SILVER",
+          response = await ApiService.createGoldSale({
+            customerId: selectedCustomer._id,
+            purity: transactionData.goldType,
             weight: transactionData.goldWeight,
             rate: transactionData.goldRate,
-            purity: transactionData.goldPurity,
+            makingCharges: transactionData.makingCharges,
+            wastage: transactionData.wastage,
+            taxAmount: transactionData.taxAmount,
+            advanceAmount: transactionData.advanceAmount,
+            paymentMode: transactionData.paymentMode,
+            itemName: transactionData.itemName || "Gold Item",
+            description: transactionData.description,
+            photos: transactionData.photos,
+            billNumber: transactionData.billNumber
+          });
+          break;
+
+        case "silver-sell":
+          response = await ApiService.createSilverSale({
+            customerId: selectedCustomer._id,
+            purity: transactionData.goldType === "22K" ? "999" : transactionData.goldType,
+            weight: transactionData.goldWeight,
+            rate: transactionData.goldRate,
+            makingCharges: transactionData.makingCharges,
+            wastage: transactionData.wastage,
+            taxAmount: transactionData.taxAmount,
+            advanceAmount: transactionData.advanceAmount,
+            paymentMode: transactionData.paymentMode,
+            itemName: transactionData.itemName || "Silver Item",
+            description: transactionData.description,
+            photos: transactionData.photos,
+            billNumber: transactionData.billNumber
           });
           break;
 
@@ -294,13 +369,22 @@ const TransactionForm = ({
           break;
 
         case "gold-purchase":
-        case "silver-purchase":
           response = await ApiService.createGoldPurchase({
             ...commonData,
             partyName: selectedCustomer.name,
             goldWeight: transactionData.goldWeight,
             goldType: transactionData.goldType,
-            metal: selectedCategory.id.includes("gold") ? "GOLD" : "SILVER",
+            metal: "GOLD",
+          });
+          break;
+
+        case "silver-purchase":
+          response = await ApiService.createSilverPurchase({
+            ...commonData,
+            partyName: selectedCustomer.name,
+            goldWeight: transactionData.goldWeight, // Using same field name
+            goldType: transactionData.goldType === "22K" ? "999" : transactionData.goldType,
+            metal: "SILVER",
           });
           break;
 
@@ -329,6 +413,7 @@ const TransactionForm = ({
   const isRepayment = selectedCategory?.id.includes("repayment");
   const isGoldLoan = selectedCategory?.id === "gold-loan";
   const isGoldLoanRepayment = selectedCategory?.id === "gold-loan-repayment";
+  const isMetalSale = selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell";
 
   return (
     <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
@@ -428,6 +513,139 @@ const TransactionForm = ({
                 </div>
               )}
 
+              {/* Enhanced Fields for Metal Sales */}
+              {isMetalSale && (
+                <div className="space-y-4">
+                  {/* Item Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Item Name
+                    </label>
+                    <input
+                      type="text"
+                      name="itemName"
+                      value={transactionData.itemName}
+                      onChange={handleDataChange}
+                      className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                      placeholder={`Enter ${selectedCategory?.id.includes("gold") ? "gold" : "silver"} item name`}
+                      disabled={loading}
+                    />
+                    {errors.itemName && (
+                      <p className="text-red-500 text-xs mt-1">{errors.itemName}</p>
+                    )}
+                  </div>
+
+                  {/* Additional charges */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Making Charges (₹)
+                      </label>
+                      <input
+                        type="number"
+                        name="makingCharges"
+                        value={transactionData.makingCharges}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Wastage (%)
+                      </label>
+                      <input
+                        type="number"
+                        name="wastage"
+                        value={transactionData.wastage}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="0"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tax Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        name="taxAmount"
+                        value={transactionData.taxAmount}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Advance Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        name="advanceAmount"
+                        value={transactionData.advanceAmount}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Payment Mode and Bill Number */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Payment Mode
+                      </label>
+                      <select
+                        name="paymentMode"
+                        value={transactionData.paymentMode}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        disabled={loading}
+                      >
+                        <option value="CASH">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="CARD">Card</option>
+                        <option value="CHEQUE">Cheque</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Bill Number
+                      </label>
+                      <input
+                        type="text"
+                        name="billNumber"
+                        value={transactionData.billNumber}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="Optional bill number"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Regular Amount Field for Non-Gold-Loan Transactions */}
               {!isGoldLoan && !isGoldLoanRepayment && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -437,6 +655,7 @@ const TransactionForm = ({
                     errors={errors}
                     loading={loading}
                     onChange={handleDataChange}
+                    readOnly={isMetalSale} // Make amount read-only for metal sales as it's auto-calculated
                   />
                 </div>
               )}
@@ -449,8 +668,24 @@ const TransactionForm = ({
                     errors={errors}
                     loading={loading}
                     onChange={handleDataChange}
-                    metalType={selectedCategory?.id.includes("silver") ? "Silver" : "Gold"}
+                    metalType="Gold"
                     currentGoldPrice={currentGoldPrice}
+                    showRateField={isMetalSale} // Show rate field for sales
+                  />
+                </div>
+              )}
+
+              {/* Silver Transaction Fields */}
+              {selectedCategory?.id.includes("silver") && !isGoldLoan && !isGoldLoanRepayment && (
+                <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <GoldTransactionFields
+                    transactionData={transactionData}
+                    errors={errors}
+                    loading={loading}
+                    onChange={handleDataChange}
+                    metalType="Silver"
+                    currentGoldPrice={currentGoldPrice}
+                    showRateField={isMetalSale} // Show rate field for sales
                   />
                 </div>
               )}
@@ -483,13 +718,61 @@ const TransactionForm = ({
               </div>
 
               {/* Photo Upload */}
-              {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("loan")) && !isGoldLoanRepayment && (
+              {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver") || selectedCategory?.id.includes("loan")) && !isGoldLoanRepayment && (
                 <div className="bg-green-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <PhotoUpload
                     photos={transactionData.photos}
                     loading={loading}
                     onPhotosChange={(photos) => updateTransactionData({ photos })}
                   />
+                </div>
+              )}
+
+              {/* Transaction Summary for Metal Sales */}
+              {isMetalSale && transactionData.goldWeight && transactionData.goldRate && (
+                <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Transaction Summary</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Base Amount ({transactionData.goldWeight}g × ₹{transactionData.goldRate}):</span>
+                      <span>₹{(parseFloat(transactionData.goldWeight || 0) * parseFloat(transactionData.goldRate || 0)).toFixed(2)}</span>
+                    </div>
+                    {parseFloat(transactionData.wastage || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span>Wastage ({transactionData.wastage}%):</span>
+                        <span>₹{((parseFloat(transactionData.goldWeight || 0) * parseFloat(transactionData.goldRate || 0) * parseFloat(transactionData.wastage || 0)) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {parseFloat(transactionData.makingCharges || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span>Making Charges:</span>
+                        <span>₹{parseFloat(transactionData.makingCharges || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {parseFloat(transactionData.taxAmount || 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span>Tax Amount:</span>
+                        <span>₹{parseFloat(transactionData.taxAmount || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    <hr className="my-2" />
+                    <div className="flex justify-between font-semibold">
+                      <span>Total Amount:</span>
+                      <span>₹{transactionData.amount}</span>
+                    </div>
+                    {parseFloat(transactionData.advanceAmount || 0) > 0 && (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Advance Amount:</span>
+                          <span>₹{parseFloat(transactionData.advanceAmount || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-semibold text-orange-600">
+                          <span>Remaining Amount:</span>
+                          <span>₹{(parseFloat(transactionData.amount || 0) - parseFloat(transactionData.advanceAmount || 0)).toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

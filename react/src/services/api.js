@@ -166,7 +166,7 @@ class ApiService {
   }
 
   async getDashboardStats() {
-    return this.request("/api/gold-loans/analytics/dashboard");
+    return this.request("/api/dashboard/stats");
   }
 
   async getGoldLoanInterestSummary(loanId) {
@@ -410,26 +410,221 @@ class ApiService {
     });
   }
 
-  // Gold Purchase APIs
-  async createGoldPurchase(purchaseData) {
-    return this.request("/api/gold-purchases/", {
-      method: "POST",
-      body: {
-        partyName: purchaseData.partyName,
-        items: [
-          {
-            name: purchaseData.description || "Gold Item",
-            weightGram: parseFloat(purchaseData.goldWeight),
-            amountPaise: Math.round(parseFloat(purchaseData.amount) * 100),
-            purityK: parseInt(purchaseData.goldType.replace("K", "")),
-            metal: purchaseData.metal.toUpperCase(),
-          },
-        ],
-        totalPaise: Math.round(parseFloat(purchaseData.amount) * 100),
-        date: purchaseData.date,
+  
+  //gol silver sell buy 
+
+// Create Gold Sale Transaction
+ async createGoldSale  (transactionData) {
+  try {
+    const payload = {
+      transactionType: "SELL",
+      customer: transactionData.customerId,
+      goldDetails: {
+        purity: transactionData.purity || "22K",
+        weight: parseFloat(transactionData.weight),
+        ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
+        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+        wastage: parseFloat(transactionData.wastage || 0),
+        taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
       },
+      advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+      paymentMode: transactionData.paymentMode || "CASH",
+      items: transactionData.items || [{
+        name: transactionData.itemName || "Gold Item",
+        description: transactionData.description || "",
+        weight: parseFloat(transactionData.weight),
+        purity: transactionData.purity || "22K",
+        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+        itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
+        photos: transactionData.photos || []
+      }],
+      notes: transactionData.description || "",
+      billNumber: transactionData.billNumber || ""
+    };
+
+    const response = await fetch(`${BASE_URL}/api/gold`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
     });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to create gold sale transaction');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error creating gold sale:', error);
+    throw error;
   }
+};
+
+// Create Silver Sale Transaction
+ async createSilverSale (transactionData) {
+  try {
+    const payload = {
+      transactionType: "SELL",
+      customer: transactionData.customerId,
+      silverDetails: {
+        purity: transactionData.purity || "999",
+        weight: parseFloat(transactionData.weight),
+        ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
+        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+        wastage: parseFloat(transactionData.wastage || 0),
+        taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
+      },
+      advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+      paymentMode: transactionData.paymentMode || "CASH",
+      items: transactionData.items || [{
+        name: transactionData.itemName || "Silver Item",
+        description: transactionData.description || "",
+        weight: parseFloat(transactionData.weight),
+        purity: transactionData.purity || "999",
+        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+        itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
+        photos: transactionData.photos || []
+      }],
+      notes: transactionData.description || "",
+      billNumber: transactionData.billNumber || ""
+    };
+
+    const response = await fetch(`${BASE_URL}/api/silver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to create silver sale transaction');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error creating silver sale:', error);
+    throw error;
+  }
+};
+
+
+// You might also want to add these utility methods:
+
+// Create Gold Purchase Transaction
+async createGoldPurchase  (transactionData) {
+  try {
+    const payload = {
+      transactionType: "BUY",
+      supplier: {
+        name: transactionData.partyName || transactionData.supplierName,
+        phone: transactionData.supplierPhone || "",
+        address: transactionData.supplierAddress || "",
+        gstNumber: transactionData.supplierGST || ""
+      },
+      goldDetails: {
+        purity: transactionData.goldType || "22K",
+        weight: parseFloat(transactionData.goldWeight),
+        ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
+        makingCharges: 0,
+        wastage: 0,
+        taxAmount: 0
+      },
+      advanceAmount: 0,
+      paymentMode: "CASH",
+      items: [{
+        name: "Gold Purchase",
+        description: transactionData.description || "",
+        weight: parseFloat(transactionData.goldWeight),
+        purity: transactionData.goldType || "22K",
+        makingCharges: 0,
+        itemValue: Math.round(parseFloat(transactionData.amount) * 100),
+        photos: transactionData.photos || []
+      }],
+      notes: transactionData.description || "",
+      billNumber: ""
+    };
+
+    const response = await fetch(`${BASE_URL}/api/gold`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to create gold purchase transaction');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error creating gold purchase:', error);
+    throw error;
+  }
+};
+
+// Create Silver Purchase Transaction  
+async createSilverPurchase (transactionData)  {
+  try {
+    const payload = {
+      transactionType: "BUY",
+      supplier: {
+        name: transactionData.partyName || transactionData.supplierName,
+        phone: transactionData.supplierPhone || "",
+        address: transactionData.supplierAddress || "",
+        gstNumber: transactionData.supplierGST || ""
+      },
+      silverDetails: {
+        purity: transactionData.goldType || "999", // Using goldType field but for silver
+        weight: parseFloat(transactionData.goldWeight), // Using goldWeight field but for silver
+        ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
+        makingCharges: 0,
+        wastage: 0,
+        taxAmount: 0
+      },
+      advanceAmount: 0,
+      paymentMode: "CASH",
+      items: [{
+        name: "Silver Purchase",
+        description: transactionData.description || "",
+        weight: parseFloat(transactionData.goldWeight),
+        purity: transactionData.goldType || "999",
+        makingCharges: 0,
+        itemValue: Math.round(parseFloat(transactionData.amount) * 100),
+        photos: transactionData.photos || []
+      }],
+      notes: transactionData.description || "",
+      billNumber: ""
+    };
+
+    const response = await fetch(`${BASE_URL}/api/silver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to create silver purchase transaction');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error creating silver purchase:', error);
+    throw error;
+  }
+};
 
   // Utility methods
   calculateDueDate(startDate, durationMonths) {
