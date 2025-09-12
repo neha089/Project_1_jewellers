@@ -20,7 +20,7 @@ export const createGoldLoan = async (req, res) => {
     // Auto-calculate amounts for items based on current gold prices
     const processedItems = [];
     let totalPrincipalPaise = 0;
-    const currentPrices = await GoldPriceService.fetchCurrentGoldPrices();
+    const currentPrices = await GoldPriceService.getCurrentPrices();
 
     for (const item of items) {
       if (!item.weightGram || !item.purityK) {
@@ -126,7 +126,6 @@ export const createGoldLoan = async (req, res) => {
     res.status(400).json({ success: false, error: error.message });
   }
 };
-
 // Enhanced interest payment with accumulating unpaid interest (KEY FEATURE)
 export const addInterestPayment = async (req, res) => {
   try {

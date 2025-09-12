@@ -46,7 +46,7 @@ const transactionSchema = new mongoose.Schema({
     weightGrams: { type: Number }, // Total weight involved
     itemCount: { type: Number }, // Number of items involved
     interestMonth: { type: String }, // Month for which interest was paid
-    paymentType: { type: String, enum: ['PRINCIPAL', 'INTEREST', 'COMBINED', 'EXCESS'] },
+    paymentType: { type: String, enum: ['PRINCIPAL', 'INTEREST', 'COMBINED', 'EXCESS','DISBURSEMENT'] },
     isPartialPayment: { type: Boolean, default: false },
     remainingAmount: { type: Number }, // Any remaining amount after transaction
     exchangeRate: { type: Number }, // If applicable
