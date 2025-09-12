@@ -11,7 +11,8 @@ export const createLoan = async (req, res) => {
       principalPaise,
       interestRateMonthlyPct,
       dueDate,
-      note
+      note,
+      direction // -1 for given, 1 for taken
     } = req.body;
 
     // Validate required fields
@@ -22,34 +23,31 @@ export const createLoan = async (req, res) => {
       });
     }
 
-    const direction = loanType === 'GIVEN' ? 1 : -1;
+    // Ensure direction matches loanType
+    const calculatedDirection = loanType === 'GIVEN' ? -1 : 1;
+    const finalDirection = direction !== undefined ? direction : calculatedDirection;
     
     const loan = new Loan({
       customer,
       loanType,
-      direction,
+      direction: finalDirection,
       principalPaise,
+      outstandingPrincipal: principalPaise, // Initialize outstanding principal
       interestRateMonthlyPct,
       dueDate: dueDate ? new Date(dueDate) : null,
-      note
+      note,
+      status: 'ACTIVE',
+      isActive: true,
+      totalPrincipalPaid: 0,
+      totalInterestPaid: 0,
+      interestPaymentHistory: [],
+      principalPaymentHistory: []
     });
 
     await loan.save();
     
-    // Calculate next interest due date
+    // Calculate next interest due date (first month from loan creation)
     await loan.updateNextInterestDueDate();
-
-    // Create UdhariTransaction for tracking
-    const udhariTxn = new UdhariTransaction({
-      customer: loan.customer,
-      kind: loanType,
-      principalPaise: loan.principalPaise,
-      direction: direction,
-      sourceType: 'LOAN',
-      sourceRef: loan._id,
-      note: `Loan ${loanType.toLowerCase()} with ${loan.interestRateMonthlyPct}% monthly interest`
-    });
-    await udhariTxn.save();
 
     // Create transaction record
     const transactionType = loanType === 'GIVEN' ? 'LOAN_GIVEN' : 'LOAN_TAKEN';
@@ -59,7 +57,7 @@ export const createLoan = async (req, res) => {
       type: transactionType,
       customer: loan.customer,
       amount: loan.principalPaise,
-      direction: direction,
+      direction: finalDirection,
       description: `Loan ${loanType.toLowerCase()} - ${loan.interestRateMonthlyPct}% monthly interest`,
       relatedDoc: loan._id,
       relatedModel: 'Loan',
@@ -234,23 +232,27 @@ export const payLoanInterest = async (req, res) => {
       amount: interestPaise,
       paidDate: new Date(),
       forMonth: currentMonth,
-      paidBy: loan.customer.name
+      paidBy: loan.customer.name,
+      outstandingPrincipalAtTime: loan.outstandingPrincipal // Track principal at time of payment
     });
 
     // Update next due date
     await loan.updateNextInterestDueDate();
     await loan.save();
 
-    // Create transaction record
+    // Create transaction record - direction is opposite for interest received vs paid
+    const transactionDirection = loan.loanType === 'GIVEN' ? 1 : -1; // If we gave loan, receiving interest is income (+1)
+    const transactionCategory = loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE';
+
     const transaction = new Transaction({
       type: loan.loanType === 'GIVEN' ? 'LOAN_INTEREST_RECEIVED' : 'INTEREST_PAID',
       customer: loan.customer._id,
       amount: interestPaise,
-      direction: loan.loanType === 'GIVEN' ? -1 : 1,
+      direction: transactionDirection,
       description: `Interest payment for ${currentMonth} - ${loan.customer.name}`,
       relatedDoc: loan._id,
       relatedModel: 'Loan',
-      category: loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE',
+      category: transactionCategory,
       metadata: {
         paymentType: 'INTEREST',
         interestMonth: currentMonth,
@@ -277,7 +279,7 @@ export const payLoanInterest = async (req, res) => {
   }
 };
 
-// Pay loan principal (partial or full)
+// Pay loan principal (partial or full) - FIXED VERSION
 export const payLoanPrincipal = async (req, res) => {
   try {
     const { principalPaise, note } = req.body;
@@ -306,12 +308,12 @@ export const payLoanPrincipal = async (req, res) => {
       });
     }
 
-    const outstandingPrincipal = loan.outstandingPrincipal;
+    const currentOutstanding = loan.outstandingPrincipal;
     
-    if (principalPaise > outstandingPrincipal) {
+    if (principalPaise > currentOutstanding) {
       return res.status(400).json({
         success: false,
-        error: `Payment amount (₹${(principalPaise / 100).toFixed(2)}) exceeds outstanding principal (₹${(outstandingPrincipal / 100).toFixed(2)})`
+        error: `Payment amount (₹${(principalPaise / 100).toFixed(2)}) exceeds outstanding principal (₹${(currentOutstanding / 100).toFixed(2)})`
       });
     }
 
@@ -319,12 +321,15 @@ export const payLoanPrincipal = async (req, res) => {
     loan.totalPrincipalPaid += principalPaise;
     loan.lastPrincipalPaymentDate = new Date();
     
-    const newOutstanding = loan.outstandingPrincipal;
+    // Calculate new outstanding amount AFTER payment
+    const newOutstanding = currentOutstanding - principalPaise;
+    loan.outstandingPrincipal = newOutstanding; // Update the outstanding principal
     
     // Update status based on remaining amount
     if (newOutstanding <= 0) {
       loan.status = 'CLOSED';
       loan.isActive = false;
+      loan.outstandingPrincipal = 0; // Ensure it's exactly 0
     } else {
       loan.status = 'PARTIALLY_PAID';
     }
@@ -334,31 +339,35 @@ export const payLoanPrincipal = async (req, res) => {
       amount: principalPaise,
       paidDate: new Date(),
       remainingPrincipal: newOutstanding,
-      paidBy: loan.customer.name
+      paidBy: loan.customer.name,
+      previousOutstanding: currentOutstanding
     });
 
     await loan.save();
 
-    // Create transaction record
+    // Create transaction record - direction is opposite for loan repayment
+    const transactionDirection = loan.loanType === 'GIVEN' ? 1 : -1; // If we gave loan, receiving repayment is income (+1)
+    const transactionCategory = loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE';
+
     const transactionType = loan.status === 'CLOSED' ? 
-      (loan.loanType === 'GIVEN' ? 'LOAN_CLOSURE' : 'LOAN_CLOSURE') :
-      (loan.loanType === 'GIVEN' ? 'LOAN_PAYMENT' : 'LOAN_PAYMENT');
+      'LOAN_CLOSURE' : 'LOAN_PAYMENT';
 
     const transaction = new Transaction({
       type: transactionType,
       customer: loan.customer._id,
       amount: principalPaise,
-      direction: loan.loanType === 'GIVEN' ? -1 : 1,
+      direction: transactionDirection,
       description: `Principal payment - ${loan.customer.name} ${loan.status === 'CLOSED' ? '(LOAN CLOSED)' : '(PARTIAL)'}`,
       relatedDoc: loan._id,
       relatedModel: 'Loan',
-      category: loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE',
+      category: transactionCategory,
       metadata: {
         paymentType: loan.status === 'CLOSED' ? 'FULL_REPAYMENT' : 'PARTIAL_REPAYMENT',
         remainingAmount: newOutstanding,
         isPartialPayment: loan.status !== 'CLOSED',
         originalLoanAmount: loan.principalPaise,
-        totalPaid: loan.totalPrincipalPaid
+        totalPaid: loan.totalPrincipalPaid,
+        previousOutstanding: currentOutstanding
       }
     });
     await transaction.save();
@@ -373,6 +382,166 @@ export const payLoanPrincipal = async (req, res) => {
       message: loan.status === 'CLOSED' ? 
         'Loan closed successfully!' : 
         `Partial payment of ₹${(principalPaise / 100).toFixed(2)} recorded. Remaining: ₹${(newOutstanding / 100).toFixed(2)}`
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Combined payment endpoint for both principal and interest
+export const makeLoanPayment = async (req, res) => {
+  try {
+    const { principalPaise, interestPaise, photos, notes } = req.body;
+    const loanId = req.params.id;
+
+    if ((!principalPaise || principalPaise <= 0) && (!interestPaise || interestPaise <= 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either principal or interest amount must be greater than 0'
+      });
+    }
+
+    const loan = await Loan.findById(loanId).populate('customer', 'name phone');
+    
+    if (!loan) {
+      return res.status(404).json({
+        success: false,
+        error: 'Loan not found'
+      });
+    }
+
+    if (loan.status === 'CLOSED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Loan is already closed'
+      });
+    }
+
+    const transactions = [];
+
+    // Handle interest payment if provided
+    if (interestPaise && interestPaise > 0) {
+      loan.totalInterestPaid += interestPaise;
+      loan.lastInterestPaymentDate = new Date();
+      
+      const currentMonth = new Date().toISOString().substring(0, 7);
+      loan.interestPaymentHistory.push({
+        amount: interestPaise,
+        paidDate: new Date(),
+        forMonth: currentMonth,
+        paidBy: loan.customer.name,
+        outstandingPrincipalAtTime: loan.outstandingPrincipal
+      });
+
+      // Create interest transaction
+      transactions.push({
+        type: loan.loanType === 'GIVEN' ? 'LOAN_INTEREST_RECEIVED' : 'INTEREST_PAID',
+        customer: loan.customer._id,
+        amount: interestPaise,
+        direction: loan.loanType === 'GIVEN' ? 1 : -1,
+        description: `Interest payment - ${loan.customer.name}`,
+        relatedDoc: loan._id,
+        relatedModel: 'Loan',
+        category: loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE',
+        metadata: {
+          paymentType: 'INTEREST',
+          interestRate: loan.interestRateMonthlyPct,
+          outstandingPrincipal: loan.outstandingPrincipal
+        }
+      });
+    }
+
+    // Handle principal payment if provided
+    if (principalPaise && principalPaise > 0) {
+      const currentOutstanding = loan.outstandingPrincipal;
+      
+      if (principalPaise > currentOutstanding) {
+        return res.status(400).json({
+          success: false,
+          error: `Principal payment amount (₹${(principalPaise / 100).toFixed(2)}) exceeds outstanding principal (₹${(currentOutstanding / 100).toFixed(2)})`
+        });
+      }
+
+      loan.totalPrincipalPaid += principalPaise;
+      loan.lastPrincipalPaymentDate = new Date();
+      
+      const newOutstanding = currentOutstanding - principalPaise;
+      loan.outstandingPrincipal = newOutstanding;
+      
+      // Update status
+      if (newOutstanding <= 0) {
+        loan.status = 'CLOSED';
+        loan.isActive = false;
+        loan.outstandingPrincipal = 0;
+      } else {
+        loan.status = 'PARTIALLY_PAID';
+      }
+
+      loan.principalPaymentHistory.push({
+        amount: principalPaise,
+        paidDate: new Date(),
+        remainingPrincipal: newOutstanding,
+        paidBy: loan.customer.name,
+        previousOutstanding: currentOutstanding
+      });
+
+      // Create principal transaction
+      transactions.push({
+        type: loan.status === 'CLOSED' ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
+        customer: loan.customer._id,
+        amount: principalPaise,
+        direction: loan.loanType === 'GIVEN' ? 1 : -1,
+        description: `Principal payment - ${loan.customer.name} ${loan.status === 'CLOSED' ? '(LOAN CLOSED)' : '(PARTIAL)'}`,
+        relatedDoc: loan._id,
+        relatedModel: 'Loan',
+        category: loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE',
+        metadata: {
+          paymentType: loan.status === 'CLOSED' ? 'FULL_REPAYMENT' : 'PARTIAL_REPAYMENT',
+          remainingAmount: newOutstanding,
+          isPartialPayment: loan.status !== 'CLOSED',
+          originalLoanAmount: loan.principalPaise,
+          totalPaid: loan.totalPrincipalPaid,
+          photos: photos || []
+        }
+      });
+    }
+
+    // Update next interest due date if needed
+    await loan.updateNextInterestDueDate();
+    await loan.save();
+
+    // Save all transactions
+    for (const txnData of transactions) {
+      const transaction = new Transaction(txnData);
+      await transaction.save();
+    }
+
+    const updatedLoan = await Loan.findById(loanId).populate('customer', 'name phone email');
+    const loanWithStatus = updatedLoan.toObject();
+    loanWithStatus.paymentStatus = updatedLoan.getInterestPaymentStatus();
+
+    let message = '';
+    if (principalPaise && interestPaise) {
+      message = `Payment recorded: Principal ₹${(principalPaise / 100).toFixed(2)}, Interest ₹${(interestPaise / 100).toFixed(2)}`;
+    } else if (principalPaise) {
+      message = loan.status === 'CLOSED' ? 
+        'Loan closed successfully!' : 
+        `Principal payment of ₹${(principalPaise / 100).toFixed(2)} recorded. Remaining: ₹${(loan.outstandingPrincipal / 100).toFixed(2)}`;
+    } else {
+      message = `Interest payment of ₹${(interestPaise / 100).toFixed(2)} recorded successfully`;
+    }
+
+    if (loan.status === 'CLOSED') {
+      message += ' - Loan is now fully repaid!';
+    }
+
+    res.json({
+      success: true,
+      data: loanWithStatus,
+      message
     });
   } catch (error) {
     res.status(400).json({
@@ -400,6 +569,9 @@ export const getLoanReminders = async (req, res) => {
 
     const reminders = overdueLoans.map(loan => {
       const paymentStatus = loan.getInterestPaymentStatus();
+      // Calculate interest based on current outstanding principal, not original
+      const currentMonthInterest = (loan.outstandingPrincipal * loan.interestRateMonthlyPct) / 100;
+      
       return {
         loanId: loan._id,
         customer: loan.customer,
@@ -409,11 +581,11 @@ export const getLoanReminders = async (req, res) => {
         interestRate: loan.interestRateMonthlyPct,
         monthsOverdue: paymentStatus.overdueMonths,
         pendingInterestAmount: paymentStatus.pendingAmount,
-        currentMonthInterest: paymentStatus.currentMonthInterest,
+        currentMonthInterest: currentMonthInterest,
         nextDueDate: paymentStatus.nextDueDate,
         status: paymentStatus.status,
         lastInterestPayment: loan.lastInterestPaymentDate,
-        reminderMessage: `Dear ${loan.customer.name}, your loan interest of ₹${(paymentStatus.currentMonthInterest / 100).toFixed(2)} is ${paymentStatus.isOverdue ? 'overdue' : 'due'}. Total pending: ₹${(paymentStatus.pendingAmount / 100).toFixed(2)}`
+        reminderMessage: `Dear ${loan.customer.name}, your loan interest of ₹${(currentMonthInterest / 100).toFixed(2)} is ${paymentStatus.isOverdue ? 'overdue' : 'due'}. Outstanding principal: ₹${(loan.outstandingPrincipal / 100).toFixed(2)}`
       };
     });
 
