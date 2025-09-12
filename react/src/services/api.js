@@ -193,7 +193,49 @@ class ApiService {
       },
     });
   }
-
+  async processGoldLoanRepayment(repaymentData) {
+    try {
+      console.log('API Service - Processing repayment:', repaymentData);
+      
+      const response = await this.request(
+        `/api/gold-loans/${repaymentData.loanId}/process-repayment`,
+        {
+          method: "POST",
+          body: {
+            // Support multiple field names for backward compatibility
+            selectedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [],
+            returnedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [], // Alternative field name
+            
+            // Cash payment in multiple formats
+            repaymentAmount: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
+            cashPayment: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
+            cashPaymentPaise: repaymentData.cashPaymentPaise || 
+              Math.round((repaymentData.cashPayment || repaymentData.repaymentAmount || 0) * 100),
+            
+            // Additional fields
+            notes: repaymentData.notes || "Gold loan repayment processed",
+            summary: repaymentData.summary,
+            photos: repaymentData.photos || [],
+            autoSelectItems: repaymentData.autoSelectItems || false
+          },
+        }
+      );
+  
+      console.log('API Service - Repayment response:', response);
+      return response;
+    } catch (error) {
+      console.error('API Service - Repayment error:', error);
+      throw error;
+    }
+  }
+  
+  // Alternative method name for consistency
+  async makeGoldLoanRepayment(loanId, repaymentData) {
+    return this.processGoldLoanRepayment({
+      loanId,
+      ...repaymentData
+    });
+  }
   async makeGoldLoanInterestPayment(loanId, interestAmount, notes = "") {
     return this.request(`/api/gold-loans/${loanId}/interest-payment`, {
       method: "POST",
@@ -205,23 +247,7 @@ class ApiService {
     });
   }
 
-  async processGoldLoanRepayment(repaymentData) {
-    return this.request(
-      `/api/gold-loans/${repaymentData.loanId}/repayment`,
-      {
-        method: "POST",
-        body: {
-          returnedItemIds: repaymentData.returnedItems || [],
-          cashPaymentPaise: Math.round(
-            (repaymentData.cashPayment || 0) * 100
-          ),
-          summary: repaymentData.summary,
-          notes: "Partial/Full loan repayment with item returns",
-        },
-      }
-    );
-  }
-
+   
   async completeGoldLoan(loanId, completionData = {}) {
     return this.request(`/api/gold-loans/${loanId}/complete`, {
       method: "PUT",
