@@ -315,51 +315,58 @@ const TransactionForm = ({
           );
           break;
 
-        case "interest-received-l":
-          response = await ApiService.makeLoanInterestPayment(
-            transactionData.selectedLoanId,
-            parseFloat(transactionData.amount)
-          );
-          break;
+        
 
         case "gold-loan-repayment":
           // This will be handled by GoldLoanRepayment component
           response = { success: true };
           break;
 
-        case "loan-repayment":
-          response = await ApiService.makeLoanPayment(
-            transactionData.selectedLoanId,
-            {
+       
+
+          case "business-loan-taken":
+            response = await ApiService.createLoan({
+              customerId: selectedCustomer._id,
+              amount: transactionData.amount,
+              interestRate: transactionData.interestRate,
+              durationMonths: transactionData.durationMonths,
+              description: transactionData.description,
+              date: transactionData.date,
+            }, 1); // direction: 1 for taken loan (we receive money)
+            break;
+          
+          case "business-loan-given":
+            response = await ApiService.createLoan({
+              customerId: selectedCustomer._id,
+              amount: transactionData.amount,
+              interestRate: transactionData.interestRate,
+              durationMonths: transactionData.durationMonths,
+              description: transactionData.description,
+              date: transactionData.date,
+            }, -1); // direction: -1 for given loan (we give money)
+            break;
+          
+          case "interest-received-l":
+            response = await ApiService.makeLoanInterestPayment(
+              transactionData.selectedLoanId,
+              parseFloat(transactionData.amount),
+              transactionData.description || 'Interest payment received'
+            );
+            break;
+          
+          case "loan-repayment":
+            // Use the combined payment endpoint for flexibility
+            const paymentData = {
               principal: transactionData.amount,
               interest: 0,
               photos: transactionData.photos,
               notes: transactionData.description,
-            }
-          );
-          break;
-
-        case "business-loan-taken":
-          response = await ApiService.createLoan(
-            {
-              ...commonData,
-              interestRate: transactionData.interestRate,
-              durationMonths: transactionData.durationMonths,
-            },
-            1
-          );
-          break;
-
-        case "business-loan-given":
-          response = await ApiService.createLoan(
-            {
-              ...commonData,
-              interestRate: transactionData.interestRate,
-              durationMonths: transactionData.durationMonths,
-            },
-            -1
-          );
-          break;
+            };
+            response = await ApiService.makeLoanPayment(
+              transactionData.selectedLoanId,
+              paymentData
+            );
+            break;
 
         case "udhari-given":
           response = await ApiService.giveUdhari({
