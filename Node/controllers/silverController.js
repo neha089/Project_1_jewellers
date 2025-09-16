@@ -1,68 +1,149 @@
 // controllers/silverController.js
 import SilverTransaction from "../models/SilverTransaction.js";
 import Transaction from "../models/Transaction.js";
+import MetalPriceService from "../../react/src/services/metalPriceService.js";
 import mongoose from "mongoose";
+ // Assuming this service exists for fetching prices
 
-// Create a new silver transaction (buy or sell)
 export const createSilverTransaction = async (req, res) => {
   try {
     const {
       transactionType,
       customer,
       supplier,
-      silverDetails,
+      items = [],
       advanceAmount = 0,
       paymentMode = "CASH",
-      items = [],
       notes,
-      billNumber
+      billNumber,
+      fetchCurrentRates = true
     } = req.body;
 
-    // Calculate total amount
-    const baseAmount = silverDetails.weight * silverDetails.ratePerGram;
-    const wastageAmount = (baseAmount * (silverDetails.wastage || 0)) / 100;
-    const totalAmount = baseAmount + wastageAmount + (silverDetails.makingCharges || 0) + (silverDetails.taxAmount || 0);
-    
-    const remainingAmount = totalAmount - advanceAmount;
-    const paymentStatus = remainingAmount === 0 ? "PAID" : advanceAmount > 0 ? "PARTIAL" : "PENDING";
+    console.log("Received request body:", req.body);
+
+    // Validate items
+    if (!items || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one item is required"
+      });
+    }
+
+    // Get current market rates
+    let marketRates = null;
+    if (fetchCurrentRates) {
+      try {
+        const priceData = await MetalPriceService.getCurrentPrices();
+        marketRates = {
+          silverPrice99: priceData.silver.rates['999'], // Adjust for silver
+          silverPrice92: priceData.silver.rates['925'],
+          silverPrice80: priceData.silver.rates['800'],
+          priceSource: priceData.source,
+          fetchedAt: new Date()
+        };
+      } catch (error) {
+        console.warn("Failed to fetch current silver prices:", error.message);
+      }
+    }
+
+    // Process and validate items
+    const processedItems = items.map((item, index) => {
+      console.log(`Processing item ${index + 1}:`, item);
+      
+      if (!item.itemName || !item.purity || !item.weight || !item.ratePerGram) {
+        throw new Error(`Item ${index + 1}: Missing required fields - itemName: ${item.itemName}, purity: ${item.purity}, weight: ${item.weight}, ratePerGram: ${item.ratePerGram}`);
+      }
+
+      const weight = parseFloat(item.weight);
+      const ratePerGram = Math.round(parseFloat(item.ratePerGram) * 100); // Convert to paise
+      const makingCharges = Math.round(parseFloat(item.makingCharges || 0) * 100);
+      const taxAmount = Math.round(parseFloat(item.taxAmount || 0) * 100);
+      
+      // Calculate item total amount (all in paise)
+      const itemTotalAmount = (weight * ratePerGram) + makingCharges + taxAmount;
+
+      const processedItem = {
+        itemName: item.itemName.trim(),
+        description: item.description || '',
+        purity: item.purity,
+        weight: weight,
+        ratePerGram: ratePerGram,
+        makingCharges: makingCharges,
+        wastage: parseFloat(item.wastage || 0),
+        taxAmount: taxAmount,
+        itemTotalAmount: Math.round(itemTotalAmount), // Add required field
+        photos: item.photos || [],
+        hallmarkNumber: item.hallmarkNumber || '',
+        certificateNumber: item.certificateNumber || ''
+      };
+
+      console.log(`Processed item ${index + 1}:`, processedItem);
+      return processedItem;
+    });
+
+    console.log("All processed items:", processedItems);
+
+    // Calculate totals manually to ensure they exist
+    const totalWeight = processedItems.reduce((sum, item) => sum + item.weight, 0);
+    const subtotalAmount = processedItems.reduce((sum, item) => sum + item.itemTotalAmount, 0);
+    const totalAmount = subtotalAmount; // Assuming no additional charges at transaction level
+
+    console.log("Calculated totals - Weight:", totalWeight, "Subtotal:", subtotalAmount, "Total:", totalAmount);
 
     // Create silver transaction
     const silverTransaction = new SilverTransaction({
       transactionType,
       customer: customer || null,
       supplier: transactionType === "BUY" && !customer ? supplier : null,
-      silverDetails,
-      totalAmount: Math.round(totalAmount),
-      advanceAmount: Math.round(advanceAmount),
-      remainingAmount: Math.round(remainingAmount),
-      paymentStatus,
+      items: processedItems,
+      advanceAmount: Math.round(advanceAmount * 100), // Convert to paise
       paymentMode,
-      items,
       notes,
       billNumber,
-      date: new Date()
+      marketRates,
+      date: new Date(),
+      // Add calculated totals explicitly
+      totalWeight: totalWeight,
+      subtotalAmount: Math.round(subtotalAmount), // Add required field
+      totalAmount: Math.round(totalAmount)
     });
 
+    console.log("Silver transaction object before save:", {
+      transactionType: silverTransaction.transactionType,
+      customer: silverTransaction.customer,
+      items: silverTransaction.items,
+      totalWeight: silverTransaction.totalWeight,
+      subtotalAmount: silverTransaction.subtotalAmount,
+      totalAmount: silverTransaction.totalAmount
+    });
+
+    // Save the silver transaction
     await silverTransaction.save();
 
+    console.log("Silver transaction after save:", {
+      _id: silverTransaction._id,
+      totalWeight: silverTransaction.totalWeight,
+      totalAmount: silverTransaction.totalAmount
+    });
+
     // Create corresponding transaction record
-    const transactionDirection = transactionType === "BUY" ? -1 : 1; // -1 for expense (buying), +1 for income (selling)
+    const transactionDirection = transactionType === "BUY" ? -1 : 1;
     const transactionCategory = transactionType === "BUY" ? "EXPENSE" : "INCOME";
     const transactionTypeEnum = transactionType === "BUY" ? "SILVER_PURCHASE" : "SILVER_SALE";
 
     const transaction = new Transaction({
       type: transactionTypeEnum,
       customer: customer || null,
-      amount: Math.round(totalAmount),
+      amount: silverTransaction.totalAmount,
       direction: transactionDirection,
-      description: `${transactionType === "BUY" ? "Silver Purchase" : "Silver Sale"} - ${silverDetails.purity} - ${silverDetails.weight}g`,
+      description: `${transactionType === "BUY" ? "Silver Purchase" : "Silver Sale"} - ${silverTransaction.items.length} item(s) - ${silverTransaction.totalWeight}g`,
       category: transactionCategory,
       relatedDoc: silverTransaction._id,
       relatedModel: "SilverTransaction",
       metadata: {
-        goldPrice: silverDetails.ratePerGram, // Using same field name for consistency
-        weightGrams: silverDetails.weight,
-        itemCount: items.length || 1
+        silverPrice: marketRates?.silverPrice92 || null,
+        weightGrams: silverTransaction.totalWeight,
+        itemCount: silverTransaction.items.length
       }
     });
 
@@ -84,6 +165,7 @@ export const createSilverTransaction = async (req, res) => {
 
   } catch (error) {
     console.error("Error creating silver transaction:", error);
+    console.error("Error stack:", error.stack);
     res.status(500).json({
       success: false,
       message: "Error creating silver transaction",
