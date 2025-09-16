@@ -1,6 +1,7 @@
 // controllers/goldController.js
 import GoldTransaction from "../models/GoldTransaction.js";
 import Transaction from "../models/Transaction.js";
+import MetalPriceService from "../../react/src/services/metalPriceService.js";
 import mongoose from "mongoose";
 
 // Create a new gold transaction (buy or sell)
@@ -10,59 +11,139 @@ export const createGoldTransaction = async (req, res) => {
       transactionType,
       customer,
       supplier,
-      goldDetails,
+      items = [],
       advanceAmount = 0,
       paymentMode = "CASH",
-      items = [],
       notes,
-      billNumber
+      billNumber,
+      fetchCurrentRates = true
     } = req.body;
 
-    // Calculate total amount
-    const baseAmount = goldDetails.weight * goldDetails.ratePerGram;
-    const wastageAmount = (baseAmount * (goldDetails.wastage || 0)) / 100;
-    const totalAmount = baseAmount + wastageAmount + (goldDetails.makingCharges || 0) + (goldDetails.taxAmount || 0);
-    
-    const remainingAmount = totalAmount - advanceAmount;
-    const paymentStatus = remainingAmount === 0 ? "PAID" : advanceAmount > 0 ? "PARTIAL" : "PENDING";
+    console.log("Received request body:", req.body);
+
+    // Validate items
+    if (!items || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one item is required"
+      });
+    }
+
+    // Get current market rates
+    let marketRates = null;
+    if (fetchCurrentRates) {
+      try {
+        const priceData = await MetalPriceService.getCurrentPrices();
+        marketRates = {
+          goldPrice24K: priceData.gold.rates['24K'],
+          goldPrice22K: priceData.gold.rates['22K'],
+          goldPrice18K: priceData.gold.rates['18K'],
+          priceSource: priceData.source,
+          fetchedAt: new Date()
+        };
+      } catch (error) {
+        console.warn("Failed to fetch current gold prices:", error.message);
+      }
+    }
+
+    // Process and validate items
+    const processedItems = items.map((item, index) => {
+      console.log(`Processing item ${index + 1}:`, item);
+      
+      if (!item.itemName || !item.purity || !item.weight || !item.ratePerGram) {
+        throw new Error(`Item ${index + 1}: Missing required fields - itemName: ${item.itemName}, purity: ${item.purity}, weight: ${item.weight}, ratePerGram: ${item.ratePerGram}`);
+      }
+
+      const weight = parseFloat(item.weight);
+      const ratePerGram = Math.round(parseFloat(item.ratePerGram) * 100); // Convert to paise
+      const makingCharges = Math.round(parseFloat(item.makingCharges || 0) * 100);
+      const taxAmount = Math.round(parseFloat(item.taxAmount || 0) * 100);
+      
+      // Calculate item total amount (all in paise)
+      const itemTotalAmount = (weight * ratePerGram) + makingCharges + taxAmount;
+
+      const processedItem = {
+        itemName: item.itemName.trim(),
+        description: item.description || '',
+        purity: item.purity,
+        weight: weight,
+        ratePerGram: ratePerGram,
+        makingCharges: makingCharges,
+        wastage: parseFloat(item.wastage || 0),
+        taxAmount: taxAmount,
+        itemTotalAmount: Math.round(itemTotalAmount), // Add required field
+        photos: item.photos || [],
+        hallmarkNumber: item.hallmarkNumber || '',
+        certificateNumber: item.certificateNumber || ''
+      };
+
+      console.log(`Processed item ${index + 1}:`, processedItem);
+      return processedItem;
+    });
+
+    console.log("All processed items:", processedItems);
+
+    // Calculate totals manually to ensure they exist
+    const totalWeight = processedItems.reduce((sum, item) => sum + item.weight, 0);
+    const subtotalAmount = processedItems.reduce((sum, item) => sum + item.itemTotalAmount, 0);
+    const totalAmount = subtotalAmount; // Assuming no additional charges at transaction level
+
+    console.log("Calculated totals - Weight:", totalWeight, "Subtotal:", subtotalAmount, "Total:", totalAmount);
 
     // Create gold transaction
     const goldTransaction = new GoldTransaction({
       transactionType,
       customer: customer || null,
       supplier: transactionType === "BUY" && !customer ? supplier : null,
-      goldDetails,
-      totalAmount: Math.round(totalAmount),
-      advanceAmount: Math.round(advanceAmount),
-      remainingAmount: Math.round(remainingAmount),
-      paymentStatus,
+      items: processedItems,
+      advanceAmount: Math.round(advanceAmount * 100), // Convert to paise
       paymentMode,
-      items,
       notes,
       billNumber,
-      date: new Date()
+      marketRates,
+      date: new Date(),
+      // Add calculated totals explicitly
+      totalWeight: totalWeight,
+      subtotalAmount: Math.round(subtotalAmount), // Add required field
+      totalAmount: Math.round(totalAmount)
     });
 
+    console.log("Gold transaction object before save:", {
+      transactionType: goldTransaction.transactionType,
+      customer: goldTransaction.customer,
+      items: goldTransaction.items,
+      totalWeight: goldTransaction.totalWeight,
+      subtotalAmount: goldTransaction.subtotalAmount,
+      totalAmount: goldTransaction.totalAmount
+    });
+
+    // Save the gold transaction
     await goldTransaction.save();
 
+    console.log("Gold transaction after save:", {
+      _id: goldTransaction._id,
+      totalWeight: goldTransaction.totalWeight,
+      totalAmount: goldTransaction.totalAmount
+    });
+
     // Create corresponding transaction record
-    const transactionDirection = transactionType === "BUY" ? -1 : 1; // -1 for expense (buying), +1 for income (selling)
+    const transactionDirection = transactionType === "BUY" ? -1 : 1;
     const transactionCategory = transactionType === "BUY" ? "EXPENSE" : "INCOME";
     const transactionTypeEnum = transactionType === "BUY" ? "GOLD_PURCHASE" : "GOLD_SALE";
 
     const transaction = new Transaction({
       type: transactionTypeEnum,
       customer: customer || null,
-      amount: Math.round(totalAmount),
+      amount: goldTransaction.totalAmount,
       direction: transactionDirection,
-      description: `${transactionType === "BUY" ? "Gold Purchase" : "Gold Sale"} - ${goldDetails.purity} - ${goldDetails.weight}g`,
+      description: `${transactionType === "BUY" ? "Gold Purchase" : "Gold Sale"} - ${goldTransaction.items.length} item(s) - ${goldTransaction.totalWeight}g`,
       category: transactionCategory,
       relatedDoc: goldTransaction._id,
       relatedModel: "GoldTransaction",
       metadata: {
-        goldPrice: goldDetails.ratePerGram,
-        weightGrams: goldDetails.weight,
-        itemCount: items.length || 1
+        goldPrice: marketRates?.goldPrice22K || null,
+        weightGrams: goldTransaction.totalWeight,
+        itemCount: goldTransaction.items.length
       }
     });
 
@@ -84,6 +165,7 @@ export const createGoldTransaction = async (req, res) => {
 
   } catch (error) {
     console.error("Error creating gold transaction:", error);
+    console.error("Error stack:", error.stack);
     res.status(500).json({
       success: false,
       message: "Error creating gold transaction",
@@ -91,7 +173,6 @@ export const createGoldTransaction = async (req, res) => {
     });
   }
 };
-
 // Get all gold transactions with filters
 export const getGoldTransactions = async (req, res) => {
   try {
@@ -113,7 +194,7 @@ export const getGoldTransactions = async (req, res) => {
     
     if (transactionType) query.transactionType = transactionType;
     if (customer) query.customer = customer;
-    if (purity) query['goldDetails.purity'] = purity;
+    if (purity) query['items.purity'] = purity;
     if (paymentStatus) query.paymentStatus = paymentStatus;
     
     if (startDate || endDate) {
@@ -213,15 +294,26 @@ export const updateGoldTransaction = async (req, res) => {
       });
     }
 
-    // Recalculate amounts if gold details are updated
-    if (updates.goldDetails) {
-      const baseAmount = updates.goldDetails.weight * updates.goldDetails.ratePerGram;
-      const wastageAmount = (baseAmount * (updates.goldDetails.wastage || 0)) / 100;
-      const totalAmount = baseAmount + wastageAmount + (updates.goldDetails.makingCharges || 0) + (updates.goldDetails.taxAmount || 0);
-      
-      updates.totalAmount = Math.round(totalAmount);
-      updates.remainingAmount = updates.totalAmount - (updates.advanceAmount || 0);
-      updates.paymentStatus = updates.remainingAmount === 0 ? "PAID" : updates.advanceAmount > 0 ? "PARTIAL" : "PENDING";
+    // Process items if provided
+    if (updates.items && Array.isArray(updates.items)) {
+      updates.items = updates.items.map((item, index) => {
+        if (!item.itemName || !item.purity || !item.weight || !item.ratePerGram) {
+          throw new Error(`Item ${index + 1}: Missing required fields`);
+        }
+
+        return {
+          ...item,
+          weight: parseFloat(item.weight),
+          ratePerGram: Math.round(parseFloat(item.ratePerGram) * 100),
+          makingCharges: Math.round(parseFloat(item.makingCharges || 0) * 100),
+          wastage: parseFloat(item.wastage || 0),
+          taxAmount: Math.round(parseFloat(item.taxAmount || 0) * 100)
+        };
+      });
+    }
+
+    if (updates.advanceAmount) {
+      updates.advanceAmount = Math.round(parseFloat(updates.advanceAmount) * 100);
     }
 
     const transaction = await GoldTransaction.findByIdAndUpdate(
@@ -296,7 +388,30 @@ export const deleteGoldTransaction = async (req, res) => {
   }
 };
 
-// Get daily summary
+// Get current gold prices
+export const getCurrentGoldPrices = async (req, res) => {
+  try {
+    const priceData = await MetalPriceService.getCurrentPrices();
+    
+    res.json({
+      success: true,
+      data: priceData.gold,
+      timestamp: priceData.timestamp,
+      source: priceData.source,
+      isFallback: priceData.isFallback || false
+    });
+
+  } catch (error) {
+    console.error("Error fetching gold prices:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching gold prices",
+      error: error.message
+    });
+  }
+};
+
+// Get daily summary with item-level breakdown
 export const getDailySummary = async (req, res) => {
   try {
     const { date } = req.query;
@@ -305,18 +420,24 @@ export const getDailySummary = async (req, res) => {
     const summary = await GoldTransaction.getDailySummary(queryDate);
     
     // Transform data for better readability
-    const formattedSummary = summary.reduce((acc, item) => {
-      acc[item._id] = {
-        totalAmount: item.totalAmount / 100,
-        totalWeight: item.totalWeight,
-        transactionCount: item.transactionCount,
-        avgRate: item.avgRate / 100,
-        formattedAmount: `₹${(item.totalAmount / 100).toFixed(2)}`,
-        formattedWeight: `${item.totalWeight}g`,
-        formattedAvgRate: `₹${(item.avgRate / 100).toFixed(2)}/g`
-      };
-      return acc;
-    }, {});
+    const formattedSummary = summary.map(item => ({
+      transactionType: item._id,
+      overallAmount: item.overallAmount / 100,
+      overallWeight: item.overallWeight,
+      overallTransactions: item.overallTransactions,
+      purities: item.purities.map(p => ({
+        purity: p.purity,
+        totalAmount: p.totalAmount / 100,
+        totalWeight: p.totalWeight,
+        avgRate: p.avgRate / 100,
+        transactionCount: p.transactionCount,
+        formattedAmount: `₹${(p.totalAmount / 100).toFixed(2)}`,
+        formattedWeight: `${p.totalWeight}g`,
+        formattedAvgRate: `₹${(p.avgRate / 100).toFixed(2)}/g`
+      })),
+      formattedAmount: `₹${(item.overallAmount / 100).toFixed(2)}`,
+      formattedWeight: `${item.overallWeight}g`
+    }));
 
     res.json({
       success: true,
@@ -334,7 +455,7 @@ export const getDailySummary = async (req, res) => {
   }
 };
 
-// Get monthly summary
+// Get monthly summary with item-level breakdown
 export const getMonthlySummary = async (req, res) => {
   try {
     const { year, month } = req.query;
@@ -345,7 +466,8 @@ export const getMonthlySummary = async (req, res) => {
     
     // Transform data for better readability
     const formattedSummary = summary.map(item => ({
-      type: item._id,
+      type: item._id.type,
+      purity: item._id.purity,
       totalAmount: item.totalAmount / 100,
       totalWeight: item.totalWeight,
       totalTransactions: item.totalTransactions,
@@ -374,7 +496,7 @@ export const getMonthlySummary = async (req, res) => {
   }
 };
 
-// Get gold rates and analytics
+// Get gold analytics
 export const getGoldAnalytics = async (req, res) => {
   try {
     const { startDate, endDate, purity } = req.query;
@@ -385,21 +507,22 @@ export const getGoldAnalytics = async (req, res) => {
       if (startDate) matchStage.date.$gte = new Date(startDate);
       if (endDate) matchStage.date.$lte = new Date(endDate);
     }
-    if (purity) matchStage['goldDetails.purity'] = purity;
+    if (purity) matchStage['items.purity'] = purity;
 
     const analytics = await GoldTransaction.aggregate([
       { $match: matchStage },
+      { $unwind: '$items' },
       {
         $group: {
           _id: {
             type: '$transactionType',
-            purity: '$goldDetails.purity'
+            purity: '$items.purity'
           },
-          totalAmount: { $sum: '$totalAmount' },
-          totalWeight: { $sum: '$goldDetails.weight' },
-          avgRate: { $avg: '$goldDetails.ratePerGram' },
-          minRate: { $min: '$goldDetails.ratePerGram' },
-          maxRate: { $max: '$goldDetails.ratePerGram' },
+          totalAmount: { $sum: '$items.itemTotalAmount' },
+          totalWeight: { $sum: '$items.weight' },
+          avgRate: { $avg: '$items.ratePerGram' },
+          minRate: { $min: '$items.ratePerGram' },
+          maxRate: { $max: '$items.ratePerGram' },
           transactionCount: { $sum: 1 }
         }
       },
