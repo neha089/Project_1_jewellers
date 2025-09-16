@@ -103,6 +103,9 @@ class ApiService {
   async createGoldTransaction(transactionData) {
     return this.post("/api/gold/", transactionData);
   }
+  async createSilverTransaction (transactionData) {
+    return this.post("/api/silver/", transactionData);
+  }
 
   // Enhanced customer search with axios
   async searchCustomers(search = "", page = 1, limit = 50, status = "active") {
@@ -423,8 +426,8 @@ class ApiService {
 
   async makeLoanPayment(loanId, paymentData) {
     return this.post(`/api/loans/${loanId}/payments`, {
-      principalPaise: paymentData.principal ? Math.round(parseFloat(paymentData.principal) * 100) : 0,
-      interestPaise: paymentData.interest ? Math.round(parseFloat(paymentData.interest) * 100) : 0,
+      principal: paymentData.principal || 0,  // Send as number, not paise
+      interest: paymentData.interest || 0,    // Send as number, not paise
       photos: paymentData.photos || [],
       notes: paymentData.notes || "",
     });
