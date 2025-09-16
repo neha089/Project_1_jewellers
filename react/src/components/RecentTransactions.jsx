@@ -82,7 +82,7 @@ const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
     const typeMap = {
       'GOLD_LOAN_GIVEN': 'Gold Loan Given',
       'GOLD_LOAN_DISBURSEMENT': 'Gold Loan Given',
-      'GOLD_LOAN_PAYMENT': 'Loan Repayment',
+      'GOLD_LOAN_PAYMENT': 'Gold Loan Repayment',
       'GOLD_LOAN_INTEREST_RECEIVED': 'Gold Loan Interest',
       'INTEREST_RECEIVED': 'Interest Received',
       'GOLD_SALE': 'Gold Sale',
