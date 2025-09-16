@@ -1,5 +1,4 @@
-  // api.js - Enhanced API Service Layer with Gold Loan Interest and Repayment Features
-const BASE_URL = "http://localhost:3000";
+  const BASE_URL = "http://localhost:3000";
 
 class ApiService {
   async request(endpoint, options = {}) {
@@ -34,6 +33,94 @@ class ApiService {
       console.error("API request failed:", error);
       throw error;
     }
+  }
+
+  // Create new silver transaction
+  async createTransaction(transactionData) {
+    return await this.request('/api/silver', {
+      method: 'POST',
+      body: transactionData, // Remove JSON.stringify here since request() handles it
+    });
+  }
+
+  // Get all silver transactions with filters
+  async getTransactions(params = {}) {
+    const queryParams = new URLSearchParams();
+    
+    // Add all non-empty parameters
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value);
+      }
+    });
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/api/silver${queryString ? `?${queryString}` : ''}`; // Added leading slash
+    
+    return await this.request(endpoint);
+  }
+
+  // Get single transaction by ID
+  async getTransactionById(id) {
+    return await this.request(`/api/silver/${id}`); // Added leading slash
+  }
+
+  // Update transaction
+  async updateTransaction(id, updateData) {
+    return await this.request(`/api/silver/${id}`, {
+      method: 'PUT',
+      body: updateData, // Remove JSON.stringify here
+    });
+  }
+
+  // Delete transaction
+  async deleteTransaction(id) {
+    return await this.request(`/api/silver/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Get daily summary
+  async getDailySummary(date) {
+    const params = date ? `?date=${date}` : '';
+    return await this.request(`/api/silver/reports/daily-summary${params}`); // Added leading slash
+  }
+
+  // Get monthly summary
+  async getMonthlySummary(year, month) {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year);
+    if (month) params.append('month', month);
+    
+    const queryString = params.toString();
+    return await this.request(`/api/silver/reports/monthly-summary${queryString ? `?${queryString}` : ''}`); // Added leading slash
+  }
+
+  // Get analytics
+  async getAnalytics(params = {}) {
+    const queryParams = new URLSearchParams();
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value);
+      }
+    });
+    
+    const queryString = queryParams.toString();
+    return await this.request(`/api/silver/reports/analytics${queryString ? `?${queryString}` : ''}`); // Added leading slash
+  }
+
+  // Get current silver rates
+  async getCurrentRates() {
+    return {
+      success: true,
+      data: {
+        '800 Silver': 75,
+        '925 Sterling': 85,
+        '950 Silver': 88,
+        '999 Fine': 92
+      }
+    };
   }
 
   // Enhanced customer search

@@ -151,7 +151,7 @@ silverTransactionSchema.pre('save', async function(next) {
     const prefix = this.transactionType === 'BUY' ? 'SB' : 'SS';
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const year = String(new Date().getFullYear()).slice(-2);
-    const sequence = String(count + 1).padStart(4, '0');
+    const sequence = String(count + 1).padStart(5, '0');
     
     this.invoiceNumber = `${prefix}${year}${month}${sequence}`;
   }

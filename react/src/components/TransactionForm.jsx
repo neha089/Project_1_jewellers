@@ -10,8 +10,8 @@ import LoanFields from "./LoanFields";
 import PhotoUpload from "./PhotoUpload";
 import InterestSummaryCard from "./InterestSummaryCard";
 import GoldLoanRepayment from "./GoldLoanRepayment";
-import UdhariSelector from "./UdhariSelector";
 import UdhariTransactionForm from "./UdhariTransactionForm";
+import MetalTransactionItems from "./MetalTransactionItems";
 
 const TransactionForm = ({
   selectedCustomer,
@@ -67,6 +67,8 @@ const TransactionForm = ({
     supplierPhone: "",
     supplierAddress: "",
     supplierGST: "",
+    // Metal transaction items - using the new component
+    metalItems: [],
     items: [
       {
         id: Date.now(),
@@ -121,27 +123,20 @@ const TransactionForm = ({
     }
   }, [transactionData.selectedLoanId, selectedCategory?.id]);
 
-  // Auto-calculate total amount for gold/silver sales
+  // Auto-calculate total amount for metal sales using MetalTransactionItems
   useEffect(() => {
     if ((selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell") && 
-        transactionData.goldWeight && transactionData.goldRate) {
-      const weight = parseFloat(transactionData.goldWeight) || 0;
-      const rate = parseFloat(transactionData.goldRate) || 0;
-      const makingCharges = parseFloat(transactionData.makingCharges) || 0;
-      const wastage = parseFloat(transactionData.wastage) || 0;
-      const taxAmount = parseFloat(transactionData.taxAmount) || 0;
-      
-      const baseAmount = weight * rate;
-      const wastageAmount = (baseAmount * wastage) / 100;
-      const totalAmount = baseAmount + wastageAmount + makingCharges + taxAmount;
+        transactionData.metalItems && transactionData.metalItems.length > 0) {
+      const totalAmount = transactionData.metalItems.reduce((sum, item) => {
+        return sum + (parseFloat(item.itemValue) || 0);
+      }, 0);
       
       setTransactionData(prev => ({
         ...prev,
         amount: totalAmount.toFixed(2)
       }));
     }
-  }, [transactionData.goldWeight, transactionData.goldRate, transactionData.makingCharges, 
-      transactionData.wastage, transactionData.taxAmount, selectedCategory?.id]);
+  }, [transactionData.metalItems, selectedCategory?.id]);
 
   const fetchCurrentGoldPrice = async () => {
     try {
@@ -278,6 +273,22 @@ const TransactionForm = ({
     setTransactionData(prev => ({ ...prev, ...updates }));
   };
 
+  // Handle metal items changes from MetalTransactionItems component
+  const handleMetalItemsChange = (items) => {
+    setTransactionData(prev => ({ ...prev, metalItems: items }));
+    
+    // Clear related errors when items change
+    const newErrors = { ...errors };
+    delete newErrors.metalItems;
+    // Clear individual item errors
+    Object.keys(newErrors).forEach(key => {
+      if (key.startsWith('item_')) {
+        delete newErrors[key];
+      }
+    });
+    setErrors(newErrors);
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -297,6 +308,23 @@ const TransactionForm = ({
           }
         });
       }
+    } else if (selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell") {
+      // Validate metal transaction items
+      if (transactionData.metalItems.length === 0) {
+        newErrors.metalItems = "At least one item is required";
+      } else {
+        transactionData.metalItems.forEach((item, index) => {
+          if (!item.name.trim()) {
+            newErrors[`item_${index}_name`] = "Item name is required";
+          }
+          if (!item.weight.trim() || parseFloat(item.weight) <= 0) {
+            newErrors[`item_${index}_weight`] = "Valid weight is required";
+          }
+          if (!item.itemValue.trim() || parseFloat(item.itemValue) <= 0) {
+            newErrors[`item_${index}_itemValue`] = "Valid item value is required";
+          }
+        });
+      }
     } else if (selectedCategory?.id === "loan-repayment") {
       // Validate loan repayment
       if (transactionData.repaymentType === "partial" && 
@@ -309,15 +337,10 @@ const TransactionForm = ({
       }
     }
 
-    // Validation for gold/silver transactions
+    // Validation for gold/silver transactions (non-metal-items based)
     const isMetalTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
-    if (isMetalTransaction && selectedCategory?.id !== "gold-loan" && !transactionData.goldWeight.trim()) {
+    if (isMetalTransaction && selectedCategory?.id !== "gold-loan" && selectedCategory?.id !== "gold-sell" && selectedCategory?.id !== "silver-sell" && !transactionData.goldWeight.trim()) {
       newErrors.goldWeight = "Weight is required";
-    }
-
-    if ((selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell") && 
-        !transactionData.goldRate.trim()) {
-      newErrors.goldRate = "Rate per gram is required";
     }
 
     const isInterestPayment = selectedCategory?.id.includes("interest-received");
@@ -369,36 +392,40 @@ const TransactionForm = ({
         case "gold-sell":
           response = await ApiService.createGoldSale({
             customerId: selectedCustomer._id,
-            purity: transactionData.goldType,
-            weight: transactionData.goldWeight,
-            rate: transactionData.goldRate,
-            makingCharges: transactionData.makingCharges,
-            wastage: transactionData.wastage,
-            taxAmount: transactionData.taxAmount,
-            advanceAmount: transactionData.advanceAmount,
+            items: transactionData.metalItems.map(item => ({
+              name: item.name,
+              description: item.description,
+              weight: parseFloat(item.weight),
+              purity: item.purity,
+              makingCharges: parseFloat(item.makingCharges || 0),
+              itemValue: parseFloat(item.itemValue),
+              photos: item.photos || []
+            })),
+            totalAmount: parseFloat(transactionData.amount),
             paymentMode: transactionData.paymentMode,
-            itemName: transactionData.itemName || "Gold Item",
+            billNumber: transactionData.billNumber,
             description: transactionData.description,
-            photos: transactionData.photos,
-            billNumber: transactionData.billNumber
+            photos: transactionData.photos
           });
           break;
 
         case "silver-sell":
           response = await ApiService.createSilverSale({
             customerId: selectedCustomer._id,
-            purity: transactionData.goldType === "22K" ? "999" : transactionData.goldType,
-            weight: transactionData.goldWeight,
-            rate: transactionData.goldRate,
-            makingCharges: transactionData.makingCharges,
-            wastage: transactionData.wastage,
-            taxAmount: transactionData.taxAmount,
-            advanceAmount: transactionData.advanceAmount,
+            items: transactionData.metalItems.map(item => ({
+              name: item.name,
+              description: item.description,
+              weight: parseFloat(item.weight),
+              purity: item.purity,
+              makingCharges: parseFloat(item.makingCharges || 0),
+              itemValue: parseFloat(item.itemValue),
+              photos: item.photos || []
+            })),
+            totalAmount: parseFloat(transactionData.amount),
             paymentMode: transactionData.paymentMode,
-            itemName: transactionData.itemName || "Silver Item",
+            billNumber: transactionData.billNumber,
             description: transactionData.description,
-            photos: transactionData.photos,
-            billNumber: transactionData.billNumber
+            photos: transactionData.photos
           });
           break;
 
@@ -527,6 +554,7 @@ const TransactionForm = ({
   const isGoldLoanRepayment = selectedCategory?.id === "gold-loan-repayment";
   const isLoanRepayment = selectedCategory?.id === "loan-repayment";
   const isMetalSale = selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell";
+  const isMetalPurchase = selectedCategory?.id === "gold-purchase" || selectedCategory?.id === "silver-purchase";
 
   return (
     <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
@@ -727,8 +755,58 @@ const TransactionForm = ({
                 </div>
               )}
 
+              {/* Metal Transaction Items - for Gold/Silver Sales */}
+              {isMetalSale && (
+                <div className={`${selectedCategory?.id.includes("gold") ? "bg-yellow-50" : "bg-gray-50"} p-4 sm:p-5 rounded-lg sm:rounded-xl`}>
+                  <MetalTransactionItems
+                    items={transactionData.metalItems}
+                    onItemsChange={handleMetalItemsChange}
+                    metalType={selectedCategory?.id.includes("gold") ? "Gold" : "Silver"}
+                    errors={errors}
+                    loading={loading}
+                    transactionType="SELL"
+                  />
+                  
+                  {/* Payment Mode and Bill Number for Metal Sales */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Payment Mode
+                      </label>
+                      <select
+                        name="paymentMode"
+                        value={transactionData.paymentMode}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        disabled={loading}
+                      >
+                        <option value="CASH">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                        <option value="CARD">Card</option>
+                        <option value="CHEQUE">Cheque</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Bill Number
+                      </label>
+                      <input
+                        type="text"
+                        name="billNumber"
+                        value={transactionData.billNumber}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="Optional bill number"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Regular Amount Field for Non-Gold-Loan Transactions */}
-              {!isGoldLoan && !isGoldLoanRepayment && (transactionData.repaymentType !== "full" || !isLoanRepayment) && (
+              {!isGoldLoan && !isGoldLoanRepayment && !isMetalSale && (transactionData.repaymentType !== "full" || !isLoanRepayment) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <AmountField
                     amount={transactionData.amount}
@@ -736,13 +814,48 @@ const TransactionForm = ({
                     errors={errors}
                     loading={loading}
                     onChange={handleDataChange}
-                    readOnly={isMetalSale} // Make amount read-only for metal sales as it's auto-calculated
                   />
                 </div>
               )}
 
-              {/* Gold Transaction Fields */}
-              {selectedCategory?.id.includes("gold") && !isGoldLoan && !isGoldLoanRepayment && (
+              {/* Amount Display for Metal Sales (Read-only) */}
+              {isMetalSale && transactionData.metalItems && transactionData.metalItems.length > 0 && (
+                <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Total Amount (₹) *
+                      </label>
+                      <input
+                        type="text"
+                        value={transactionData.amount}
+                        className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 text-sm sm:text-base font-medium"
+                        disabled={true}
+                        placeholder="Auto-calculated from items"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Total calculated from all items
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Transaction Date *
+                      </label>
+                      <input
+                        type="date"
+                        name="date"
+                        value={transactionData.date}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Gold Transaction Fields - for non-sale transactions */}
+              {selectedCategory?.id.includes("gold") && !isGoldLoan && !isGoldLoanRepayment && !isMetalSale && (
                 <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <GoldTransactionFields
                     transactionData={transactionData}
@@ -751,13 +864,13 @@ const TransactionForm = ({
                     onChange={handleDataChange}
                     metalType="Gold"
                     currentGoldPrice={currentGoldPrice}
-                    showRateField={isMetalSale} // Show rate field for sales
+                    showRateField={false}
                   />
                 </div>
               )}
 
-              {/* Silver Transaction Fields */}
-              {selectedCategory?.id.includes("silver") && !isGoldLoan && !isGoldLoanRepayment && (
+              {/* Silver Transaction Fields - for non-sale transactions */}
+              {selectedCategory?.id.includes("silver") && !isGoldLoan && !isGoldLoanRepayment && !isMetalSale && (
                 <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <GoldTransactionFields
                     transactionData={transactionData}
@@ -766,7 +879,7 @@ const TransactionForm = ({
                     onChange={handleDataChange}
                     metalType="Silver"
                     currentGoldPrice={currentGoldPrice}
-                    showRateField={isMetalSale} // Show rate field for sales
+                    showRateField={false}
                   />
                 </div>
               )}
@@ -798,62 +911,14 @@ const TransactionForm = ({
                 />
               </div>
 
-              {/* Photo Upload */}
-              {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver") || selectedCategory?.id.includes("loan")) && !isGoldLoanRepayment && (
+              {/* Photo Upload - for non-metal-sales (since MetalTransactionItems handles photos for sales) */}
+              {((selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver") || selectedCategory?.id.includes("loan")) && !isGoldLoanRepayment && !isMetalSale) && (
                 <div className="bg-green-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <PhotoUpload
                     photos={transactionData.photos}
                     loading={loading}
                     onPhotosChange={(photos) => updateTransactionData({ photos })}
                   />
-                </div>
-              )}
-
-              {/* Transaction Summary for Metal Sales */}
-              {isMetalSale && transactionData.goldWeight && transactionData.goldRate && (
-                <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Transaction Summary</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Base Amount ({transactionData.goldWeight}g × ₹{transactionData.goldRate}):</span>
-                      <span>₹{(parseFloat(transactionData.goldWeight || 0) * parseFloat(transactionData.goldRate || 0)).toFixed(2)}</span>
-                    </div>
-                    {parseFloat(transactionData.wastage || 0) > 0 && (
-                      <div className="flex justify-between">
-                        <span>Wastage ({transactionData.wastage}%):</span>
-                        <span>₹{((parseFloat(transactionData.goldWeight || 0) * parseFloat(transactionData.goldRate || 0) * parseFloat(transactionData.wastage || 0)) / 100).toFixed(2)}</span>
-                      </div>
-                    )}
-                    {parseFloat(transactionData.makingCharges || 0) > 0 && (
-                      <div className="flex justify-between">
-                        <span>Making Charges:</span>
-                        <span>₹{parseFloat(transactionData.makingCharges || 0).toFixed(2)}</span>
-                      </div>
-                    )}
-                    {parseFloat(transactionData.taxAmount || 0) > 0 && (
-                      <div className="flex justify-between">
-                        <span>Tax Amount:</span>
-                        <span>₹{parseFloat(transactionData.taxAmount || 0).toFixed(2)}</span>
-                      </div>
-                    )}
-                    <hr className="my-2" />
-                    <div className="flex justify-between font-semibold">
-                      <span>Total Amount:</span>
-                      <span>₹{transactionData.amount}</span>
-                    </div>
-                    {parseFloat(transactionData.advanceAmount || 0) > 0 && (
-                      <>
-                        <div className="flex justify-between">
-                          <span>Advance Amount:</span>
-                          <span>₹{parseFloat(transactionData.advanceAmount || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between font-semibold text-orange-600">
-                          <span>Remaining Amount:</span>
-                          <span>₹{(parseFloat(transactionData.amount || 0) - parseFloat(transactionData.advanceAmount || 0)).toFixed(2)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
                 </div>
               )}
             </div>

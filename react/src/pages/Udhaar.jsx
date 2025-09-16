@@ -69,12 +69,18 @@ const Udhaar = () => {
       const customerBalances = await Promise.all(
         customersData.map(async (customer) => {
           try {
-            // Get udhaar data
-            const [UdhaarResponse] = await Promise.all([
-              //ApiService.getcustomeridudhaar 
-            ]);
-
+            // Initialize UdhaarResponse as empty array if API call is not available
+            let UdhaarResponse = [];
             
+            try {
+              // Uncomment and fix this line when the API is ready
+              // UdhaarResponse = await ApiService.getcustomeridudhaar(customer._id);
+              // For now, we'll use an empty array
+              UdhaarResponse = [];
+            } catch (apiError) {
+              console.warn(`Could not fetch udhaar data for customer ${customer._id}:`, apiError);
+              UdhaarResponse = [];
+            }
 
             // Calculate totals from gold loans
             let totalBorrowed = 0;
@@ -82,9 +88,14 @@ const Udhaar = () => {
             let totalLent = 0;
             let lastTransactionDate = customer.createdAt;
 
-         
+            // Process UdhaarResponse if it contains data
+            if (Array.isArray(UdhaarResponse) && UdhaarResponse.length > 0) {
+              // Add your udhaar processing logic here
+              // For example:
+              // totalBorrowed = UdhaarResponse.reduce((sum, item) => sum + (item.borrowed || 0), 0);
+              // totalReturned = UdhaarResponse.reduce((sum, item) => sum + (item.returned || 0), 0);
+            }
 
-            
             const netBalance = totalBorrowed - totalReturned - totalLent;
 
             return {
@@ -92,7 +103,7 @@ const Udhaar = () => {
               customerName: customer.name || 'Unknown Customer',
               customerPhone: customer.phone || '',
               customerEmail: customer.email || '',
-              udhaarcount:UdhaarResponse.length,
+              udhaarcount: UdhaarResponse ? UdhaarResponse.length : 0,
               totalBorrowed,
               totalReturned,
               totalLent,
@@ -100,7 +111,6 @@ const Udhaar = () => {
               lastTransactionDate,
               UdhaarResponse,
               rawData: customer
-             
             };
           } catch (error) {
             console.error(`Error processing customer ${customer._id}:`, error);
@@ -115,9 +125,9 @@ const Udhaar = () => {
               totalLent: 0,
               netBalance: 0,
               lastTransactionDate: customer.createdAt,
-              udhaarcount:0,
+              udhaarcount: 0,
               rawData: customer,
-               UdhaarResponse
+              UdhaarResponse: []
             };
           }
         })
@@ -150,7 +160,7 @@ const Udhaar = () => {
           customersWithBalance: customers.filter(c => Math.abs(c.netBalance) > 0).length,
           totalMoneyOut: customers.reduce((sum, c) => sum + (c.netBalance > 0 ? c.netBalance : 0), 0),
           totalMoneyIn: customers.reduce((sum, c) => sum + (c.netBalance < 0 ? Math.abs(c.netBalance) : 0), 0),
-          totalTransactions: customers.reduce((sum, c) => sum + c.goldLoansCount + c.regularLoansCount, 0)
+          totalTransactions: customers.reduce((sum, c) => sum + (c.goldLoansCount || 0) + (c.regularLoansCount || 0), 0)
         };
         setBusinessSummary(summary);
       }
@@ -187,8 +197,22 @@ const Udhaar = () => {
   const getCustomerTransactionHistory = (customer) => {
     const transactions = [];
     
-    // Add udhaar transactions only
-   
+    // Add udhaar transactions if available
+    if (customer.UdhaarResponse && Array.isArray(customer.UdhaarResponse)) {
+      customer.UdhaarResponse.forEach(udhaar => {
+        // Process udhaar transactions here
+        // This depends on the structure of your udhaar data
+        // Example:
+        // transactions.push({
+        //   id: udhaar._id,
+        //   type: 'borrowed',
+        //   amount: udhaar.amount,
+        //   date: udhaar.date,
+        //   description: udhaar.description || 'Udhaar transaction'
+        // });
+      });
+    }
+    
     // Sort by date and calculate running balance
     transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
     
@@ -362,8 +386,8 @@ const Udhaar = () => {
                 <p className="font-bold text-amber-700">{selectedCustomer?.goldLoansCount || 0}</p>
               </div>
               <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                <p className="text-purple-700 text-xs font-medium">Regular Loans</p>
-                <p className="font-bold text-purple-700">{selectedCustomer?.regularLoansCount || 0}</p>
+                <p className="text-purple-700 text-xs font-medium">Udhaar Count</p>
+                <p className="font-bold text-purple-700">{selectedCustomer?.udhaarcount || 0}</p>
               </div>
             </div>
 

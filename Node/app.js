@@ -21,6 +21,7 @@ import transactionRoutes from "./routes/transactionRoutes.js";
 import silverLoanRoutes from "./routes/silverLoanRoutes.js";
 import goldRoutes from "./routes/goldRoutes.js";
 import silverRoutes from "./routes/silverRoutes.js";
+import bussinessExpenseRoutes from './routes/businessExpenseRoutes.js';
 // Import middleware and utilities
 import { generateDailyReminders } from "./utils/reminderService.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -52,6 +53,7 @@ app.use('/api/silver', silverRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/transactions", transactionRoutes);
+app.use("/api/business-expenses", bussinessExpenseRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
