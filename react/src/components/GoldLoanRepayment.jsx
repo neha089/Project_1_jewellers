@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Check, X, Eye, Calculator, Package, AlertCircle, DollarSign } from "lucide-react";
 import ApiService from "../services/api";
 
-const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onRepayment }) => {
+const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onSuccess, onCancel }) => {
   const [loanItems, setLoanItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -91,13 +91,6 @@ const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onRepayment }) => {
     const interestPayment = Math.min(enteredAmount, outstandingInterest);
     const principalPayment = Math.max(0, enteredAmount - interestPayment);
 
-    // Additional calculations for the summary
-    const fullPrincipal = selectedLoan.principalPaise ? selectedLoan.principalPaise / 100 : 0;
-    const totalDebt = currentPrincipal + outstandingInterest;
-    const remainingPrincipalAfterItems = Math.max(0, currentPrincipal - selectedValue);
-    const principalCashPayment = principalPayment;
-    const isInterestOnlyPayment = enteredAmount > 0 && enteredAmount <= outstandingInterest;
-
     return {
       selectedValue,
       enteredAmount,
@@ -113,13 +106,7 @@ const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onRepayment }) => {
       monthsDiff,
       selectedItemsCount: selectedItems.length,
       totalItemsCount: loanItems.length,
-      // Additional properties referenced in JSX
-      fullPrincipal,
-      totalDebt,
-      remainingPrincipalAfterItems,
-      principalCashPayment,
-      isInterestOnlyPayment,
-      selectedItems // Add this for reference in JSX
+      selectedItems
     };
   };
 
@@ -148,28 +135,20 @@ const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onRepayment }) => {
     try {
       const summary = calculateRepaymentSummary();
       
-      // Prepare repayment data matching the backend API
-      const repaymentData = {
+      // Use the correct API call that matches your backend
+      const response = await ApiService.processGoldLoanRepayment({
+        loanId: selectedLoan._id,
         selectedItemIds: selectedItems,
-        repaymentAmount: parseFloat(paymentAmount) || 0,
         cashPayment: parseFloat(paymentAmount) || 0,
         notes: `${selectedItems.length > 0 ? `Items returned: ${selectedItems.length}` : ''}${paymentAmount ? ` | Cash payment: ₹${paymentAmount}` : ''}`,
-        autoSelectItems: false, // We're explicitly selecting items
-        photos: [], // Add photo support if needed
+        autoSelectItems: false,
+        photos: [],
         summary: summary
-      };
-
-      console.log('Sending repayment data:', repaymentData);
-
-      // Call the correct API endpoint
-      const response = await ApiService.request(`/api/gold-loans/${selectedLoan._id}/process-repayment`, {
-        method: 'POST',
-        body: repaymentData
       });
       
       if (response.success) {
         console.log('Repayment successful:', response);
-        onRepayment(response);
+        onSuccess(response);
       } else {
         throw new Error(response.error || response.message || "Repayment failed");
       }
@@ -427,28 +406,7 @@ const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onRepayment }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-3">
-            <h5 className="font-medium text-gray-700 border-b pb-2">Loan Status</h5>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Full Principal:</span>
-              <span className="font-medium">₹{summary.fullPrincipal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Outstanding Interest ({summary.monthsDiff} months):</span>
-              <span className="font-medium text-orange-600">₹{summary.outstandingInterest.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2">
-              <span className="font-medium text-gray-700">Total Debt:</span>
-              <span className="font-bold text-red-600">₹{summary.totalDebt.toFixed(2)}</span>
-            </div>
-            {summary.remainingPrincipalAfterItems !== summary.fullPrincipal && (
-              <div className="text-xs text-gray-500 italic">
-                After items: ₹{summary.remainingPrincipalAfterItems.toFixed(2)} principal remaining
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <h5 className="font-medium text-gray-700 border-b pb-2">This Payment</h5>
+            <h5 className="font-medium text-gray-700 border-b pb-2">Payment Details</h5>
             <div className="flex justify-between">
               <span className="text-gray-600">Items Value:</span>
               <span className="font-medium text-green-600">₹{summary.selectedValue.toFixed(2)}</span>
@@ -461,62 +419,24 @@ const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onRepayment }) => {
               <span className="font-medium text-gray-700">Total Credit:</span>
               <span className="font-bold text-green-600">₹{summary.totalCredit.toFixed(2)}</span>
             </div>
-            
-            {/* Show what this payment covers */}
-            {summary.totalCredit > 0 && (
-              <div className="text-xs bg-gray-100 p-2 rounded mt-2">
-                <div className="font-medium text-gray-700 mb-1">Payment Covers:</div>
-                {summary.selectedValue > 0 && (
-                  <div>• Principal via items: ₹{summary.selectedValue.toFixed(2)}</div>
-                )}
-                {summary.interestPayment > 0 && (
-                  <div>• Interest payment: ₹{summary.interestPayment.toFixed(2)}</div>
-                )}
-                {summary.principalCashPayment > 0 && (
-                  <div>• Principal via cash: ₹{summary.principalCashPayment.toFixed(2)}</div>
-                )}
-              </div>
-            )}
+          </div>
+
+          <div className="space-y-3">
+            <h5 className="font-medium text-gray-700 border-b pb-2">Outstanding</h5>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Principal:</span>
+              <span className="font-medium">₹{summary.currentPrincipal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Interest:</span>
+              <span className="font-medium text-orange-600">₹{summary.outstandingInterest.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-t pt-2">
+              <span className="font-medium text-gray-700">Total Due:</span>
+              <span className="font-bold text-red-600">₹{summary.totalDue.toFixed(2)}</span>
+            </div>
           </div>
         </div>
-
-        {/* Show different summary based on what's selected */}
-        {summary.selectedItems.length === 0 && summary.enteredAmount === 0 && (
-          <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
-            <div className="text-yellow-800">
-              <div className="font-medium">No Payment Selected</div>
-              <div className="text-sm mt-1">
-                Minimum required: ₹{summary.outstandingInterest.toFixed(2)} (interest only)
-              </div>
-            </div>
-          </div>
-        )}
-
-        {summary.selectedItems.length > 0 && summary.enteredAmount === 0 && (
-          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
-            <div className="text-blue-800">
-              <div className="font-medium">Item Return Only</div>
-              <div className="text-sm mt-1">
-                Items cover ₹{summary.selectedValue.toFixed(2)} of principal. 
-                Remaining: ₹{(summary.totalDebt - summary.selectedValue).toFixed(2)}
-                {summary.remaining <= 0 && " - LOAN CAN BE CLOSED!"}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {summary.selectedItems.length === 0 && summary.enteredAmount > 0 && (
-          <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded-lg">
-            <div className="text-green-800">
-              <div className="font-medium">Cash Payment Only</div>
-              <div className="text-sm mt-1">
-                {summary.isInterestOnlyPayment 
-                  ? `Interest payment of ₹${summary.enteredAmount.toFixed(2)}` 
-                  : `₹${summary.interestPayment.toFixed(2)} to interest, ₹${summary.principalCashPayment.toFixed(2)} to principal`}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Final Status */}
         <div className="mt-6 pt-4 border-t">
@@ -559,6 +479,13 @@ const GoldLoanRepayment = ({ selectedLoan, currentGoldPrice, onRepayment }) => {
 
       {/* Action Buttons */}
       <div className="flex justify-end gap-3 pt-4 border-t">
+        <button
+          onClick={onCancel}
+          className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          disabled={loading}
+        >
+          Cancel
+        </button>
         <button
           onClick={resetForm}
           className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
