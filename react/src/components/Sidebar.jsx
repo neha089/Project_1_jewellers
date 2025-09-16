@@ -62,12 +62,6 @@ const Sidebar = ({ isOpen, toggleSidebar, isMobile }) => {
       description: 'Financial Overview'
     },
     { 
-      name: 'Transactions', 
-      icon: Gem, 
-      path: '/transactions',
-      description: 'Transaction Management'
-    },
-    { 
       name: 'Gold Buy/Sell', 
       icon: TrendingUp, 
       path: '/gold-buy-sell',

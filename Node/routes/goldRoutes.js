@@ -1,4 +1,3 @@
-// routes/goldRoutes.js
 import express from "express";
 import {
   createGoldTransaction,
@@ -6,6 +5,10 @@ import {
   getGoldTransactionById,
   updateGoldTransaction,
   deleteGoldTransaction,
+  getDailyAnalytics,
+  getWeeklyAnalytics,
+  getProfitLossAnalysis,
+  getCurrentGoldPrices,
   getDailySummary,
   getMonthlySummary,
   getGoldAnalytics
@@ -21,6 +24,10 @@ router.put("/:id", updateGoldTransaction);
 router.delete("/:id", deleteGoldTransaction);
 
 // Analytics and Reporting
+router.get("/reports/daily-analytics", getDailyAnalytics);
+router.get("/reports/weekly-analytics", getWeeklyAnalytics);
+router.get("/reports/profit-loss", getProfitLossAnalysis);
+router.get("/reports/current-prices", getCurrentGoldPrices);
 router.get("/reports/daily-summary", getDailySummary);
 router.get("/reports/monthly-summary", getMonthlySummary);
 router.get("/reports/analytics", getGoldAnalytics);

@@ -1,143 +1,124 @@
-  const BASE_URL = "http://localhost:3000";
+// api.js - Enhanced API Service Layer with Axios for Better Performance
+import axios from 'axios';
+
+const BASE_URL = "http://localhost:3000";
+
+// Create axios instance with default configuration
+const axiosInstance = axios.create({
+  baseURL: BASE_URL,
+  timeout: 30000, // 30 seconds timeout
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor for logging
+axiosInstance.interceptors.request.use(
+  (config) => {
+    console.log('Making API request:', config.method?.toUpperCase(), config.url, config.data);
+    return config;
+  },
+  (error) => {
+    console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for logging and error handling
+axiosInstance.interceptors.response.use(
+  (response) => {
+    console.log('API Response:', response.status, response.data);
+    return response;
+  },
+  (error) => {
+    console.error('API request failed:', error.response?.data || error.message);
+    
+    // Handle specific error cases
+    if (error.response) {
+      // Server responded with error status
+      const errorMessage = error.response.data?.message || 
+                          error.response.data?.error || 
+                          `HTTP error! status: ${error.response.status}`;
+      throw new Error(errorMessage);
+    } else if (error.request) {
+      // Request was made but no response received
+      throw new Error('Network error - no response received');
+    } else {
+      // Something else happened
+      throw new Error(error.message || 'Request failed');
+    }
+  }
+);
 
 class ApiService {
+  // Legacy request method for backward compatibility
   async request(endpoint, options = {}) {
-    const url = `${BASE_URL}${endpoint}`;
-    const config = {
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-      ...options,
-    };
-
-    if (config.body && typeof config.body === "object") {
-      config.body = JSON.stringify(config.body);
-    }
-
     try {
-      console.log("Making API request:", url, config);
-      const response = await fetch(url, config);
-      const data = await response.json();
+      const config = {
+        url: endpoint,
+        method: options.method || 'GET',
+        data: options.body,
+        headers: {
+          ...options.headers,
+        },
+        ...options,
+      };
 
-      console.log("API Response:", data);
+      // Remove body from config as axios uses data
+      delete config.body;
 
-      if (!response.ok) {
-        throw new Error(
-          data.message || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      return data;
+      const response = await axiosInstance(config);
+      return response.data;
     } catch (error) {
-      console.error("API request failed:", error);
       throw error;
     }
   }
 
-  // Create new silver transaction
-  async createTransaction(transactionData) {
-    return await this.request('/api/silver', {
-      method: 'POST',
-      body: transactionData, // Remove JSON.stringify here since request() handles it
-    });
+  // New axios-based methods for better performance
+  async get(endpoint, params = {}) {
+    const response = await axiosInstance.get(endpoint, { params });
+    return response.data;
   }
 
-  // Get all silver transactions with filters
-  async getTransactions(params = {}) {
-    const queryParams = new URLSearchParams();
-    
-    // Add all non-empty parameters
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value);
-      }
-    });
-    
-    const queryString = queryParams.toString();
-    const endpoint = `/api/silver${queryString ? `?${queryString}` : ''}`; // Added leading slash
-    
-    return await this.request(endpoint);
+  async post(endpoint, data = {}) {
+    const response = await axiosInstance.post(endpoint, data);
+    return response.data;
   }
 
-  // Get single transaction by ID
-  async getTransactionById(id) {
-    return await this.request(`/api/silver/${id}`); // Added leading slash
+  async put(endpoint, data = {}) {
+    const response = await axiosInstance.put(endpoint, data);
+    return response.data;
   }
 
-  // Update transaction
-  async updateTransaction(id, updateData) {
-    return await this.request(`/api/silver/${id}`, {
-      method: 'PUT',
-      body: updateData, // Remove JSON.stringify here
-    });
+  async patch(endpoint, data = {}) {
+    const response = await axiosInstance.patch(endpoint, data);
+    return response.data;
   }
 
-  // Delete transaction
-  async deleteTransaction(id) {
-    return await this.request(`/api/silver/${id}`, {
-      method: 'DELETE',
-    });
+  async delete(endpoint) {
+    const response = await axiosInstance.delete(endpoint);
+    return response.data;
   }
 
-  // Get daily summary
-  async getDailySummary(date) {
-    const params = date ? `?date=${date}` : '';
-    return await this.request(`/api/silver/reports/daily-summary${params}`); // Added leading slash
+  async createGoldTransaction(transactionData) {
+    return this.post("/api/gold/", transactionData);
+  }
+  async createSilverTransaction (transactionData) {
+    return this.post("/api/silver/", transactionData);
   }
 
-  // Get monthly summary
-  async getMonthlySummary(year, month) {
-    const params = new URLSearchParams();
-    if (year) params.append('year', year);
-    if (month) params.append('month', month);
-    
-    const queryString = params.toString();
-    return await this.request(`/api/silver/reports/monthly-summary${queryString ? `?${queryString}` : ''}`); // Added leading slash
-  }
-
-  // Get analytics
-  async getAnalytics(params = {}) {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value);
-      }
-    });
-    
-    const queryString = queryParams.toString();
-    return await this.request(`/api/silver/reports/analytics${queryString ? `?${queryString}` : ''}`); // Added leading slash
-  }
-
-  // Get current silver rates
-  async getCurrentRates() {
-    return {
-      success: true,
-      data: {
-        '800 Silver': 75,
-        '925 Sterling': 85,
-        '950 Silver': 88,
-        '999 Fine': 92
-      }
-    };
-  }
-
-  // Enhanced customer search
+  // Enhanced customer search with axios
   async searchCustomers(search = "", page = 1, limit = 50, status = "active") {
     const cleanSearch = search ? search.trim() : "";
-    const params = new URLSearchParams();
+    const params = {};
 
-    if (cleanSearch) params.append("search", cleanSearch);
-    params.append("page", page.toString());
-    params.append("limit", limit.toString());
-    params.append("status", status);
-
-    const queryString = params.toString();
-    const endpoint = `/api/customers${queryString ? "?" + queryString : ""}`;
+    if (cleanSearch) params.search = cleanSearch;
+    params.page = page.toString();
+    params.limit = limit.toString();
+    params.status = status;
 
     try {
-      const response = await this.request(endpoint);
+      const response = await this.get("/api/customers", params);
 
       if (response.success && cleanSearch && response.data?.customers) {
         const customers = response.data.customers;
@@ -178,133 +159,116 @@ class ApiService {
 
   // Customer APIs
   async createCustomer(customerData) {
-    return this.request("/api/customers/", {
-      method: "POST",
-      body: {
-        name: customerData.name,
-        phone: customerData.phone,
-        address: {
-          street: customerData.address.street,
-          city: customerData.address.city,
-          state: customerData.address.state,
-          pincode: customerData.address.pinCode,
-        },
-        adhaarNumber: customerData.idProof.number,
-        email: customerData.email,
+    return this.post("/api/customers/", {
+      name: customerData.name,
+      phone: customerData.phone,
+      address: {
+        street: customerData.address.street,
         city: customerData.address.city,
         state: customerData.address.state,
         pincode: customerData.address.pinCode,
-        totalAmountTakenFromJewellers: 0,
-        totalAmountTakenByUs: 0,
-        status: "active",
       },
+      adhaarNumber: customerData.idProof.number,
+      email: customerData.email,
+      city: customerData.address.city,
+      state: customerData.address.state,
+      pincode: customerData.address.pinCode,
+      totalAmountTakenFromJewellers: 0,
+      totalAmountTakenByUs: 0,
+      status: "active",
     });
   }
 
   async getGoldLoansByCustomer(customerId) {
-    return this.request(`/api/gold-loans/customer/${customerId}`);
+    return this.get(`/api/gold-loans/customer/${customerId}`);
   }
 
   async getLoansByCustomer(customerId) {
-    return this.request(`/api/loans/customer/${customerId}`);
+    return this.get(`/api/loans/customer/${customerId}`);
   }
 
   async getAllCustomers(page = 1, limit = 100) {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      limit: limit.toString(),
-    });
-    return this.request(`/api/customers/?${params}`);
+    return this.get(`/api/customers/`, { page: page.toString(), limit: limit.toString() });
   }
 
   // Gold Loan APIs
   async createGoldLoan(loanData) {
-    return this.request("/api/gold-loans/", {
-      method: "POST",
-      body: {
-        customer: loanData.customerId,
-        items: loanData.items.map((item) => ({
-          name: item.name || "Gold Item",
-          weightGram: parseFloat(item.weightGram),
-          amountPaise: Math.round(parseFloat(item.amountPaise) * 100),
-          purityK: parseInt(item.purityK),
-          images: item.images || [],
-        })),
-        interestRateMonthlyPct: parseFloat(loanData.interestRate),
-        principalPaise: Math.round(parseFloat(loanData.totalAmount) * 100),
-        startDate: loanData.date,
-        dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
-        status: "ACTIVE",
-      },
+    return this.post("/api/gold-loans/", {
+      customer: loanData.customerId,
+      items: loanData.items.map((item) => ({
+        name: item.name || "Gold Item",
+        weightGram: parseFloat(item.weightGram),
+        amountPaise: Math.round(parseFloat(item.amountPaise) * 100),
+        purityK: parseInt(item.purityK),
+        images: item.images || [],
+      })),
+      interestRateMonthlyPct: parseFloat(loanData.interestRate),
+      principalPaise: Math.round(parseFloat(loanData.totalAmount) * 100),
+      startDate: loanData.date,
+      dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
+      status: "ACTIVE",
     });
   }
 
   async getPaymentHistory(filters = {}) {
-    const params = new URLSearchParams();
-    if (filters.page) params.append("page", filters.page.toString());
-    if (filters.limit) params.append("limit", filters.limit.toString());
-    if (filters.customer) params.append("customer", filters.customer);
-    if (filters.month) params.append("month", filters.month.toString());
-    if (filters.year) params.append("year", filters.year.toString());
-    const queryString = params.toString();
-    return this.request(
-      `/api/gold-loans/payments/history${queryString ? "?" + queryString : ""}`
-    );
+    const params = {};
+    if (filters.page) params.page = filters.page.toString();
+    if (filters.limit) params.limit = filters.limit.toString();
+    if (filters.customer) params.customer = filters.customer;
+    if (filters.month) params.month = filters.month.toString();
+    if (filters.year) params.year = filters.year.toString();
+    
+    return this.get(`/api/gold-loans/payments/history`, params);
   }
 
   async getDashboardStats() {
-    return this.request("/api/dashboard/stats");
+    return this.get("/api/dashboard/stats");
   }
 
   async getGoldLoanInterestSummary(loanId) {
-    return this.request(`/api/gold-loans/${loanId}/interest-summary`);
+    return this.get(`/api/gold-loans/${loanId}/interest-summary`);
   }
 
   async getAllTransactions() {
-    return this.request(`/api/transactions`);
+    return this.get(`/api/transactions`);
   }
 
   async getGoldLoanPaymentHistory(loanId) {
-    return this.request(`/api/gold-loans/${loanId}/payment-history`);
+    return this.get(`/api/gold-loans/${loanId}/payment-history`);
   }
 
   async makeGoldLoanPayment(loanId, paymentData) {
-    return this.request(`/api/gold-loans/${loanId}/payments`, {
-      method: "POST",
-      body: {
-        principalPaise: Math.round(parseFloat(paymentData.principal || 0) * 100),
-        interestPaise: Math.round(parseFloat(paymentData.interest || 0) * 100),
-        forMonth: paymentData.forMonth || this.getCurrentMonth(),
-        photos: paymentData.photos || [],
-        notes: paymentData.notes || "",
-      },
+    return this.post(`/api/gold-loans/${loanId}/payments`, {
+      principalPaise: Math.round(parseFloat(paymentData.principal || 0) * 100),
+      interestPaise: Math.round(parseFloat(paymentData.interest || 0) * 100),
+      forMonth: paymentData.forMonth || this.getCurrentMonth(),
+      photos: paymentData.photos || [],
+      notes: paymentData.notes || "",
     });
   }
+
   async processGoldLoanRepayment(repaymentData) {
     try {
       console.log('API Service - Processing repayment:', repaymentData);
       
-      const response = await this.request(
+      const response = await this.post(
         `/api/gold-loans/${repaymentData.loanId}/process-repayment`,
         {
-          method: "POST",
-          body: {
-            // Support multiple field names for backward compatibility
-            selectedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [],
-            returnedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [], // Alternative field name
-            
-            // Cash payment in multiple formats
-            repaymentAmount: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
-            cashPayment: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
-            cashPaymentPaise: repaymentData.cashPaymentPaise || 
-              Math.round((repaymentData.cashPayment || repaymentData.repaymentAmount || 0) * 100),
-            
-            // Additional fields
-            notes: repaymentData.notes || "Gold loan repayment processed",
-            summary: repaymentData.summary,
-            photos: repaymentData.photos || [],
-            autoSelectItems: repaymentData.autoSelectItems || false
-          },
+          // Support multiple field names for backward compatibility
+          selectedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [],
+          returnedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [], // Alternative field name
+          
+          // Cash payment in multiple formats
+          repaymentAmount: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
+          cashPayment: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
+          cashPaymentPaise: repaymentData.cashPaymentPaise || 
+            Math.round((repaymentData.cashPayment || repaymentData.repaymentAmount || 0) * 100),
+          
+          // Additional fields
+          notes: repaymentData.notes || "Gold loan repayment processed",
+          summary: repaymentData.summary,
+          photos: repaymentData.photos || [],
+          autoSelectItems: repaymentData.autoSelectItems || false
         }
       );
   
@@ -323,722 +287,604 @@ class ApiService {
       ...repaymentData
     });
   }
+
   async makeGoldLoanInterestPayment(loanId, interestAmount, notes = "") {
-    return this.request(`/api/gold-loans/${loanId}/interest-payment`, {
-      method: "POST",
-      body: {
-        interestPaise: Math.round(parseFloat(interestAmount) * 100),
-        notes: notes,
-        forMonth: this.getCurrentMonth(),
-      },
+    return this.post(`/api/gold-loans/${loanId}/interest-payment`, {
+      interestPaise: Math.round(parseFloat(interestAmount) * 100),
+      notes: notes,
+      forMonth: this.getCurrentMonth(),
     });
   }
 
-   
   async completeGoldLoan(loanId, completionData = {}) {
-    return this.request(`/api/gold-loans/${loanId}/complete`, {
-      method: "PUT",
-      body: {
-        finalPaymentPaise: Math.round(
-          (completionData.finalPayment || 0) * 100
-        ),
-        photos: completionData.photos || [],
-        notes:
-          completionData.notes ||
-          "Loan completed - all gold returned to customer",
-      },
+    return this.put(`/api/gold-loans/${loanId}/complete`, {
+      finalPaymentPaise: Math.round((completionData.finalPayment || 0) * 100),
+      photos: completionData.photos || [],
+      notes: completionData.notes || "Loan completed - all gold returned to customer",
     });
   }
 
   async addGoldLoanItems(loanId, items) {
-    return this.request(`/api/gold-loans/${loanId}/items`, {
-      method: "POST",
-      body: {
-        items: items.map((item) => ({
-          name: item.name || "Gold Item",
-          weightGram: parseFloat(item.weightGram),
-          amountPaise: Math.round(parseFloat(item.amount) * 100),
-          purityK: parseInt(item.purityK),
-          images: item.images || [],
-        })),
-      },
+    return this.post(`/api/gold-loans/${loanId}/items`, {
+      items: items.map((item) => ({
+        name: item.name || "Gold Item",
+        weightGram: parseFloat(item.weightGram),
+        amountPaise: Math.round(parseFloat(item.amount) * 100),
+        purityK: parseInt(item.purityK),
+        images: item.images || [],
+      })),
     });
   }
 
   async updateGoldLoanItem(loanId, itemId, itemData) {
-    return this.request(`/api/gold-loans/${loanId}/items/${itemId}`, {
-      method: "PUT",
-      body: {
-        name: itemData.name,
-        weightGram: parseFloat(itemData.weightGram),
-        amountPaise: Math.round(parseFloat(itemData.amount) * 100),
-        purityK: parseInt(itemData.purityK),
-        images: itemData.images || [],
-      },
+    return this.put(`/api/gold-loans/${loanId}/items/${itemId}`, {
+      name: itemData.name,
+      weightGram: parseFloat(itemData.weightGram),
+      amountPaise: Math.round(parseFloat(itemData.amount) * 100),
+      purityK: parseInt(itemData.purityK),
+      images: itemData.images || [],
     });
   }
 
   async removeGoldLoanItem(loanId, itemId) {
-    return this.request(`/api/gold-loans/${loanId}/items/${itemId}`, {
-      method: "DELETE",
-    });
+    return this.delete(`/api/gold-loans/${loanId}/items/${itemId}`);
   }
 
   async validateGoldLoanClosure(loanId) {
-    return this.request(`/api/gold-loans/${loanId}/validate-closure`);
+    return this.get(`/api/gold-loans/${loanId}/validate-closure`);
   }
 
   async getGoldLoanOutstanding(loanId) {
-    return this.request(`/api/gold-loans/${loanId}/outstanding-summary`);
+    return this.get(`/api/gold-loans/${loanId}/outstanding-summary`);
   }
 
   async closeGoldLoan(loanId, closureData = {}) {
-    return this.request(`/api/gold-loans/${loanId}/close`, {
-      method: "PUT",
-      body: {
-        closureImages: closureData.photos || [],
-        notes: closureData.notes || "Loan closed",
-      },
+    return this.put(`/api/gold-loans/${loanId}/close`, {
+      closureImages: closureData.photos || [],
+      notes: closureData.notes || "Loan closed",
     });
   }
 
   async returnGoldLoanItems(loanId, itemIds, returnData = {}) {
-    return this.request(`/api/gold-loans/${loanId}/return-items`, {
-      method: "POST",
-      body: {
-        itemIds,
-        returnImages: returnData.photos || [],
-        notes: returnData.notes || "",
-      },
+    return this.post(`/api/gold-loans/${loanId}/return-items`, {
+      itemIds,
+      returnImages: returnData.photos || [],
+      notes: returnData.notes || "",
     });
   }
 
   async getGoldLoan(loanId) {
-    return this.request(`/api/gold-loans/${loanId}`);
+    return this.get(`/api/gold-loans/${loanId}`);
   }
 
   async getGoldLoanReport(loanId) {
-    return this.request(`/api/gold-loans/${loanId}/report`);
+    return this.get(`/api/gold-loans/${loanId}/report`);
   }
 
   async getAllGoldLoans(filters = {}) {
-    const params = new URLSearchParams();
-    if (filters.page) params.append("page", filters.page.toString());
-    if (filters.limit) params.append("limit", filters.limit.toString());
-    if (filters.status) params.append("status", filters.status);
-    if (filters.customer) params.append("customer", filters.customer);
-    const queryString = params.toString();
-    return this.request(
-      `/api/gold-loans${queryString ? "?" + queryString : ""}`
-    );
+    const params = {};
+    if (filters.page) params.page = filters.page.toString();
+    if (filters.limit) params.limit = filters.limit.toString();
+    if (filters.status) params.status = filters.status;
+    if (filters.customer) params.customer = filters.customer;
+    
+    return this.get(`/api/gold-loans`, params);
   }
 
   async getCustomerGoldLoanSummary(customerId) {
-    return this.request(`/api/gold-loans/customer/${customerId}/summary`);
+    return this.get(`/api/gold-loans/customer/${customerId}/summary`);
   }
 
   async getPendingInterest() {
-    return this.request("/api/gold-loans/analytics/pending-interest");
+    return this.get("/api/gold-loans/analytics/pending-interest");
   }
 
   // Metal Sale APIs
   async createMetalSale(saleData) {
-    return this.request("/api/metal-sales/", {
-      method: "POST",
-      body: {
-        customer: saleData.customerId,
-        metal: saleData.metal.toUpperCase(),
-        weightGram: parseFloat(saleData.weight),
-        amountPaise: Math.round(parseFloat(saleData.amount) * 100),
-        ratePerGramPaise: Math.round(parseFloat(saleData.rate) * 100),
-        purityK: parseInt(saleData.purity),
-        date: saleData.date,
-      },
+    return this.post("/api/metal-sales/", {
+      customer: saleData.customerId,
+      metal: saleData.metal.toUpperCase(),
+      weightGram: parseFloat(saleData.weight),
+      amountPaise: Math.round(parseFloat(saleData.amount) * 100),
+      ratePerGramPaise: Math.round(parseFloat(saleData.rate) * 100),
+      purityK: parseInt(saleData.purity),
+      date: saleData.date,
     });
   }
 
   // Regular Loan APIs
   async createLoan(loanData, direction) {
-    return this.request("/api/loans/", {
-      method: "POST",
-      body: {
-        customer: loanData.customerId,
-        loanType: direction === -1 ? 'GIVEN' : 'TAKEN',
-        principalPaise: Math.round(parseFloat(loanData.amount) * 100),
-        interestRateMonthlyPct: parseFloat(loanData.interestRate),
-        dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
-        direction: direction, // -1 for given, 1 for taken
-        note: loanData.description,
-      },
+    return this.post("/api/loans/", {
+      customer: loanData.customerId,
+      loanType: direction === -1 ? 'GIVEN' : 'TAKEN',
+      principalPaise: Math.round(parseFloat(loanData.amount) * 100),
+      interestRateMonthlyPct: parseFloat(loanData.interestRate),
+      dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
+      direction: direction, // -1 for given, 1 for taken
+      note: loanData.description,
     });
   }
 
-  // Get loans by customer ID
-  async getLoansByCustomer(customerId) {
-    return this.request(`/api/loans/customer/${customerId}`);
-  }
-
-  // Get specific loan details
   async getLoanDetails(loanId) {
-    return this.request(`/api/loans/${loanId}`);
+    return this.get(`/api/loans/${loanId}`);
   }
 
-  // Make loan interest payment
   async makeLoanInterestPayment(loanId, interestAmount, note = null) {
-    return this.request(`/api/loans/${loanId}/interest-payment`, {
-      method: "POST",
-      body: {
-        interestPaise: Math.round(parseFloat(interestAmount) * 100),
-        forMonth: this.getCurrentMonth(),
-        note: note,
-      },
+    return this.post(`/api/loans/${loanId}/interest-payment`, {
+      interestPaise: Math.round(parseFloat(interestAmount) * 100),
+      forMonth: this.getCurrentMonth(),
+      note: note,
     });
   }
 
-  // Make loan principal payment (partial or full)
   async makeLoanPrincipalPayment(loanId, principalAmount, note = null) {
-    return this.request(`/api/loans/${loanId}/principal-payment`, {
-      method: "POST",
-      body: {
-        principalPaise: Math.round(parseFloat(principalAmount) * 100),
-        note: note,
-      },
+    return this.post(`/api/loans/${loanId}/principal-payment`, {
+      principalPaise: Math.round(parseFloat(principalAmount) * 100),
+      note: note,
     });
   }
 
-  // Make combined loan payment (principal + interest)
   async makeLoanPayment(loanId, paymentData) {
-    return this.request(`/api/loans/${loanId}/payments`, {
-      method: "POST",
-      body: {
-        principalPaise: paymentData.principal ? Math.round(parseFloat(paymentData.principal) * 100) : 0,
-        interestPaise: paymentData.interest ? Math.round(parseFloat(paymentData.interest) * 100) : 0,
-        photos: paymentData.photos || [],
-        notes: paymentData.notes || "",
-      },
+    return this.post(`/api/loans/${loanId}/payments`, {
+      principal: paymentData.principal || 0,  // Send as number, not paise
+      interest: paymentData.interest || 0,    // Send as number, not paise
+      photos: paymentData.photos || [],
+      notes: paymentData.notes || "",
     });
   }
 
-  // Get loan reminders (overdue payments)
   async getLoanReminders(daysAhead = 0) {
-    return this.request(`/api/loans/reminders?days=${daysAhead}`);
+    return this.get(`/api/loans/reminders`, { days: daysAhead });
   }
 
-  // Update loan interest rate
   async updateLoanInterestRate(loanId, newRate, note) {
-    return this.request(`/api/loans/${loanId}/interest-rate`, {
-      method: "PATCH",
-      body: {
-        interestRateMonthlyPct: parseFloat(newRate),
-        note: note,
-      },
+    return this.patch(`/api/loans/${loanId}/interest-rate`, {
+      interestRateMonthlyPct: parseFloat(newRate),
+      note: note,
     });
   }
 
-  // Mark reminder as sent
   async markLoanReminderSent(loanId) {
-    return this.request(`/api/loans/${loanId}/reminder-sent`, {
-      method: "PATCH",
-    });
+    return this.patch(`/api/loans/${loanId}/reminder-sent`);
   }
 
-  // Helper function to calculate due date
-  calculateDueDate(startDate, durationMonths) {
-    const start = new Date(startDate);
-    const dueDate = new Date(start);
-    dueDate.setMonth(start.getMonth() + parseInt(durationMonths));
-    return dueDate.toISOString();
-  }
-
-  // Helper function to get current month in YYYY-MM format
-  getCurrentMonth() {
-    return new Date().toISOString().substring(0, 7);
-  }
-
-  // Get all loans with filtering
   async getAllLoans(filters = {}) {
-    const queryParams = new URLSearchParams();
+    const params = {};
     
-    if (filters.page) queryParams.append('page', filters.page);
-    if (filters.limit) queryParams.append('limit', filters.limit);
-    if (filters.status) queryParams.append('status', filters.status);
-    if (filters.customer) queryParams.append('customer', filters.customer);
-    if (filters.loanType) queryParams.append('loanType', filters.loanType);
-    if (filters.overdue) queryParams.append('overdue', filters.overdue);
-    if (filters.sortBy) queryParams.append('sortBy', filters.sortBy);
-    if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder);
+    if (filters.page) params.page = filters.page;
+    if (filters.limit) params.limit = filters.limit;
+    if (filters.status) params.status = filters.status;
+    if (filters.customer) params.customer = filters.customer;
+    if (filters.loanType) params.loanType = filters.loanType;
+    if (filters.overdue) params.overdue = filters.overdue;
+    if (filters.sortBy) params.sortBy = filters.sortBy;
+    if (filters.sortOrder) params.sortOrder = filters.sortOrder;
 
-    const queryString = queryParams.toString();
-    return this.request(`/api/loans${queryString ? '?' + queryString : ''}`);
+    return this.get(`/api/loans`, params);
   }
-
 
   // Udhari APIs
   async giveUdhari(udhariData) {
-    return this.request("/api/udhari/give", {
-      method: "POST",
-      body: {
-        customer: udhariData.customerId,
-        principalPaise: Math.round(parseFloat(udhariData.amount) * 100),
-        note: udhariData.description,
-        totalInstallments: parseInt(udhariData.installments || 1),
-      },
+    return this.post("/api/udhari/give", {
+      customer: udhariData.customerId,
+      principalPaise: Math.round(parseFloat(udhariData.amount) * 100),
+      note: udhariData.description,
+      totalInstallments: parseInt(udhariData.installments || 1),
     });
   }
 
   async receiveUdhariPayment(paymentData) {
-  return this.request("/api/udhari/receive-payment", {
-    method: "POST",
-    body: {
+    return this.post("/api/udhari/receive-payment", {
       customer: paymentData.customerId,
       principalPaise: Math.round(parseFloat(paymentData.amount) * 100),
       sourceRef: paymentData.sourceRef,  // ✅ Fixed: use sourceRef instead of udhariId
       note: paymentData.description,
       installmentNumber: parseInt(paymentData.installmentNumber || 1),
-    },
-  });
-}
-  
-  //gol silver sell buy 
-
-// Create Gold Sale Transaction
- async createGoldSale  (transactionData) {
-  try {
-    const payload = {
-      transactionType: "SELL",
-      customer: transactionData.customerId,
-      goldDetails: {
-        purity: transactionData.purity || "22K",
-        weight: parseFloat(transactionData.weight),
-        ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
-        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
-        wastage: parseFloat(transactionData.wastage || 0),
-        taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
-      },
-      advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
-      paymentMode: transactionData.paymentMode || "CASH",
-      items: transactionData.items || [{
-        name: transactionData.itemName || "Gold Item",
-        description: transactionData.description || "",
-        weight: parseFloat(transactionData.weight),
-        purity: transactionData.purity || "22K",
-        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
-        itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
-        photos: transactionData.photos || []
-      }],
-      notes: transactionData.description || "",
-      billNumber: transactionData.billNumber || ""
-    };
-
-    const response = await fetch(`${BASE_URL}/api/gold`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
     });
-
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to create gold sale transaction');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error creating gold sale:', error);
-    throw error;
   }
-};
 
-// Create Silver Sale Transaction
- async createSilverSale (transactionData) {
-  try {
-    const payload = {
-      transactionType: "SELL",
-      customer: transactionData.customerId,
-      silverDetails: {
-        purity: transactionData.purity || "999",
-        weight: parseFloat(transactionData.weight),
-        ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
-        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
-        wastage: parseFloat(transactionData.wastage || 0),
-        taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
-      },
-      advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
-      paymentMode: transactionData.paymentMode || "CASH",
-      items: transactionData.items || [{
-        name: transactionData.itemName || "Silver Item",
-        description: transactionData.description || "",
-        weight: parseFloat(transactionData.weight),
-        purity: transactionData.purity || "999",
-        makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
-        itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
-        photos: transactionData.photos || []
-      }],
-      notes: transactionData.description || "",
-      billNumber: transactionData.billNumber || ""
-    };
-
-    const response = await fetch(`${BASE_URL}/api/silver`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to create silver sale transaction');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error creating silver sale:', error);
-    throw error;
-  }
-};
-
-
-// You might also want to add these utility methods:
-
-// Create Gold Purchase Transaction
-async createGoldPurchase  (transactionData) {
-  try {
-    const payload = {
-      transactionType: "BUY",
-      supplier: {
-        name: transactionData.partyName || transactionData.supplierName,
-        phone: transactionData.supplierPhone || "",
-        address: transactionData.supplierAddress || "",
-        gstNumber: transactionData.supplierGST || ""
-      },
-      goldDetails: {
-        purity: transactionData.goldType || "22K",
-        weight: parseFloat(transactionData.goldWeight),
-        ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
-        makingCharges: 0,
-        wastage: 0,
-        taxAmount: 0
-      },
-      advanceAmount: 0,
-      paymentMode: "CASH",
-      items: [{
-        name: "Gold Purchase",
-        description: transactionData.description || "",
-        weight: parseFloat(transactionData.goldWeight),
-        purity: transactionData.goldType || "22K",
-        makingCharges: 0,
-        itemValue: Math.round(parseFloat(transactionData.amount) * 100),
-        photos: transactionData.photos || []
-      }],
-      notes: transactionData.description || "",
-      billNumber: ""
-    };
-
-    const response = await fetch(`${BASE_URL}/api/gold`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to create gold purchase transaction');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error creating gold purchase:', error);
-    throw error;
-  }
-};
-static async giveUdhari(data) {
+  // Gold/Silver Sale/Purchase APIs
+  async createGoldSale(transactionData) {
     try {
-      const response = await fetch('/api/udhari/give', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Add your auth headers here
+      const payload = {
+        transactionType: "SELL",
+        customer: transactionData.customerId,
+        goldDetails: {
+          purity: transactionData.purity || "22K",
+          weight: parseFloat(transactionData.weight),
+          ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
+          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+          wastage: parseFloat(transactionData.wastage || 0),
+          taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
         },
-        body: JSON.stringify({
-          customer: data.customerId,
-          principalPaise: Math.round(parseFloat(data.amount) * 100), // Convert to paise
-          note: data.description,
-          totalInstallments: data.totalInstallments || 1,
-          returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
-        })
+        advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+        paymentMode: transactionData.paymentMode || "CASH",
+        items: transactionData.items || [{
+          name: transactionData.itemName || "Gold Item",
+          description: transactionData.description || "",
+          weight: parseFloat(transactionData.weight),
+          purity: transactionData.purity || "22K",
+          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+          itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
+          photos: transactionData.photos || []
+        }],
+        notes: transactionData.description || "",
+        billNumber: transactionData.billNumber || ""
+      };
+
+      return await this.post('/api/gold', payload);
+    } catch (error) {
+      console.error('Error creating gold sale:', error);
+      throw error;
+    }
+  }
+
+  async createSilverSale(transactionData) {
+    try {
+      const payload = {
+        transactionType: "SELL",
+        customer: transactionData.customerId,
+        silverDetails: {
+          purity: transactionData.purity || "999",
+          weight: parseFloat(transactionData.weight),
+          ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
+          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+          wastage: parseFloat(transactionData.wastage || 0),
+          taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
+        },
+        advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+        paymentMode: transactionData.paymentMode || "CASH",
+        items: transactionData.items || [{
+          name: transactionData.itemName || "Silver Item",
+          description: transactionData.description || "",
+          weight: parseFloat(transactionData.weight),
+          purity: transactionData.purity || "999",
+          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+          itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
+          photos: transactionData.photos || []
+        }],
+        notes: transactionData.description || "",
+        billNumber: transactionData.billNumber || ""
+      };
+
+      return await this.post('/api/silver', payload);
+    } catch (error) {
+      console.error('Error creating silver sale:', error);
+      throw error;
+    }
+  }
+
+  async createGoldPurchase(transactionData) {
+    try {
+      const payload = {
+        transactionType: "BUY",
+        supplier: {
+          name: transactionData.partyName || transactionData.supplierName,
+          phone: transactionData.supplierPhone || "",
+          address: transactionData.supplierAddress || "",
+          gstNumber: transactionData.supplierGST || ""
+        },
+        goldDetails: {
+          purity: transactionData.goldType || "22K",
+          weight: parseFloat(transactionData.goldWeight),
+          ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
+          makingCharges: 0,
+          wastage: 0,
+          taxAmount: 0
+        },
+        advanceAmount: 0,
+        paymentMode: "CASH",
+        items: [{
+          name: "Gold Purchase",
+          description: transactionData.description || "",
+          weight: parseFloat(transactionData.goldWeight),
+          purity: transactionData.goldType || "22K",
+          makingCharges: 0,
+          itemValue: Math.round(parseFloat(transactionData.amount) * 100),
+          photos: transactionData.photos || []
+        }],
+        notes: transactionData.description || "",
+        billNumber: ""
+      };
+
+      return await this.post('/api/gold', payload);
+    } catch (error) {
+      console.error('Error creating gold purchase:', error);
+      throw error;
+    }
+  }
+
+  async createSilverPurchase(transactionData) {
+    try {
+      const payload = {
+        transactionType: "BUY",
+        supplier: {
+          name: transactionData.partyName || transactionData.supplierName,
+          phone: transactionData.supplierPhone || "",
+          address: transactionData.supplierAddress || "",
+          gstNumber: transactionData.supplierGST || ""
+        },
+        silverDetails: {
+          purity: transactionData.goldType || "999", // Using goldType field but for silver
+          weight: parseFloat(transactionData.goldWeight), // Using goldWeight field but for silver
+          ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
+          makingCharges: 0,
+          wastage: 0,
+          taxAmount: 0
+        },
+        advanceAmount: 0,
+        paymentMode: "CASH",
+        items: [{
+          name: "Silver Purchase",
+          description: transactionData.description || "",
+          weight: parseFloat(transactionData.goldWeight),
+          purity: transactionData.goldType || "999",
+          makingCharges: 0,
+          itemValue: Math.round(parseFloat(transactionData.amount) * 100),
+          photos: transactionData.photos || []
+        }],
+        notes: transactionData.description || "",
+        billNumber: ""
+      };
+
+      return await this.post('/api/silver', payload);
+    } catch (error) {
+      console.error('Error creating silver purchase:', error);
+      throw error;
+    }
+  }
+  async getAnalytics_silver() {
+    return this.get("/api/silver/reports/daily-summary");
+  }
+  
+  async getSilverTransactions(params = {}) {
+    return this.get("/api/silver", params);
+  }
+  async deleteSilverTransaction(id) {
+    return this.delete(`/api/silver/${id}`);
+  }
+
+async updateSilverTransaction(id, transactionData) {
+  try {
+    console.log('Updating transaction with data:', transactionData);
+    
+    // Build the payload to match what your backend expects
+    const payload = {
+      transactionType: transactionData.transactionType,
+      
+      // Customer/Supplier handling - only send the ID, not the full data
+      ...(transactionData.customer && { customer: transactionData.customer }),
+      ...(transactionData.supplier && { supplier: transactionData.supplier }),
+      
+      // Silver details from the first item or aggregated data
+      silverDetails: transactionData.silverDetails || {
+        purity: transactionData.items?.[0]?.purity || "925",
+        weight: transactionData.items?.reduce((sum, item) => sum + parseFloat(item.weight || 0), 0) || 0,
+        ratePerGram: transactionData.items?.[0] ? Math.round(parseFloat(transactionData.items[0].ratePerGram || 0) * 100) : 0,
+        makingCharges: Math.round(transactionData.items?.reduce((sum, item) => sum + parseFloat(item.makingCharges || 0), 0) * 100) || 0,
+        wastage: parseFloat(transactionData.items?.[0]?.wastage || 0),
+        taxAmount: Math.round(transactionData.items?.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0) * 100) || 0
+      },
+      
+      // Payment handling - total advance amount (original + additional)
+      advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+      paymentMode: transactionData.paymentMode || "CASH",
+      
+      // Items array with proper structure
+      items: (transactionData.items || []).map(item => ({
+        name: item.name || item.itemName || "Silver Item",
+        description: item.description || "",
+        weight: parseFloat(item.weight || 0),
+        purity: item.purity || "925",
+        ratePerGram: Math.round(parseFloat(item.ratePerGram || 0) * 100), // Convert to paise
+        makingCharges: Math.round(parseFloat(item.makingCharges || 0) * 100),
+        wastage: parseFloat(item.wastage || 0),
+        taxAmount: Math.round(parseFloat(item.taxAmount || 0) * 100),
+        itemValue: Math.round(parseFloat(item.weight || 0) * parseFloat(item.ratePerGram || 0) * 100),
+        photos: item.photos || [],
+        hallmarkNumber: item.hallmarkNumber || '',
+        certificateNumber: item.certificateNumber || ''
+      })),
+      
+      // Additional transaction details
+      notes: transactionData.notes || "",
+      billNumber: transactionData.billNumber || "",
+      
+      // Additional payment tracking (if your backend supports it)
+      ...(transactionData.additionalPayment && {
+        additionalPayment: Math.round(parseFloat(transactionData.additionalPayment) * 100),
+        additionalPaymentMode: transactionData.additionalPaymentMode
+      })
+    };
+    
+    console.log('Sending payload:', payload);
+    
+    const response = await this.put(`/api/silver/${id}`, payload);
+    
+    console.log('Update response:', response);
+    
+    return response;
+  } catch (error) {
+    console.error('Error updating silver transaction:', error);
+    throw error;
+  }
+}
+async getGoldTransactions(params = {}) {
+    return this.get("/api/gold", params);
+  }
+  async deleteGoldTransaction(id) {
+    return this.delete(`/api/gold/${id}`);
+  }
+  
+   async getDailyAnalytics_gold() {
+    return this.get("/api/gold/reports/daily-summary");
+  }
+ async getExpenses(params = {}) {
+    return this.get('/api/business-expenses', params);
+  }
+
+  async createExpense(data) {
+    return this.post('/api/business-expenses', data);
+  }
+
+  async getExpenseById(id) {
+    return this.get(`/api/business-expenses/${id}`);
+  }
+
+  async updateExpense(id, data) {
+    return this.put(`/api/business-expenses/${id}`, data);
+  }
+
+  async deleteExpense(id) {
+    return this.delete(`/api/business-expenses/${id}`);
+  }
+
+  async updateExpensePayment(id, data) {
+    return this.put(`/api/business-expenses/${id}/payment`, data);
+  }
+
+  async getExpenseDashboard() {
+    return this.get('/api/business-expenses/dashboard/summary');
+  }
+
+  async getExpenseSummaryByCategory(params = {}) {
+    return this.get('/api/business-expenses/summary/category', params);
+  }
+
+  async getMonthlyExpenseSummary(params = {}) {
+    return this.get('/api/business-expenses/summary/monthly', params);
+  }
+
+  async getOverdueExpenses(params = {}) {
+    return this.get('/api/business-expenses/overdue/list', params);
+  }
+
+  async getVendorExpenseSummary(params = {}) {
+    return this.get('/api/business-expenses/summary/vendors', params);
+  }
+
+
+
+  // Static methods for Udhari (keeping for backward compatibility)
+  static async giveUdhari(data) {
+    try {
+      const response = await axiosInstance.post('/api/udhari/give', {
+        customer: data.customerId,
+        principalPaise: Math.round(parseFloat(data.amount) * 100), // Convert to paise
+        note: data.description,
+        totalInstallments: data.totalInstallments || 1,
+        returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to give udhari');
-      }
-      
-      return result;
+      return response.data;
     } catch (error) {
       console.error('Give Udhari API Error:', error);
       throw error;
     }
   }
 
-  // Take Udhari (Borrow money from someone)
   static async takeUdhari(data) {
     try {
-      const response = await fetch('/api/udhari/take', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customer: data.customerId,
-          principalPaise: Math.round(parseFloat(data.amount) * 100),
-          note: data.description,
-          totalInstallments: data.totalInstallments || 1,
-          returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
-        })
+      const response = await axiosInstance.post('/api/udhari/take', {
+        customer: data.customerId,
+        principalPaise: Math.round(parseFloat(data.amount) * 100),
+        note: data.description,
+        totalInstallments: data.totalInstallments || 1,
+        returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to take udhari');
-      }
-      
-      return result;
+      return response.data;
     } catch (error) {
       console.error('Take Udhari API Error:', error);
       throw error;
     }
   }
 
-  // Receive Udhari Payment (when someone returns money they borrowed from you)
   static async receiveUdhariPayment(data) {
     console.log('Receiving Udhari Payment with data:', data);
     try {
-      const response = await fetch('/api/udhari/receive-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customer: data.customerId,
-          principalPaise: Math.round(parseFloat(data.amount) * 100),
-          sourceRef: data.sourceRef, // Original udhari transaction ID
-          note: data.description,
-          installmentNumber: data.installmentNumber || 1
-        })
+      const response = await axiosInstance.post('/api/udhari/receive-payment', {
+        customer: data.customerId,
+        principalPaise: Math.round(parseFloat(data.amount) * 100),
+        sourceRef: data.sourceRef, // Original udhari transaction ID
+        note: data.description,
+        installmentNumber: data.installmentNumber || 1
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to receive udhari payment');
-      }
-      
-      return result;
+      return response.data;
     } catch (error) {
       console.error('Receive Udhari Payment API Error:', error);
       throw error;
     }
   }
 
-  // Make Udhari Payment (when you return money you borrowed)
   static async makeUdhariPayment(data) {
     try {
-      const response = await fetch('/api/udhari/make-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customer: data.customerId,
-          principalPaise: Math.round(parseFloat(data.amount) * 100),
-          sourceRef: data.sourceRef,
-          note: data.description,
-          installmentNumber: data.installmentNumber || 1
-        })
+      const response = await axiosInstance.post('/api/udhari/make-payment', {
+        customer: data.customerId,
+        principalPaise: Math.round(parseFloat(data.amount) * 100),
+        sourceRef: data.sourceRef,
+        note: data.description,
+        installmentNumber: data.installmentNumber || 1
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to make udhari payment');
-      }
-      
-      return result;
+      return response.data;
     } catch (error) {
       console.error('Make Udhari Payment API Error:', error);
       throw error;
     }
   }
 
-  // Get customer udhari summary
- async getCustomerUdhariSummary(customerId) {
+  async getCustomerUdhariSummary(customerId) {
     try {
-      const response = await fetch(`${BASE_URL}/api/udhari/customer/${customerId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+      const response = await axiosInstance.get(`/api/udhari/customer/${customerId}`);
       console.log('Response:', response);
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch customer udhari summary');
-      }
-      
-      return result;
+      return response.data;
     } catch (error) {
       console.error('Get Customer Udhari Summary API Error:', error);
       throw error;
     }
   }
 
-  // Get outstanding amounts to collect
   static async getOutstandingToCollect() {
     try {
-      const response = await fetch(`${BASE_URL}/api/udhari/outstanding/collect`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch outstanding amounts to collect');
-      }
-      
-      return result;
+      const response = await axiosInstance.get(`/api/udhari/outstanding/collect`);
+      return response.data;
     } catch (error) {
       console.error('Get Outstanding To Collect API Error:', error);
       throw error;
     }
   }
 
-  // Get outstanding amounts to pay back
   static async getOutstandingToPay() {
     try {
-      const response = await fetch(`${BASE_URL}/api/udhari/outstanding/pay`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch outstanding amounts to pay');
-      }
-      
-      return result;
+      const response = await axiosInstance.get(`/api/udhari/outstanding/pay`);
+      return response.data;
     } catch (error) {
       console.error('Get Outstanding To Pay API Error:', error);
       throw error;
     }
   }
 
-  // Get overall udhari summary
   static async getUdhariSummary() {
     try {
-      const response = await fetch(`${BASE_URL}/api/udhari/summary`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch udhari summary');
-      }
-      
-      return result;
+      const response = await axiosInstance.get(`/api/udhari/summary`);
+      return response.data;
     } catch (error) {
       console.error('Get Udhari Summary API Error:', error);
       throw error;
     }
   }
 
-  // Get payment history for specific udhari transaction
   static async getUdhariPaymentHistory(udhariId) {
     try {
-      const response = await fetch(`${BASE_URL}/api/udhari/payment-history/${udhariId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch payment history');
-      }
-      
-      return result;
+      const response = await axiosInstance.get(`/api/udhari/payment-history/${udhariId}`);
+      return response.data;
     } catch (error) {
       console.error('Get Udhari Payment History API Error:', error);
       throw error;
     }
   }
-
-// Create Silver Purchase Transaction  
-async createSilverPurchase (transactionData)  {
-  try {
-    const payload = {
-      transactionType: "BUY",
-      supplier: {
-        name: transactionData.partyName || transactionData.supplierName,
-        phone: transactionData.supplierPhone || "",
-        address: transactionData.supplierAddress || "",
-        gstNumber: transactionData.supplierGST || ""
-      },
-      silverDetails: {
-        purity: transactionData.goldType || "999", // Using goldType field but for silver
-        weight: parseFloat(transactionData.goldWeight), // Using goldWeight field but for silver
-        ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
-        makingCharges: 0,
-        wastage: 0,
-        taxAmount: 0
-      },
-      advanceAmount: 0,
-      paymentMode: "CASH",
-      items: [{
-        name: "Silver Purchase",
-        description: transactionData.description || "",
-        weight: parseFloat(transactionData.goldWeight),
-        purity: transactionData.goldType || "999",
-        makingCharges: 0,
-        itemValue: Math.round(parseFloat(transactionData.amount) * 100),
-        photos: transactionData.photos || []
-      }],
-      notes: transactionData.description || "",
-      billNumber: ""
-    };
-
-    const response = await fetch(`${BASE_URL}/api/silver`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to create silver purchase transaction');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Error creating silver purchase:', error);
-    throw error;
-  }
-};
 
   // Utility methods
   calculateDueDate(startDate, durationMonths) {

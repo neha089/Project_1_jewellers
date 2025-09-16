@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import ApiService from "../services/api";
-import GoldPriceService from "../services/goldPriceService";
+import MetalPriceService from "../services/metalPriceService";
 import LoanSelector from "./LoanSelector";
 import AmountField from "./AmountField";
-import GoldTransactionFields from "./GoldTransactionFields";
 import GoldLoanItems from "./GoldLoanItems";
 import LoanFields from "./LoanFields";
 import PhotoUpload from "./PhotoUpload";
 import InterestSummaryCard from "./InterestSummaryCard";
 import GoldLoanRepayment from "./GoldLoanRepayment";
+import UdhariSelector from "./UdhariSelector";
 import UdhariTransactionForm from "./UdhariTransactionForm";
-import MetalTransactionItems from "./MetalTransactionItems";
+import MetalItemsManager from "./MetalItemsManager";
 
 const TransactionForm = ({
   selectedCustomer,
@@ -53,32 +53,17 @@ const TransactionForm = ({
     durationMonths: "6",
     selectedLoanId: "",
     photos: [],
-    // New fields for gold/silver transactions
-    itemName: "",
-    makingCharges: "0",
-    wastage: "0",
-    taxAmount: "0",
-    advanceAmount: "0",
-    paymentMode: "CASH",
-    billNumber: "",
-    // For purchases
+    // New fields for gold/silver individual items
+    items: [],
+    // For purchases/sales
     partyName: "",
     supplierName: "",
     supplierPhone: "",
     supplierAddress: "",
     supplierGST: "",
-    // Metal transaction items - using the new component
-    metalItems: [],
-    items: [
-      {
-        id: Date.now(),
-        name: "",
-        weight: "",
-        amount: "",
-        purity: "22",
-        images: [],
-      },
-    ],
+    advanceAmount: "0",
+    paymentMode: "CASH",
+    billNumber: "",
     // For loan repayment
     repaymentType: "partial", // "partial" or "full"
     principalAmount: "",
@@ -91,10 +76,10 @@ const TransactionForm = ({
   const [loading, setLoading] = useState(false);
   const [availableLoans, setAvailableLoans] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
-  const [currentGoldPrice, setCurrentGoldPrice] = useState(null);
+  const [currentMetalPrices, setCurrentMetalPrices] = useState(null);
   const [interestSummary, setInterestSummary] = useState(null);
 
-  // Load available loans and gold price
+  // Load available loans and metal prices
   useEffect(() => {
     const isInterestPayment = selectedCategory?.id.includes("interest-received");
     const isRepayment = selectedCategory?.id.includes("repayment");
@@ -103,9 +88,9 @@ const TransactionForm = ({
       fetchCustomerLoans();
     }
 
-    // Fetch current gold price for gold-related transactions
+    // Fetch current metal prices for gold/silver-related transactions
     if (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver")) {
-      fetchCurrentGoldPrice();
+      fetchCurrentMetalPrices();
     }
   }, [selectedCategory, selectedCustomer]);
 
@@ -123,12 +108,22 @@ const TransactionForm = ({
     }
   }, [transactionData.selectedLoanId, selectedCategory?.id]);
 
-  // Auto-calculate total amount for metal sales using MetalTransactionItems
+  // Auto-calculate total amount for metal transactions with individual items
   useEffect(() => {
-    if ((selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell") && 
-        transactionData.metalItems && transactionData.metalItems.length > 0) {
-      const totalAmount = transactionData.metalItems.reduce((sum, item) => {
-        return sum + (parseFloat(item.itemValue) || 0);
+    if ((selectedCategory?.id.includes("gold-sell") || selectedCategory?.id.includes("silver-sell")) && 
+        transactionData.items.length > 0) {
+      const totalAmount = transactionData.items.reduce((sum, item) => {
+        const weight = parseFloat(item.weight) || 0;
+        const rate = parseFloat(item.ratePerGram) || 0;
+        const makingCharges = parseFloat(item.makingCharges) || 0;
+        const wastage = parseFloat(item.wastage) || 0;
+        const taxAmount = parseFloat(item.taxAmount) || 0;
+        
+        const baseAmount = weight * rate;
+        const wastageAmount = (baseAmount * wastage) / 100;
+        const itemTotal = baseAmount + wastageAmount + makingCharges + taxAmount;
+        
+        return sum + itemTotal;
       }, 0);
       
       setTransactionData(prev => ({
@@ -136,22 +131,41 @@ const TransactionForm = ({
         amount: totalAmount.toFixed(2)
       }));
     }
-  }, [transactionData.metalItems, selectedCategory?.id]);
+  }, [transactionData.items, selectedCategory?.id]);
 
-  const fetchCurrentGoldPrice = async () => {
+  const fetchCurrentMetalPrices = async () => {
     try {
-      const price = await GoldPriceService.getCurrentGoldPrice();
-      setCurrentGoldPrice(price);
+      const prices = await MetalPriceService.getCurrentPrices();
+      setCurrentMetalPrices(prices);
       
-      // Auto-set current gold price if not already set
-      if (price && !transactionData.goldRate) {
+      // Initialize first item with current price if items are empty
+      if (transactionData.items.length === 0 && (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver"))) {
+        const metalType = selectedCategory?.id.includes("gold") ? "Gold" : "Silver";
+        const defaultPurity = metalType === "Gold" ? "22K" : "925";
+        const currentPrice = metalType === "Gold" ? prices.gold.rates[defaultPurity] : prices.silver.rates[defaultPurity];
+        
+        const newItem = {
+          id: Date.now(),
+          itemName: "",
+          description: "",
+          purity: defaultPurity,
+          weight: "",
+          ratePerGram: currentPrice ? (currentPrice / 100).toString() : "",
+          makingCharges: "0",
+          wastage: "0",
+          taxAmount: "0",
+          photos: [],
+          hallmarkNumber: "",
+          certificateNumber: ""
+        };
+        
         setTransactionData(prev => ({
           ...prev,
-          goldRate: price.toString()
+          items: [newItem]
         }));
       }
     } catch (error) {
-      console.error("Failed to fetch gold price:", error);
+      console.error("Failed to fetch metal prices:", error);
     }
   };
 
@@ -181,11 +195,9 @@ const TransactionForm = ({
 
     try {
       if (selectedCategory.id === "interest-received-gl") {
-        // Calculate gold loan interest based on current gold price
         const summary = await ApiService.getGoldLoanInterestSummary(selectedLoan._id);
         setInterestSummary(summary.data);
         
-        // Auto-fill suggested interest amount
         if (summary.data?.suggestedInterestAmount) {
           setTransactionData(prev => ({
             ...prev,
@@ -193,7 +205,6 @@ const TransactionForm = ({
           }));
         }
       } else if (selectedCategory.id === "interest-received-l") {
-        // Calculate regular loan interest based on CURRENT outstanding principal
         const monthlyInterest = selectedLoan.outstandingPrincipal ? 
           (selectedLoan.outstandingPrincipal * selectedLoan.interestRateMonthlyPct) / 100 / 100 : 0;
         
@@ -210,29 +221,26 @@ const TransactionForm = ({
   const calculateLoanRepaymentAmounts = async () => {
     const selectedLoan = availableLoans.find(loan => loan._id === transactionData.selectedLoanId);
     if (!selectedLoan) return;
-
+  
     try {
-      // Get loan details with payment status
       const response = await ApiService.getLoanDetails(selectedLoan._id);
       const loanDetails = response.data;
       
-      // Calculate suggested amounts
-      const outstandingPrincipal = loanDetails.outstandingPrincipal / 100; // Convert from paise to rupees
-      const pendingInterest = loanDetails.paymentStatus?.pendingAmount / 100 || 0; // Convert from paise to rupees
+      const outstandingPrincipal = loanDetails.outstandingPrincipal / 100;
+      const pendingInterest = loanDetails.paymentStatus?.pendingAmount / 100 || 0;
       
       setTransactionData(prev => ({
         ...prev,
-        principalAmount: outstandingPrincipal.toFixed(2),
-        interestAmount: pendingInterest.toFixed(2),
-        amount: transactionData.repaymentType === "full" 
-          ? (outstandingPrincipal + pendingInterest).toFixed(2)
+        principalAmount: outstandingPrincipal.toString(),
+        interestAmount: pendingInterest.toString(),
+        amount: prev.repaymentType === "full" 
+          ? (outstandingPrincipal + pendingInterest).toString()
           : prev.amount
       }));
     } catch (error) {
       console.error("Failed to calculate loan repayment amounts:", error);
     }
   };
-
   const handleDataChange = (e) => {
     const { name, value } = e.target;
     setTransactionData((prev) => ({ ...prev, [name]: value }));
@@ -258,41 +266,43 @@ const TransactionForm = ({
     }
   };
 
-  const handleUdhariSelect = (udhariId) => {
-    setTransactionData(prev => ({ ...prev, selectedUdhariId: udhariId }));
-    if (errors.selectedUdhariId) {
-      setErrors(prev => ({ ...prev, selectedUdhariId: "" }));
+  const handleItemsChange = (items) => {
+    setTransactionData(prev => ({ ...prev, items }));
+    if (errors.items) {
+      setErrors(prev => ({ ...prev, items: "" }));
     }
-  };
-
-  const handleAmountSuggestion = (suggestedAmount) => {
-    setTransactionData(prev => ({ ...prev, amount: suggestedAmount }));
   };
 
   const updateTransactionData = (updates) => {
     setTransactionData(prev => ({ ...prev, ...updates }));
   };
 
-  // Handle metal items changes from MetalTransactionItems component
-  const handleMetalItemsChange = (items) => {
-    setTransactionData(prev => ({ ...prev, metalItems: items }));
-    
-    // Clear related errors when items change
-    const newErrors = { ...errors };
-    delete newErrors.metalItems;
-    // Clear individual item errors
-    Object.keys(newErrors).forEach(key => {
-      if (key.startsWith('item_')) {
-        delete newErrors[key];
-      }
-    });
-    setErrors(newErrors);
-  };
-
   const validateForm = () => {
     const newErrors = {};
 
-    if (selectedCategory?.id === "gold-loan") {
+    // Validation for metal transactions with individual items
+    const isMetalTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
+    const isMetalBuySell = (selectedCategory?.id.includes("gold-sell") || selectedCategory?.id.includes("gold-purchase") || 
+                           selectedCategory?.id.includes("silver-sell") || selectedCategory?.id.includes("silver-purchase"));
+    
+    if (isMetalTransaction && isMetalBuySell) {
+      if (transactionData.items.length === 0) {
+        newErrors.items = "At least one item is required";
+      } else {
+        transactionData.items.forEach((item, index) => {
+          if (!item.itemName.trim()) {
+            newErrors[`item_${index}_name`] = "Item name is required";
+          }
+          if (!item.weight.trim() || parseFloat(item.weight) <= 0) {
+            newErrors[`item_${index}_weight`] = "Valid weight is required";
+          }
+          if (!item.ratePerGram.trim() || parseFloat(item.ratePerGram) <= 0) {
+            newErrors[`item_${index}_rate`] = "Valid rate per gram is required";
+          }
+        });
+      }
+    } else if (selectedCategory?.id === "gold-loan") {
+      // Existing gold loan validation
       if (transactionData.items.length === 0) {
         newErrors.items = "At least one item is required";
       } else {
@@ -308,39 +318,36 @@ const TransactionForm = ({
           }
         });
       }
-    } else if (selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell") {
-      // Validate metal transaction items
-      if (transactionData.metalItems.length === 0) {
-        newErrors.metalItems = "At least one item is required";
-      } else {
-        transactionData.metalItems.forEach((item, index) => {
-          if (!item.name.trim()) {
-            newErrors[`item_${index}_name`] = "Item name is required";
-          }
-          if (!item.weight.trim() || parseFloat(item.weight) <= 0) {
-            newErrors[`item_${index}_weight`] = "Valid weight is required";
-          }
-          if (!item.itemValue.trim() || parseFloat(item.itemValue) <= 0) {
-            newErrors[`item_${index}_itemValue`] = "Valid item value is required";
-          }
-        });
+    } else 
+    if (selectedCategory?.id === "loan-repayment") {
+      if (transactionData.repaymentType === "full") {
+        const principal = parseFloat(transactionData.principalAmount) || 0;
+        const interest = parseFloat(transactionData.interestAmount) || 0;
+        const totalAmount = principal + interest;
+        
+        if (totalAmount <= 0) {
+          newErrors.amount = "Valid payment amount is required for full repayment";
+        }
+        
+        // Update amount to match total for full repayment
+        if (totalAmount > 0) {
+          setTransactionData(prev => ({
+            ...prev,
+            amount: totalAmount.toString()
+          }));
+        }
+      } else if (transactionData.repaymentType === "partial") {
+        const amount = parseFloat(transactionData.amount) || 0;
+        if (amount <= 0) {
+          newErrors.amount = "Valid amount is required for partial repayment";
+        }
       }
-    } else if (selectedCategory?.id === "loan-repayment") {
-      // Validate loan repayment
-      if (transactionData.repaymentType === "partial" && 
-          (!transactionData.amount.trim() || parseFloat(transactionData.amount) <= 0)) {
-        newErrors.amount = "Valid amount is required for partial repayment";
-      }
-    } else if (selectedCategory?.id !== "gold-loan-repayment") {
+    }
+     else if (!selectedCategory?.id.includes("gold-loan-repayment") && !isMetalBuySell) {
+      // Regular amount validation for other transaction types
       if (!transactionData.amount.trim() || parseFloat(transactionData.amount) <= 0) {
         newErrors.amount = "Valid amount is required";
       }
-    }
-
-    // Validation for gold/silver transactions (non-metal-items based)
-    const isMetalTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
-    if (isMetalTransaction && selectedCategory?.id !== "gold-loan" && selectedCategory?.id !== "gold-sell" && selectedCategory?.id !== "silver-sell" && !transactionData.goldWeight.trim()) {
-      newErrors.goldWeight = "Weight is required";
     }
 
     const isInterestPayment = selectedCategory?.id.includes("interest-received");
@@ -390,42 +397,54 @@ const TransactionForm = ({
           break;
 
         case "gold-sell":
-          response = await ApiService.createGoldSale({
-            customerId: selectedCustomer._id,
-            items: transactionData.metalItems.map(item => ({
-              name: item.name,
+        case "gold-purchase":
+          response = await ApiService.createGoldTransaction({
+            transactionType: selectedCategory.id === "gold-sell" ? "SELL" : "BUY",
+            customer: selectedCustomer._id,
+            items: transactionData.items.map(item => ({
+              itemName: item.itemName,
               description: item.description,
-              weight: parseFloat(item.weight),
               purity: item.purity,
+              weight: parseFloat(item.weight),
+              ratePerGram: parseFloat(item.ratePerGram),
               makingCharges: parseFloat(item.makingCharges || 0),
-              itemValue: parseFloat(item.itemValue),
-              photos: item.photos || []
+              wastage: parseFloat(item.wastage || 0),
+              taxAmount: parseFloat(item.taxAmount || 0),
+              photos: item.photos,
+              hallmarkNumber: item.hallmarkNumber,
+              certificateNumber: item.certificateNumber
             })),
-            totalAmount: parseFloat(transactionData.amount),
+            advanceAmount: parseFloat(transactionData.advanceAmount || 0),
             paymentMode: transactionData.paymentMode,
+            notes: transactionData.description,
             billNumber: transactionData.billNumber,
-            description: transactionData.description,
-            photos: transactionData.photos
+            fetchCurrentRates: true
           });
           break;
 
         case "silver-sell":
-          response = await ApiService.createSilverSale({
-            customerId: selectedCustomer._id,
-            items: transactionData.metalItems.map(item => ({
-              name: item.name,
+        case "silver-purchase":
+          response = await ApiService.createSilverTransaction({
+            transactionType: selectedCategory.id === "silver-sell" ? "SELL" : "BUY",
+            customer: selectedCustomer._id,
+            items: transactionData.items.map(item => ({
+              itemName: item.itemName,
               description: item.description,
-              weight: parseFloat(item.weight),
               purity: item.purity,
+              weight: parseFloat(item.weight),
+              ratePerGram: parseFloat(item.ratePerGram),
               makingCharges: parseFloat(item.makingCharges || 0),
-              itemValue: parseFloat(item.itemValue),
-              photos: item.photos || []
+              wastage: parseFloat(item.wastage || 0),
+              taxAmount: parseFloat(item.taxAmount || 0),
+              photos: item.photos,
+              hallmarkNumber: item.hallmarkNumber,
+              certificateNumber: item.certificateNumber
             })),
-            totalAmount: parseFloat(transactionData.amount),
+            advanceAmount: parseFloat(transactionData.advanceAmount || 0),
             paymentMode: transactionData.paymentMode,
+            notes: transactionData.description,
             billNumber: transactionData.billNumber,
-            description: transactionData.description,
-            photos: transactionData.photos
+            fetchCurrentRates: true
           });
           break;
 
@@ -438,7 +457,6 @@ const TransactionForm = ({
           break;
 
         case "gold-loan-repayment":
-          // This will be handled by GoldLoanRepayment component
           response = { success: true };
           break;
 
@@ -450,7 +468,7 @@ const TransactionForm = ({
             durationMonths: transactionData.durationMonths,
             description: transactionData.description,
             date: transactionData.date,
-          }, 1); // direction: 1 for taken loan (we receive money)
+          }, 1);
           break;
         
         case "business-loan-given":
@@ -461,7 +479,7 @@ const TransactionForm = ({
             durationMonths: transactionData.durationMonths,
             description: transactionData.description,
             date: transactionData.date,
-          }, -1); // direction: -1 for given loan (we give money)
+          }, -1);
           break;
         
         case "interest-received-l":
@@ -472,61 +490,35 @@ const TransactionForm = ({
           );
           break;
         
-        case "loan-repayment":
-          if (transactionData.repaymentType === "full") {
-            // Full repayment with both principal and interest
-            const principal = parseFloat(transactionData.principalAmount) || 0;
-            const interest = parseFloat(transactionData.interestAmount) || 0;
+          case "loan-repayment":
+            let principal = 0;
+            let interest = 0;
+            
+            if (transactionData.repaymentType === "full") {
+              // For full repayment, use the calculated amounts
+              principal = parseFloat(transactionData.principalAmount) || 0;
+              interest = parseFloat(transactionData.interestAmount) || 0;
+            } else {
+              // For partial repayment, apply the amount to principal only
+              principal = parseFloat(transactionData.amount) || 0;
+              interest = 0; // No interest payment for partial repayment
+            }
             
             const paymentData = {
               principal: principal,
               interest: interest,
               photos: transactionData.photos,
-              notes: transactionData.description || 'Full loan repayment'
+              notes: transactionData.description || `${transactionData.repaymentType === "full" ? "Full" : "Partial"} loan repayment`
             };
+            
+            console.log("Sending payment data:", paymentData); // Debug log
             
             response = await ApiService.makeLoanPayment(
               transactionData.selectedLoanId,
               paymentData
             );
-          } else {
-            // Partial repayment - user specifies the amount
-            const paymentAmount = parseFloat(transactionData.amount);
-            
-            const paymentData = {
-              principal: paymentAmount,
-              interest: 0,
-              photos: transactionData.photos,
-              notes: transactionData.description || 'Partial loan repayment'
-            };
-            
-            response = await ApiService.makeLoanPayment(
-              transactionData.selectedLoanId,
-              paymentData
-            );
-          }
-          break;
-
-        case "gold-purchase":
-          response = await ApiService.createGoldPurchase({
-            ...commonData,
-            partyName: selectedCustomer.name,
-            goldWeight: transactionData.goldWeight,
-            goldType: transactionData.goldType,
-            metal: "GOLD",
-          });
-          break;
-
-        case "silver-purchase":
-          response = await ApiService.createSilverPurchase({
-            ...commonData,
-            partyName: selectedCustomer.name,
-            goldWeight: transactionData.goldWeight, // Using same field name
-            goldType: transactionData.goldType === "22K" ? "999" : transactionData.goldType,
-            metal: "SILVER",
-          });
-          break;
-
+            break;
+        
         default:
           console.log("Transaction data:", commonData);
           response = { success: true };
@@ -553,8 +545,9 @@ const TransactionForm = ({
   const isGoldLoan = selectedCategory?.id === "gold-loan";
   const isGoldLoanRepayment = selectedCategory?.id === "gold-loan-repayment";
   const isLoanRepayment = selectedCategory?.id === "loan-repayment";
-  const isMetalSale = selectedCategory?.id === "gold-sell" || selectedCategory?.id === "silver-sell";
-  const isMetalPurchase = selectedCategory?.id === "gold-purchase" || selectedCategory?.id === "silver-purchase";
+  const isMetalTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
+  const isMetalBuySell = (selectedCategory?.id.includes("gold-sell") || selectedCategory?.id.includes("gold-purchase") || 
+                         selectedCategory?.id.includes("silver-sell") || selectedCategory?.id.includes("silver-purchase"));
 
   return (
     <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
@@ -625,7 +618,7 @@ const TransactionForm = ({
                     selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
                     interestSummary={interestSummary}
                     categoryId={selectedCategory.id}
-                    currentGoldPrice={currentGoldPrice}
+                    currentGoldPrice={currentMetalPrices}
                   />
                 </div>
               )}
@@ -732,7 +725,7 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Gold Loan Items */}
+              {/* Gold Loan Items (existing) */}
               {isGoldLoan && (
                 <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <GoldLoanItems
@@ -740,6 +733,20 @@ const TransactionForm = ({
                     errors={errors}
                     loading={loading}
                     onItemsChange={(items) => updateTransactionData({ items })}
+                  />
+                </div>
+              )}
+
+              {/* Metal Items Manager for Buy/Sell */}
+              {isMetalTransaction && isMetalBuySell && (
+                <div className={`${selectedCategory?.id.includes("gold") ? "bg-yellow-50" : "bg-gray-50"} p-4 sm:p-5 rounded-lg sm:rounded-xl`}>
+                  <MetalItemsManager
+                    items={transactionData.items}
+                    onItemsChange={handleItemsChange}
+                    metalType={selectedCategory?.id.includes("gold") ? "Gold" : "Silver"}
+                    currentPrices={selectedCategory?.id.includes("gold") ? currentMetalPrices?.gold : currentMetalPrices?.silver}
+                    errors={errors}
+                    loading={loading}
                   />
                 </div>
               )}
@@ -755,20 +762,40 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Metal Transaction Items - for Gold/Silver Sales */}
-              {isMetalSale && (
-                <div className={`${selectedCategory?.id.includes("gold") ? "bg-yellow-50" : "bg-gray-50"} p-4 sm:p-5 rounded-lg sm:rounded-xl`}>
-                  <MetalTransactionItems
-                    items={transactionData.metalItems}
-                    onItemsChange={handleMetalItemsChange}
-                    metalType={selectedCategory?.id.includes("gold") ? "Gold" : "Silver"}
+              {/* Regular Amount Field for Non-Metal-Item Transactions */}
+              {!isGoldLoan && !isGoldLoanRepayment && !isMetalBuySell && (transactionData.repaymentType !== "full" || !isLoanRepayment) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  <AmountField
+                    amount={transactionData.amount}
+                    date={transactionData.date}
                     errors={errors}
                     loading={loading}
-                    transactionType="SELL"
+                    onChange={handleDataChange}
                   />
-                  
-                  {/* Payment Mode and Bill Number for Metal Sales */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
+                </div>
+              )}
+
+              {/* Advance Amount and Payment Details for Metal Transactions */}
+              {isMetalBuySell && (
+                <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Payment Details</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Advance Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        name="advanceAmount"
+                        value={transactionData.advanceAmount}
+                        onChange={handleDataChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="0.00"
+                        disabled={loading}
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Payment Mode
@@ -797,90 +824,44 @@ const TransactionForm = ({
                         value={transactionData.billNumber}
                         onChange={handleDataChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="Optional bill number"
+                        placeholder="Optional"
                         disabled={loading}
                       />
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Regular Amount Field for Non-Gold-Loan Transactions */}
-              {!isGoldLoan && !isGoldLoanRepayment && !isMetalSale && (transactionData.repaymentType !== "full" || !isLoanRepayment) && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                  <AmountField
-                    amount={transactionData.amount}
-                    date={transactionData.date}
-                    errors={errors}
-                    loading={loading}
-                    onChange={handleDataChange}
-                  />
-                </div>
-              )}
-
-              {/* Amount Display for Metal Sales (Read-only) */}
-              {isMetalSale && transactionData.metalItems && transactionData.metalItems.length > 0 && (
-                <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Total Amount (₹) *
-                      </label>
-                      <input
-                        type="text"
-                        value={transactionData.amount}
-                        className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 text-sm sm:text-base font-medium"
-                        disabled={true}
-                        placeholder="Auto-calculated from items"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Total calculated from all items
-                      </p>
+                  {/* Transaction Summary */}
+                  {transactionData.items.length > 0 && (
+                    <div className="mt-4 p-4 bg-white rounded-lg border">
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Transaction Summary</h5>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Total Items:</span>
+                          <span>{transactionData.items.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Weight:</span>
+                          <span>{transactionData.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0).toFixed(3)}g</span>
+                        </div>
+                        <div className="flex justify-between font-semibold">
+                          <span>Total Amount:</span>
+                          <span>₹{transactionData.amount}</span>
+                        </div>
+                        {parseFloat(transactionData.advanceAmount || 0) > 0 && (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Advance Amount:</span>
+                              <span>₹{parseFloat(transactionData.advanceAmount || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-semibold text-orange-600">
+                              <span>Remaining Amount:</span>
+                              <span>₹{(parseFloat(transactionData.amount || 0) - parseFloat(transactionData.advanceAmount || 0)).toFixed(2)}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Transaction Date *
-                      </label>
-                      <input
-                        type="date"
-                        name="date"
-                        value={transactionData.date}
-                        onChange={handleDataChange}
-                        className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Gold Transaction Fields - for non-sale transactions */}
-              {selectedCategory?.id.includes("gold") && !isGoldLoan && !isGoldLoanRepayment && !isMetalSale && (
-                <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <GoldTransactionFields
-                    transactionData={transactionData}
-                    errors={errors}
-                    loading={loading}
-                    onChange={handleDataChange}
-                    metalType="Gold"
-                    currentGoldPrice={currentGoldPrice}
-                    showRateField={false}
-                  />
-                </div>
-              )}
-
-              {/* Silver Transaction Fields - for non-sale transactions */}
-              {selectedCategory?.id.includes("silver") && !isGoldLoan && !isGoldLoanRepayment && !isMetalSale && (
-                <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <GoldTransactionFields
-                    transactionData={transactionData}
-                    errors={errors}
-                    loading={loading}
-                    onChange={handleDataChange}
-                    metalType="Silver"
-                    currentGoldPrice={currentGoldPrice}
-                    showRateField={false}
-                  />
+                  )}
                 </div>
               )}
 
@@ -911,8 +892,9 @@ const TransactionForm = ({
                 />
               </div>
 
-              {/* Photo Upload - for non-metal-sales (since MetalTransactionItems handles photos for sales) */}
-              {((selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver") || selectedCategory?.id.includes("loan")) && !isGoldLoanRepayment && !isMetalSale) && (
+              {/* Photo Upload - Only for non-metal-item transactions */}
+              {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver") || selectedCategory?.id.includes("loan")) && 
+               !isGoldLoanRepayment && !isMetalBuySell && (
                 <div className="bg-green-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <PhotoUpload
                     photos={transactionData.photos}

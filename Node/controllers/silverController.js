@@ -1,68 +1,149 @@
 // controllers/silverController.js
 import SilverTransaction from "../models/SilverTransaction.js";
 import Transaction from "../models/Transaction.js";
+import MetalPriceService from "../../react/src/services/metalPriceService.js";
 import mongoose from "mongoose";
+ // Assuming this service exists for fetching prices
 
-// Create a new silver transaction (buy or sell)
 export const createSilverTransaction = async (req, res) => {
   try {
     const {
       transactionType,
       customer,
       supplier,
-      silverDetails,
+      items = [],
       advanceAmount = 0,
       paymentMode = "CASH",
-      items = [],
       notes,
-      billNumber
+      billNumber,
+      fetchCurrentRates = true
     } = req.body;
 
-    // Calculate total amount
-    const baseAmount = silverDetails.weight * silverDetails.ratePerGram;
-    const wastageAmount = (baseAmount * (silverDetails.wastage || 0)) / 100;
-    const totalAmount = baseAmount + wastageAmount + (silverDetails.makingCharges || 0) + (silverDetails.taxAmount || 0);
-    
-    const remainingAmount = totalAmount - advanceAmount;
-    const paymentStatus = remainingAmount === 0 ? "PAID" : advanceAmount > 0 ? "PARTIAL" : "PENDING";
+    console.log("Received request body:", req.body);
+
+    // Validate items
+    if (!items || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one item is required"
+      });
+    }
+
+    // Get current market rates
+    let marketRates = null;
+    if (fetchCurrentRates) {
+      try {
+        const priceData = await MetalPriceService.getCurrentPrices();
+        marketRates = {
+          silverPrice99: priceData.silver.rates['999'], // Adjust for silver
+          silverPrice92: priceData.silver.rates['925'],
+          silverPrice80: priceData.silver.rates['800'],
+          priceSource: priceData.source,
+          fetchedAt: new Date()
+        };
+      } catch (error) {
+        console.warn("Failed to fetch current silver prices:", error.message);
+      }
+    }
+
+    // Process and validate items
+    const processedItems = items.map((item, index) => {
+      console.log(`Processing item ${index + 1}:`, item);
+      
+      if (!item.itemName || !item.purity || !item.weight || !item.ratePerGram) {
+        throw new Error(`Item ${index + 1}: Missing required fields - itemName: ${item.itemName}, purity: ${item.purity}, weight: ${item.weight}, ratePerGram: ${item.ratePerGram}`);
+      }
+
+      const weight = parseFloat(item.weight);
+      const ratePerGram = Math.round(parseFloat(item.ratePerGram) * 100); // Convert to paise
+      const makingCharges = Math.round(parseFloat(item.makingCharges || 0) * 100);
+      const taxAmount = Math.round(parseFloat(item.taxAmount || 0) * 100);
+      
+      // Calculate item total amount (all in paise)
+      const itemTotalAmount = (weight * ratePerGram) + makingCharges + taxAmount;
+
+      const processedItem = {
+        itemName: item.itemName.trim(),
+        description: item.description || '',
+        purity: item.purity,
+        weight: weight,
+        ratePerGram: ratePerGram,
+        makingCharges: makingCharges,
+        wastage: parseFloat(item.wastage || 0),
+        taxAmount: taxAmount,
+        itemTotalAmount: Math.round(itemTotalAmount), // Add required field
+        photos: item.photos || [],
+        hallmarkNumber: item.hallmarkNumber || '',
+        certificateNumber: item.certificateNumber || ''
+      };
+
+      console.log(`Processed item ${index + 1}:`, processedItem);
+      return processedItem;
+    });
+
+    console.log("All processed items:", processedItems);
+
+    // Calculate totals manually to ensure they exist
+    const totalWeight = processedItems.reduce((sum, item) => sum + item.weight, 0);
+    const subtotalAmount = processedItems.reduce((sum, item) => sum + item.itemTotalAmount, 0);
+    const totalAmount = subtotalAmount; // Assuming no additional charges at transaction level
+
+    console.log("Calculated totals - Weight:", totalWeight, "Subtotal:", subtotalAmount, "Total:", totalAmount);
 
     // Create silver transaction
     const silverTransaction = new SilverTransaction({
       transactionType,
       customer: customer || null,
       supplier: transactionType === "BUY" && !customer ? supplier : null,
-      silverDetails,
-      totalAmount: Math.round(totalAmount),
-      advanceAmount: Math.round(advanceAmount),
-      remainingAmount: Math.round(remainingAmount),
-      paymentStatus,
+      items: processedItems,
+      advanceAmount: Math.round(advanceAmount * 100), // Convert to paise
       paymentMode,
-      items,
       notes,
       billNumber,
-      date: new Date()
+      marketRates,
+      date: new Date(),
+      // Add calculated totals explicitly
+      totalWeight: totalWeight,
+      subtotalAmount: Math.round(subtotalAmount), // Add required field
+      totalAmount: Math.round(totalAmount)
     });
 
+    console.log("Silver transaction object before save:", {
+      transactionType: silverTransaction.transactionType,
+      customer: silverTransaction.customer,
+      items: silverTransaction.items,
+      totalWeight: silverTransaction.totalWeight,
+      subtotalAmount: silverTransaction.subtotalAmount,
+      totalAmount: silverTransaction.totalAmount
+    });
+
+    // Save the silver transaction
     await silverTransaction.save();
 
+    console.log("Silver transaction after save:", {
+      _id: silverTransaction._id,
+      totalWeight: silverTransaction.totalWeight,
+      totalAmount: silverTransaction.totalAmount
+    });
+
     // Create corresponding transaction record
-    const transactionDirection = transactionType === "BUY" ? -1 : 1; // -1 for expense (buying), +1 for income (selling)
+    const transactionDirection = transactionType === "BUY" ? -1 : 1;
     const transactionCategory = transactionType === "BUY" ? "EXPENSE" : "INCOME";
     const transactionTypeEnum = transactionType === "BUY" ? "SILVER_PURCHASE" : "SILVER_SALE";
 
     const transaction = new Transaction({
       type: transactionTypeEnum,
       customer: customer || null,
-      amount: Math.round(totalAmount),
+      amount: silverTransaction.totalAmount,
       direction: transactionDirection,
-      description: `${transactionType === "BUY" ? "Silver Purchase" : "Silver Sale"} - ${silverDetails.purity} - ${silverDetails.weight}g`,
+      description: `${transactionType === "BUY" ? "Silver Purchase" : "Silver Sale"} - ${silverTransaction.items.length} item(s) - ${silverTransaction.totalWeight}g`,
       category: transactionCategory,
       relatedDoc: silverTransaction._id,
       relatedModel: "SilverTransaction",
       metadata: {
-        goldPrice: silverDetails.ratePerGram, // Using same field name for consistency
-        weightGrams: silverDetails.weight,
-        itemCount: items.length || 1
+        silverPrice: marketRates?.silverPrice92 || null,
+        weightGrams: silverTransaction.totalWeight,
+        itemCount: silverTransaction.items.length
       }
     });
 
@@ -84,6 +165,7 @@ export const createSilverTransaction = async (req, res) => {
 
   } catch (error) {
     console.error("Error creating silver transaction:", error);
+    console.error("Error stack:", error.stack);
     res.status(500).json({
       success: false,
       message: "Error creating silver transaction",
@@ -296,86 +378,266 @@ export const deleteSilverTransaction = async (req, res) => {
   }
 };
 
-// Get daily summary
-export const getDailySummary = async (req, res) => {
+// controllers/silverController.js - Enhanced Analytics Functions
+
+// Get comprehensive daily analytics
+export const getDailyAnalytics = async (req, res) => {
   try {
     const { date } = req.query;
     const queryDate = date ? new Date(date) : new Date();
     
-    const summary = await SilverTransaction.getDailySummary(queryDate);
+    // Set start and end of day for precise filtering
+    const startOfDay = new Date(queryDate);
+    startOfDay.setHours(0, 0, 0, 0);
     
-    // Transform data for better readability
-    const formattedSummary = summary.reduce((acc, item) => {
-      acc[item._id] = {
-        totalAmount: item.totalAmount / 100,
-        totalWeight: item.totalWeight,
-        transactionCount: item.transactionCount,
-        avgRate: item.avgRate / 100,
-        formattedAmount: `₹${(item.totalAmount / 100).toFixed(2)}`,
-        formattedWeight: `${item.totalWeight}g`,
-        formattedAvgRate: `₹${(item.avgRate / 100).toFixed(2)}/g`
-      };
-      return acc;
-    }, {});
+    const endOfDay = new Date(queryDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    console.log("Fetching analytics for:", startOfDay, "to", endOfDay);
+
+    // Aggregate daily transactions
+    const analytics = await SilverTransaction.aggregate([
+      {
+        $match: {
+          date: {
+            $gte: startOfDay,
+            $lte: endOfDay
+          }
+        }
+      },
+      {
+        $group: {
+          _id: '$transactionType',
+          totalAmount: { $sum: '$totalAmount' },
+          totalWeight: { $sum: '$totalWeight' },
+          transactionCount: { $sum: 1 },
+          avgRate: { $avg: { $divide: ['$subtotalAmount', '$totalWeight'] } },
+          items: { $sum: { $size: '$items' } },
+          // Group by purity for detailed breakdown
+          purityBreakdown: {
+            $push: {
+              $map: {
+                input: '$items',
+                as: 'item',
+                in: {
+                  purity: '$$item.purity',
+                  weight: '$$item.weight',
+                  amount: '$$item.itemTotalAmount'
+                }
+              }
+            }
+          }
+        }
+      }
+    ]);
+
+    // Process the data for better structure
+    const processedData = {
+      date: queryDate.toISOString().split('T')[0],
+      buy: {
+        totalAmount: 0,
+        totalWeight: 0,
+        transactionCount: 0,
+        avgRate: 0,
+        totalItems: 0,
+        purities: {}
+      },
+      sell: {
+        totalAmount: 0,
+        totalWeight: 0,
+        transactionCount: 0,
+        avgRate: 0,
+        totalItems: 0,
+        purities: {}
+      }
+    };
+
+    // Process analytics data
+    analytics.forEach(item => {
+      const type = item._id.toLowerCase();
+      if (processedData[type]) {
+        processedData[type] = {
+          totalAmount: item.totalAmount / 100, // Convert from paise to rupees
+          totalWeight: item.totalWeight,
+          transactionCount: item.transactionCount,
+          avgRate: (item.avgRate || 0) / 100,
+          totalItems: item.items,
+          formattedAmount: `₹${(item.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+          formattedWeight: `${item.totalWeight}g`,
+          formattedAvgRate: `₹${((item.avgRate || 0) / 100).toFixed(2)}/g`
+        };
+
+        // Process purity breakdown
+        const purityMap = {};
+        item.purityBreakdown.flat().forEach(purityItem => {
+          if (!purityMap[purityItem.purity]) {
+            purityMap[purityItem.purity] = {
+              weight: 0,
+              amount: 0,
+              count: 0
+            };
+          }
+          purityMap[purityItem.purity].weight += purityItem.weight;
+          purityMap[purityItem.purity].amount += purityItem.amount;
+          purityMap[purityItem.purity].count += 1;
+        });
+
+        // Format purity data
+        processedData[type].purities = Object.keys(purityMap).reduce((acc, purity) => {
+          const data = purityMap[purity];
+          acc[purity] = {
+            weight: data.weight,
+            amount: data.amount / 100,
+            count: data.count,
+            avgRate: data.weight > 0 ? (data.amount / data.weight) / 100 : 0,
+            formattedAmount: `₹${(data.amount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+            formattedWeight: `${data.weight}g`,
+            formattedAvgRate: `₹${(data.weight > 0 ? (data.amount / data.weight) / 100 : 0).toFixed(2)}/g`
+          };
+          return acc;
+        }, {});
+      }
+    });
+
+    // Calculate net metrics
+    const netMetrics = {
+      netAmount: processedData.sell.totalAmount - processedData.buy.totalAmount,
+      netWeight: processedData.sell.totalWeight - processedData.buy.totalWeight,
+      netTransactions: processedData.sell.transactionCount - processedData.buy.transactionCount,
+      grossProfit: processedData.sell.totalAmount - processedData.buy.totalAmount,
+      profitMargin: processedData.buy.totalAmount > 0 
+        ? ((processedData.sell.totalAmount - processedData.buy.totalAmount) / processedData.buy.totalAmount * 100)
+        : 0,
+      totalBusinessVolume: processedData.sell.totalAmount + processedData.buy.totalAmount
+    };
+
+    // Format net metrics
+    netMetrics.formattedNetAmount = `₹${netMetrics.netAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    netMetrics.formattedNetWeight = `${netMetrics.netWeight}g`;
+    netMetrics.formattedGrossProfit = `₹${netMetrics.grossProfit.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    netMetrics.formattedProfitMargin = `${netMetrics.profitMargin.toFixed(2)}%`;
+    netMetrics.formattedTotalVolume = `₹${netMetrics.totalBusinessVolume.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
     res.json({
       success: true,
-      date: queryDate.toLocaleDateString('en-IN'),
-      summary: formattedSummary
+      data: {
+        ...processedData,
+        netMetrics,
+        summary: {
+          totalTransactions: processedData.buy.transactionCount + processedData.sell.transactionCount,
+          totalItems: processedData.buy.totalItems + processedData.sell.totalItems,
+          totalWeight: processedData.buy.totalWeight + processedData.sell.totalWeight,
+          totalVolume: processedData.buy.totalAmount + processedData.sell.totalAmount,
+          formattedTotalWeight: `${processedData.buy.totalWeight + processedData.sell.totalWeight}g`,
+          formattedTotalVolume: `₹${(processedData.buy.totalAmount + processedData.sell.totalAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+        }
+      }
     });
 
   } catch (error) {
-    console.error("Error fetching daily summary:", error);
+    console.error("Error fetching daily analytics:", error);
     res.status(500).json({
       success: false,
-      message: "Error fetching daily summary",
+      message: "Error fetching daily analytics",
       error: error.message
     });
   }
 };
 
-// Get monthly summary
-export const getMonthlySummary = async (req, res) => {
+// Get weekly analytics
+export const getWeeklyAnalytics = async (req, res) => {
   try {
-    const { year, month } = req.query;
-    const queryYear = year ? parseInt(year) : new Date().getFullYear();
-    const queryMonth = month ? parseInt(month) : new Date().getMonth() + 1;
+    const { startDate } = req.query;
+    const weekStart = startDate ? new Date(startDate) : new Date();
     
-    const summary = await SilverTransaction.getMonthlySummary(queryYear, queryMonth);
+    // Get start of week (Monday)
+    const dayOfWeek = weekStart.getDay();
+    const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    weekStart.setDate(weekStart.getDate() - mondayOffset);
+    weekStart.setHours(0, 0, 0, 0);
     
-    // Transform data for better readability
-    const formattedSummary = summary.map(item => ({
-      type: item._id,
-      totalAmount: item.totalAmount / 100,
-      totalWeight: item.totalWeight,
-      totalTransactions: item.totalTransactions,
-      formattedAmount: `₹${(item.totalAmount / 100).toFixed(2)}`,
-      formattedWeight: `${item.totalWeight}g`,
-      dailyBreakdown: item.dailyBreakdown.map(day => ({
-        ...day,
-        formattedAmount: `₹${(day.amount / 100).toFixed(2)}`,
-        formattedWeight: `${day.weight}g`
-      }))
-    }));
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weeklyData = await SilverTransaction.aggregate([
+      {
+        $match: {
+          date: {
+            $gte: weekStart,
+            $lte: weekEnd
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            type: '$transactionType',
+            day: { $dayOfWeek: '$date' },
+            date: { $dateToString: { format: '%Y-%m-%d', date: '$date' } }
+          },
+          totalAmount: { $sum: '$totalAmount' },
+          totalWeight: { $sum: '$totalWeight' },
+          transactionCount: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { '_id.day': 1 }
+      }
+    ]);
+
+    // Process weekly data
+    const weeklyAnalytics = {};
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    days.forEach((day, index) => {
+      weeklyAnalytics[day] = {
+        buy: { totalAmount: 0, totalWeight: 0, transactionCount: 0 },
+        sell: { totalAmount: 0, totalWeight: 0, transactionCount: 0 },
+        netProfit: 0
+      };
+    });
+
+    weeklyData.forEach(item => {
+      const dayIndex = item._id.day === 1 ? 6 : item._id.day - 2; // Convert to 0-based Monday start
+      const dayName = days[dayIndex];
+      const type = item._id.type.toLowerCase();
+      
+      if (weeklyAnalytics[dayName] && weeklyAnalytics[dayName][type]) {
+        weeklyAnalytics[dayName][type] = {
+          totalAmount: item.totalAmount / 100,
+          totalWeight: item.totalWeight,
+          transactionCount: item.transactionCount,
+          formattedAmount: `₹${(item.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+        };
+      }
+    });
+
+    // Calculate net profit for each day
+    Object.keys(weeklyAnalytics).forEach(day => {
+      const dayData = weeklyAnalytics[day];
+      dayData.netProfit = dayData.sell.totalAmount - dayData.buy.totalAmount;
+      dayData.formattedNetProfit = `₹${dayData.netProfit.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    });
 
     res.json({
       success: true,
-      period: `${queryMonth}/${queryYear}`,
-      summary: formattedSummary
+      period: `${weekStart.toISOString().split('T')[0]} to ${weekEnd.toISOString().split('T')[0]}`,
+      data: weeklyAnalytics
     });
 
   } catch (error) {
-    console.error("Error fetching monthly summary:", error);
+    console.error("Error fetching weekly analytics:", error);
     res.status(500).json({
       success: false,
-      message: "Error fetching monthly summary",
+      message: "Error fetching weekly analytics",
       error: error.message
     });
   }
 };
 
-// Get silver rates and analytics
-export const getSilverAnalytics = async (req, res) => {
+// Get profit/loss analysis
+export const getProfitLossAnalysis = async (req, res) => {
   try {
     const { startDate, endDate, purity } = req.query;
     
@@ -385,72 +647,149 @@ export const getSilverAnalytics = async (req, res) => {
       if (startDate) matchStage.date.$gte = new Date(startDate);
       if (endDate) matchStage.date.$lte = new Date(endDate);
     }
-    if (purity) matchStage['silverDetails.purity'] = purity;
 
-    const analytics = await SilverTransaction.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: {
-            type: '$transactionType',
-            purity: '$silverDetails.purity'
-          },
-          totalAmount: { $sum: '$totalAmount' },
-          totalWeight: { $sum: '$silverDetails.weight' },
-          avgRate: { $avg: '$silverDetails.ratePerGram' },
-          minRate: { $min: '$silverDetails.ratePerGram' },
-          maxRate: { $max: '$silverDetails.ratePerGram' },
-          transactionCount: { $sum: 1 }
-        }
-      },
-      {
-        $group: {
-          _id: '$_id.type',
-          purities: {
-            $push: {
-              purity: '$_id.purity',
-              totalAmount: '$totalAmount',
-              totalWeight: '$totalWeight',
-              avgRate: '$avgRate',
-              minRate: '$minRate',
-              maxRate: '$maxRate',
-              transactionCount: '$transactionCount'
-            }
-          },
-          overallAmount: { $sum: '$totalAmount' },
-          overallWeight: { $sum: '$totalWeight' },
-          overallTransactions: { $sum: '$transactionCount' }
-        }
+    // Get all transactions for P&L analysis
+    const transactions = await SilverTransaction.find(matchStage)
+      .populate('customer', 'name')
+      .sort({ date: -1 });
+
+    let totalBuyAmount = 0;
+    let totalSellAmount = 0;
+    let totalBuyWeight = 0;
+    let totalSellWeight = 0;
+    let buyTransactions = 0;
+    let sellTransactions = 0;
+
+    const customerAnalysis = {};
+    const purityAnalysis = {};
+
+    transactions.forEach(transaction => {
+      const amount = transaction.totalAmount / 100;
+      const weight = transaction.totalWeight;
+
+      if (transaction.transactionType === 'BUY') {
+        totalBuyAmount += amount;
+        totalBuyWeight += weight;
+        buyTransactions++;
+      } else {
+        totalSellAmount += amount;
+        totalSellWeight += weight;
+        sellTransactions++;
       }
-    ]);
 
-    const formattedAnalytics = analytics.map(item => ({
-      transactionType: item._id,
-      overallAmount: item.overallAmount / 100,
-      overallWeight: item.overallWeight,
-      overallTransactions: item.overallTransactions,
-      purities: item.purities.map(p => ({
-        ...p,
-        totalAmount: p.totalAmount / 100,
-        avgRate: p.avgRate / 100,
-        minRate: p.minRate / 100,
-        maxRate: p.maxRate / 100,
-        formattedAmount: `₹${(p.totalAmount / 100).toFixed(2)}`,
-        formattedWeight: `${p.totalWeight}g`,
-        formattedAvgRate: `₹${(p.avgRate / 100).toFixed(2)}/g`
-      }))
-    }));
+      // Customer analysis
+      const customerName = transaction.customer?.name || 'Walk-in Customer';
+      if (!customerAnalysis[customerName]) {
+        customerAnalysis[customerName] = {
+          buyAmount: 0, sellAmount: 0, buyWeight: 0, sellWeight: 0,
+          buyCount: 0, sellCount: 0
+        };
+      }
+
+      if (transaction.transactionType === 'BUY') {
+        customerAnalysis[customerName].buyAmount += amount;
+        customerAnalysis[customerName].buyWeight += weight;
+        customerAnalysis[customerName].buyCount++;
+      } else {
+        customerAnalysis[customerName].sellAmount += amount;
+        customerAnalysis[customerName].sellWeight += weight;
+        customerAnalysis[customerName].sellCount++;
+      }
+
+      // Purity analysis
+      transaction.items.forEach(item => {
+        if (!purityAnalysis[item.purity]) {
+          purityAnalysis[item.purity] = {
+            buyAmount: 0, sellAmount: 0, buyWeight: 0, sellWeight: 0,
+            buyCount: 0, sellCount: 0
+          };
+        }
+
+        const itemAmount = item.itemTotalAmount / 100;
+        if (transaction.transactionType === 'BUY') {
+          purityAnalysis[item.purity].buyAmount += itemAmount;
+          purityAnalysis[item.purity].buyWeight += item.weight;
+          purityAnalysis[item.purity].buyCount++;
+        } else {
+          purityAnalysis[item.purity].sellAmount += itemAmount;
+          purityAnalysis[item.purity].sellWeight += item.weight;
+          purityAnalysis[item.purity].sellCount++;
+        }
+      });
+    });
+
+    // Calculate metrics
+    const grossProfit = totalSellAmount - totalBuyAmount;
+    const profitMargin = totalBuyAmount > 0 ? (grossProfit / totalBuyAmount) * 100 : 0;
+    const avgBuyRate = totalBuyWeight > 0 ? totalBuyAmount / totalBuyWeight : 0;
+    const avgSellRate = totalSellWeight > 0 ? totalSellAmount / totalSellWeight : 0;
+    const rateSpread = avgSellRate - avgBuyRate;
+
+    // Format customer analysis
+    const formattedCustomerAnalysis = Object.keys(customerAnalysis).map(customer => {
+      const data = customerAnalysis[customer];
+      const netAmount = data.sellAmount - data.buyAmount;
+      return {
+        customer,
+        ...data,
+        netAmount,
+        formattedBuyAmount: `₹${data.buyAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+        formattedSellAmount: `₹${data.sellAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+        formattedNetAmount: `₹${netAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+      };
+    }).sort((a, b) => b.netAmount - a.netAmount);
+
+    // Format purity analysis
+    const formattedPurityAnalysis = Object.keys(purityAnalysis).map(purity => {
+      const data = purityAnalysis[purity];
+      const netAmount = data.sellAmount - data.buyAmount;
+      const avgBuyRate = data.buyWeight > 0 ? data.buyAmount / data.buyWeight : 0;
+      const avgSellRate = data.sellWeight > 0 ? data.sellAmount / data.sellWeight : 0;
+      return {
+        purity,
+        ...data,
+        netAmount,
+        avgBuyRate,
+        avgSellRate,
+        rateSpread: avgSellRate - avgBuyRate,
+        formattedNetAmount: `₹${netAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+        formattedAvgBuyRate: `₹${avgBuyRate.toFixed(2)}/g`,
+        formattedAvgSellRate: `₹${avgSellRate.toFixed(2)}/g`
+      };
+    }).sort((a, b) => b.netAmount - a.netAmount);
 
     res.json({
       success: true,
-      analytics: formattedAnalytics
+      data: {
+        overview: {
+          totalBuyAmount,
+          totalSellAmount,
+          totalBuyWeight,
+          totalSellWeight,
+          buyTransactions,
+          sellTransactions,
+          grossProfit,
+          profitMargin,
+          avgBuyRate,
+          avgSellRate,
+          rateSpread,
+          formattedTotalBuy: `₹${totalBuyAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+          formattedTotalSell: `₹${totalSellAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+          formattedGrossProfit: `₹${grossProfit.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+          formattedProfitMargin: `${profitMargin.toFixed(2)}%`,
+          formattedAvgBuyRate: `₹${avgBuyRate.toFixed(2)}/g`,
+          formattedAvgSellRate: `₹${avgSellRate.toFixed(2)}/g`
+        },
+        customerAnalysis: formattedCustomerAnalysis,
+        purityAnalysis: formattedPurityAnalysis
+      }
     });
 
   } catch (error) {
-    console.error("Error fetching silver analytics:", error);
+    console.error("Error fetching P&L analysis:", error);
     res.status(500).json({
       success: false,
-      message: "Error fetching silver analytics",
+      message: "Error fetching profit/loss analysis",
       error: error.message
     });
   }

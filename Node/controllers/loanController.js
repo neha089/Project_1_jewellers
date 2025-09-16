@@ -394,7 +394,6 @@ export const payLoanPrincipal = async (req, res) => {
   }
 };
 
-// ENHANCED: Combined payment endpoint with better logic
 export const makeLoanPayment = async (req, res) => {
   try {
     const { principal, interest, photos, notes } = req.body;
@@ -430,6 +429,9 @@ export const makeLoanPayment = async (req, res) => {
     const transactions = [];
     let paymentSummary = [];
 
+    // Calculate current installment number based on previous principal payments
+    const currentInstallmentNumber = loan.principalPaymentHistory.length + 1;
+
     // Handle interest payment if provided
     if (interestPaise > 0) {
       loan.totalInterestPaid += interestPaise;
@@ -452,7 +454,7 @@ export const makeLoanPayment = async (req, res) => {
         customer: loan.customer._id,
         amount: interestPaise,
         direction: loan.loanType === 'GIVEN' ? 1 : -1,
-        description: `Interest payment - ${loan.customer.name}`,
+        description: `Interest payment for ${currentMonth} - ${loan.customer.name}`,
         relatedDoc: loan._id,
         relatedModel: 'Loan',
         category: loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE',
@@ -460,6 +462,7 @@ export const makeLoanPayment = async (req, res) => {
           paymentType: 'INTEREST',
           interestRate: loan.interestRateMonthlyPct,
           outstandingPrincipalAtTime: loan.outstandingPrincipal,
+          interestMonth: currentMonth,
           photos: photos || []
         }
       });
@@ -469,7 +472,10 @@ export const makeLoanPayment = async (req, res) => {
     if (principalPaise > 0) {
       const currentOutstanding = loan.outstandingPrincipal;
       
-      if (principalPaise > currentOutstanding) {
+      // Allow full repayment even if amount is slightly different due to rounding
+      const isFullRepaymentAttempt = principalPaise >= currentOutstanding;
+      
+      if (principalPaise > currentOutstanding && !isFullRepaymentAttempt) {
         return res.status(400).json({
           success: false,
           error: `Principal payment amount (₹${(principalPaise / 100).toFixed(2)}) exceeds outstanding principal (₹${(currentOutstanding / 100).toFixed(2)})`
@@ -477,58 +483,91 @@ export const makeLoanPayment = async (req, res) => {
       }
 
       const previousOutstanding = currentOutstanding;
-      loan.totalPrincipalPaid += principalPaise;
+      
+      // For full repayment, use the exact outstanding amount
+      const actualPayment = isFullRepaymentAttempt ? currentOutstanding : principalPaise;
+      
+      loan.totalPrincipalPaid += actualPayment;
       loan.lastPrincipalPaymentDate = new Date();
       
-      const newOutstanding = Math.max(0, currentOutstanding - principalPaise);
+      const newOutstanding = Math.max(0, currentOutstanding - actualPayment);
       loan.outstandingPrincipal = newOutstanding;
       
+      // Determine if this is a full repayment
+      const isFullRepayment = newOutstanding <= 0;
+      
       // Update status
-      if (newOutstanding <= 0) {
+      if (isFullRepayment) {
         loan.status = 'CLOSED';
         loan.isActive = false;
         loan.outstandingPrincipal = 0;
+        loan.closedDate = new Date();
       } else {
         loan.status = 'PARTIALLY_PAID';
       }
 
+      // Add to payment history with installment tracking
       loan.principalPaymentHistory.push({
-        amount: principalPaise,
+        amount: actualPayment,
         paidDate: new Date(),
         remainingPrincipal: newOutstanding,
         paidBy: loan.customer.name,
         previousOutstanding: previousOutstanding,
+        installmentNumber: currentInstallmentNumber,
+        isFullRepayment: isFullRepayment,
         note: notes || ''
       });
 
-      paymentSummary.push(`Principal: ₹${(principalPaise / 100).toFixed(2)}`);
-      if (newOutstanding > 0) {
-        paymentSummary.push(`Remaining: ₹${(newOutstanding / 100).toFixed(2)}`);
+      // Create appropriate transaction description and type
+      let transactionDescription;
+      let transactionType;
+
+      if (isFullRepayment) {
+        transactionDescription = `Loan fully repaid - ${loan.customer.name} (Final Payment)`;
+        transactionType = 'LOAN_CLOSURE';
+        paymentSummary.push(`Final Principal Payment: ₹${(actualPayment / 100).toFixed(2)}`);
+        paymentSummary.push('LOAN COMPLETED ✓');
+      } else {
+        transactionDescription = `Principal payment #${currentInstallmentNumber} - ${loan.customer.name} (Partial Payment)`;
+        transactionType = 'LOAN_PAYMENT';
+        paymentSummary.push(`Principal Payment #${currentInstallmentNumber}: ₹${(actualPayment / 100).toFixed(2)}`);
+        paymentSummary.push(`Remaining Balance: ₹${(newOutstanding / 100).toFixed(2)}`);
       }
 
-      // Create principal transaction
+      // Create principal transaction with existing enum values
       transactions.push({
-        type: loan.status === 'CLOSED' ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
+        type: transactionType,
         customer: loan.customer._id,
-        amount: principalPaise,
+        amount: actualPayment,
         direction: loan.loanType === 'GIVEN' ? 1 : -1,
-        description: `Principal payment - ${loan.customer.name} ${loan.status === 'CLOSED' ? '(LOAN CLOSED)' : '(PARTIAL)'}`,
+        description: transactionDescription,
         relatedDoc: loan._id,
         relatedModel: 'Loan',
         category: loan.loanType === 'GIVEN' ? 'INCOME' : 'EXPENSE',
         metadata: {
-          paymentType: loan.status === 'CLOSED' ? 'FULL_REPAYMENT_LOAN' : 'PARTIAL_REPAYMENT_LOAN',
+          paymentType: 'PRINCIPAL', // Use existing enum value
+          installmentNumber: currentInstallmentNumber,
           remainingAmount: newOutstanding,
-          isPartialPayment: loan.status !== 'CLOSED',
+          isPartialPayment: !isFullRepayment,
           originalLoanAmount: loan.principalPaise,
           totalPaid: loan.totalPrincipalPaid,
-          photos: photos || []
+          previousOutstanding: previousOutstanding,
+          photos: photos || [],
+          // Add custom fields for additional context
+          isFullRepayment: isFullRepayment,
+          repaymentType: isFullRepayment ? 'FULL' : 'PARTIAL'
         }
       });
     }
 
-    // Update next interest due date if needed
-    await loan.updateNextInterestDueDate();
+    // Update next interest due date based on new outstanding amount
+    if (loan.outstandingPrincipal > 0) {
+      await loan.updateNextInterestDueDate();
+    } else {
+      // If loan is fully paid, clear next due date
+      loan.nextInterestDueDate = null;
+    }
+
     await loan.save();
 
     // Save all transactions
@@ -543,22 +582,29 @@ export const makeLoanPayment = async (req, res) => {
 
     let message = `Payment recorded: ${paymentSummary.join(', ')}`;
     if (loan.status === 'CLOSED') {
-      message += ' - Loan is now fully repaid!';
+      message += ' 🎉 Congratulations! Loan has been fully repaid!';
     }
 
     res.json({
       success: true,
       data: loanWithStatus,
-      message
+      message,
+      paymentDetails: {
+        installmentNumber: currentInstallmentNumber,
+        isFullRepayment: loan.status === 'CLOSED',
+        remainingBalance: loan.outstandingPrincipal / 100,
+        totalPrincipalPaid: loan.totalPrincipalPaid / 100,
+        nextInterestDueDate: loan.nextInterestDueDate
+      }
     });
   } catch (error) {
+    console.error('Loan payment error:', error);
     res.status(400).json({
       success: false,
       error: error.message
     });
   }
 };
-
 // Get loan reminders (overdue interest payments)
 export const getLoanReminders = async (req, res) => {
   try {
