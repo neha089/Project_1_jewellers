@@ -104,10 +104,11 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("click submit");
     
-    if (!validateForm()) return;
+    // if (!validateForm()) return;
 
-    setLoading(true);
+    // setLoading(true);
     try {
       const totalAmount = items.reduce(
         (total, item) => total + (parseFloat(item.amount) || 0),
@@ -130,9 +131,10 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
         branch: formData.branch,
         notes: formData.notes
       };
-
+      console.log("call api");
       const response = await ApiService.createGoldLoan(loanData);
-      
+      console.log("called");
+
       if (response.success) {
         onSave({
           ...loanData,
@@ -357,7 +359,8 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
               Reset Form
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit}
               className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
               disabled={loading}
             >
