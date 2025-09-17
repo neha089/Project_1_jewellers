@@ -234,7 +234,7 @@ const GoldLoanItems = ({ items, errors, loading, onItemsChange, currentGoldPrice
               </label>
             </div>
 
-            {item.images.length > 0 && (
+            {item?.images?.length > 0 && (
               <div className="grid grid-cols-4 gap-2 mt-2">
                 {item.images.map((image) => (
                   <div key={image.id} className="relative group">
