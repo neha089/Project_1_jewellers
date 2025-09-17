@@ -99,14 +99,169 @@ class ApiService {
     const response = await axiosInstance.delete(endpoint);
     return response.data;
   }
-
-  async createGoldTransaction(transactionData) {
-    return this.post("/api/gold/", transactionData);
-  }
-  async createSilverTransaction (transactionData) {
-    return this.post("/api/silver/", transactionData);
+   async getAllCustomers(page = 1, limit = 1000) {
+    return this.get(`/api/customers?page=${page}&limit=${limit}`);
   }
 
+  async searchCustomers(query) {
+    return this.get(`/api/customers/search?q=${encodeURIComponent(query)}`);
+  }
+
+  async createCustomer(customerData) {
+    return this.post('/api/customers', customerData);
+  }
+
+  // Udhari APIs - Updated to match backend exactly
+  async giveUdhari(data) {
+    return this.post('/api/udhari/give', data);
+  }
+
+  async takeUdhari(data) {
+    return this.post('/api/udhari/take', data);
+  }
+
+  // Fixed payment APIs to match backend parameters
+// Fixed receiveUdhariPayment method in api.js
+// REPLACE your existing receiveUdhariPayment method with this:
+async receiveUdhariPayment(paymentData) {
+  console.log('=== ApiService.receiveUdhariPayment ===');
+  console.log('Received data:', paymentData);
+  
+  // Validate input data
+  if (!paymentData) {
+    console.error('No payment data provided');
+    throw new Error('Payment data is required');
+  }
+  
+  // FIXED: Use the correct field names from the frontend
+  const customer = paymentData.customer;           // ✅ This exists
+  const amountPaise = paymentData.amountPaise;     // ✅ This exists  
+  const udhariId = paymentData.udhariId;           // ✅ This exists
+  const note = paymentData.note;                   // ✅ This exists
+  
+  console.log('Extracted fields:', {
+    customer,
+    amountPaise,
+    udhariId,
+    note,
+    customerType: typeof customer,
+    amountType: typeof amountPaise,
+    udhariIdType: typeof udhariId
+  });
+  
+  // Validate required fields
+  if (!customer) {
+    throw new Error('Customer ID is required');
+  }
+  
+  if (!udhariId) {
+    throw new Error('Udhari ID is required');
+  }
+  
+  if (!amountPaise || isNaN(amountPaise) || amountPaise <= 0) {
+    throw new Error(`Valid payment amount is required. Got: ${amountPaise} (type: ${typeof amountPaise})`);
+  }
+  
+  // FIXED: Create the backend payload with correct field mapping
+  const backendPayload = {
+    customer: String(customer),              // customer stays customer
+    principalPaise: parseInt(amountPaise),   // amountPaise becomes principalPaise
+    sourceRef: String(udhariId),            // udhariId becomes sourceRef
+    note: note || undefined,                // note stays note
+    installmentNumber: paymentData.installmentNumber || 1,
+    paymentDate: paymentData.paymentDate || new Date().toISOString().split('T')[0],
+    paymentMethod: paymentData.paymentMethod || 'CASH',
+    reference: paymentData.reference || '',
+    transactionId: paymentData.transactionId || ''
+  };
+
+  console.log('Final backend payload:', backendPayload);
+  
+  try {
+    console.log('Making POST request to /api/udhari/receive-payment');
+    const response = await this.post('/api/udhari/receive-payment', backendPayload);
+    console.log('✅ Backend response received:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ API call failed:', error);
+    throw error;
+  }
+}
+
+// Also fix the makeUdhariPayment method for consistency
+async makeUdhariPayment(data) {
+  console.log('=== ApiService.makeUdhariPayment ===');
+  console.log('Received data:', data);
+  
+  // Validate required fields
+  if (!data.customer) {
+    throw new Error('Customer ID is required');
+  }
+  
+  if (!data.udhariId) {
+    throw new Error('Udhari ID is required');
+  }
+  
+  if (!data.amountPaise || isNaN(data.amountPaise) || data.amountPaise <= 0) {
+    throw new Error('Valid payment amount is required');
+  }
+  
+  const paymentData = {
+    customer: String(data.customer),
+    principalPaise: parseInt(data.amountPaise), // Backend expects principalPaise
+    sourceRef: String(data.udhariId), // Backend expects sourceRef
+    note: data.note || undefined,
+    installmentNumber: data.installmentNumber || 1,
+    paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
+    paymentMethod: data.paymentMethod || 'CASH',
+    reference: data.reference || '',
+    transactionId: data.transactionId || ''
+  };
+  
+  console.log('Final payment data:', paymentData);
+  
+  try {
+    const response = await this.post('/api/udhari/make-payment', paymentData);
+    console.log('✅ Payment response:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Payment failed:', error);
+    throw error;
+  }
+}
+  async getCustomerUdhariSummary(customerId) {
+    return this.get(`/api/udhari/customer/${customerId}`);
+  }
+
+  async getOutstandingToCollect() {
+    return this.get('/api/udhari/outstanding/collect');
+  }
+
+  async getOutstandingToPay() {
+    return this.get('/api/udhari/outstanding/pay');
+  }
+
+  async getOverallUdhariSummary() {
+    return this.get('/api/udhari/summary');
+  }
+
+  async getPaymentHistory(udhariId) {
+    return this.get(`/api/udhari/payment-history/${udhariId}`);
+  }
+
+  // New APIs for improved functionality
+  async getUdhariTransactions(filters = {}) {
+    const params = new URLSearchParams(filters).toString();
+    return this.get(`/api/udhari/transactions${params ? '?' + params : ''}`);
+  }
+
+  async getUdhariById(udhariId) {
+    return this.get(`/api/udhari/${udhariId}`);
+  }
+
+  async updateUdhariTransaction(udhariId, data) {
+    return this.put(`/api/udhari/${udhariId}`, data);
+  }
   // Enhanced customer search with axios
   async searchCustomers(search = "", page = 1, limit = 50, status = "active") {
     const cleanSearch = search ? search.trim() : "";

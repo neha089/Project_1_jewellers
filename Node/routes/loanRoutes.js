@@ -3,35 +3,30 @@ import * as loanController from '../controllers/loanController.js';
 
 const router = express.Router();
 
-// Create a new loan (given or taken)
-router.post('/', loanController.createLoan);
+// Core loan operations
+router.post('/give', loanController.giveLoan);                    // Give money to someone (lend)
+router.post('/take', loanController.takeLoan);                    // Take money from someone (borrow)
 
-// Get all loans with filtering and pagination
-router.get('/', loanController.getAllLoans);
+// Payment operations
+router.post('/receive-payment', loanController.receiveLoanPayment); // Receive payment from someone who borrowed
+router.post('/make-payment', loanController.makeLoanPayment);       // Make payment to someone you borrowed from
 
-// Get loan reminders (overdue payments) - should be before /:id routes
-router.get('/reminders', loanController.getLoanReminders);
+// Customer specific data
+router.get('/customer/:customerId', loanController.getCustomerLoanSummary); // Get all loan data for specific customer
 
-// Get loans by customer ID
-router.get('/customer/:customerId', loanController.getLoansByCustomer);
+// Outstanding amounts
+router.get('/outstanding/collect', loanController.getOutstandingToCollect); // Money you need to collect from others
+router.get('/outstanding/pay', loanController.getOutstandingToPay);         // Money you need to pay to others
 
-// Get specific loan details with payment history
-router.get('/:id', loanController.getLoanDetails);
+// Summary and analytics
+router.get('/summary', loanController.getOverallLoanSummary);               // Overall loan summary
 
-// Pay loan interest only
-router.post('/:id/interest-payment', loanController.payLoanInterest);
+// Payment history
+router.get('/payment-history/:loanId', loanController.getPaymentHistory);   // Payment history for specific loan
 
-// Pay loan principal only (partial or full payment)
-router.post('/:id/principal-payment', loanController.payLoanPrincipal);
-
-// Combined payment endpoint (both principal and interest)
-// This is the main endpoint for loan repayments from the frontend
-router.post('/:id/payments', loanController.makeLoanPayment);
-
-// Update interest rate for a loan (admin function)
-router.patch('/:id/interest-rate', loanController.updateInterestRate);
-
-// Mark reminder as sent
-router.patch('/:id/reminder-sent', loanController.markReminderSent);
+// Reminders and interest rate updates
+router.get('/reminders', loanController.getLoanReminders);                  // Get overdue loan reminders
+router.patch('/:id/interest-rate', loanController.updateInterestRate);      // Update interest rate for a loan
+router.patch('/:id/reminder-sent', loanController.markReminderSent);        // Mark reminder as sent
 
 export default router;
