@@ -10,6 +10,7 @@ import NotificationBell from "./NotificationBell";
 import PaymentReminderModal from "./PaymentReminderModal";
 import DueDateCalendar from "./DueDateCalendar";
 import { useNotifications } from "./useNotifications";
+import ApiService from "../services/api";
 import { 
   Download, 
   Plus, 
@@ -19,6 +20,7 @@ import {
   AlertTriangle,
   FileText,
   Bell,
+  RefreshCw,
   Calendar,
   Clock,
   Filter,
@@ -27,34 +29,103 @@ import {
 } from 'lucide-react';
 
 const GoldLoanManagement = () => {
-  const [goldLoans, setGoldLoans] = useState(mockGoldLoans);
-  const [filteredLoans, setFilteredLoans] = useState(mockGoldLoans);
+  const [goldLoans, setGoldLoans] = useState([]);
+  const [filteredLoans, setFilteredLoans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [goldTypeFilter, setGoldTypeFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('loanId');
+  const [sortBy, setSortBy] = useState('createdAt');
   const [viewMode, setViewMode] = useState('grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
-  const [showCalendarView, setShowCalendarView] = useState(false);
-  const [activeTab, setActiveTab] = useState('loans'); // 'loans', 'notifications', 'calendar'
+  const [activeTab, setActiveTab] = useState('loans');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    overdue: 0,
+    completed: 0,
+    totalAmount: 0,
+    totalOutstanding: 0,
+    totalWeight: 0,
+    dueTomorrow: 0,
+    dueToday: 0,
+    urgentActions: 0
+  });
 
-  // Use notifications hook
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(goldLoans);
 
-  // Calculate stats
-  const stats = {
-    total: goldLoans.length,
-    active: goldLoans.filter(loan => loan.status === 'active').length,
-    overdue: goldLoans.filter(loan => loan.status === 'overdue').length,
-    totalAmount: goldLoans.reduce((sum, loan) => sum + loan.loanAmount, 0),
-    totalOutstanding: goldLoans.reduce((sum, loan) => sum + loan.outstandingAmount, 0),
-    totalWeight: goldLoans.reduce((sum, loan) => sum + loan.goldWeight, 0),
-    // New notification stats
-    dueTomorrow: notifications.filter(n => n.daysDiff === 1).length,
-    dueToday: notifications.filter(n => n.daysDiff === 0).length,
-    urgentActions: notifications.filter(n => n.priority === 'high').length
+  // Load gold loans data
+  const loadGoldLoans = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await ApiService.getAllGoldLoans({
+        page: 1,
+        limit: 100, // Adjust as needed
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      });
+      
+      if (response.success) {
+        setGoldLoans(response.data);
+        calculateStats(response.data);
+      } else {
+        throw new Error(response.error || 'Failed to fetch gold loans');
+      }
+    } catch (err) {
+      setError(err.message);
+      console.error('Error loading gold loans:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate dashboard statistics
+  const calculateStats = (loans) => {
+    const newStats = {
+      total: loans.length,
+      active: loans.filter(loan => loan.status === 'ACTIVE').length,
+      overdue: loans.filter(loan => {
+        if (loan.status !== 'ACTIVE') return false;
+        const today = new Date();
+        const dueDate = new Date(loan.dueDate);
+        return dueDate < today;
+      }).length,
+      completed: loans.filter(loan => loan.status === 'COMPLETED').length,
+      closed: loans.filter(loan => loan.status === 'CLOSED').length,
+      totalAmount: loans.reduce((sum, loan) => sum + (loan.principalPaise ? loan.principalPaise / 100 : 0), 0),
+      totalOutstanding: loans.reduce((sum, loan) => {
+        const outstanding = loan.currentPrincipalPaise ? loan.currentPrincipalPaise / 100 : 
+                          loan.principalPaise ? loan.principalPaise / 100 : 0;
+        return sum + outstanding;
+      }, 0),
+      totalWeight: loans.reduce((sum, loan) => {
+        const weight = loan.items?.reduce((itemSum, item) => itemSum + (item.weightGram || 0), 0) || 0;
+        return sum + weight;
+      }, 0)
+    };
+
+    // Calculate due dates
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    newStats.dueToday = loans.filter(loan => {
+      if (loan.status !== 'ACTIVE') return false;
+      const dueDate = new Date(loan.dueDate);
+      return dueDate.toDateString() === today.toDateString();
+    }).length;
+
+    newStats.dueTomorrow = loans.filter(loan => {
+      if (loan.status !== 'ACTIVE') return false;
+      const dueDate = new Date(loan.dueDate);
+      return dueDate.toDateString() === tomorrow.toDateString();
+    }).length;
+
+    newStats.urgentActions = newStats.overdue + newStats.dueToday;
+
+    setStats(newStats);
   };
 
   // Filter and sort loans
@@ -65,11 +136,12 @@ const GoldLoanManagement = () => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(loan =>
-        loan.id.toLowerCase().includes(term) ||
-        loan.customerName.toLowerCase().includes(term) ||
-        loan.customerPhone.toLowerCase().includes(term) ||
-        loan.goldItem.toLowerCase().includes(term) ||
-        loan.goldType.toLowerCase().includes(term)
+        loan._id?.toLowerCase().includes(term) ||
+        loan.customer?.name?.toLowerCase().includes(term) ||
+        loan.customer?.phone?.toLowerCase().includes(term) ||
+        loan.items?.some(item => 
+          item.name?.toLowerCase().includes(term)
+        )
       );
     }
 
@@ -78,54 +150,65 @@ const GoldLoanManagement = () => {
       filtered = filtered.filter(loan => loan.status === statusFilter);
     }
 
-    // Apply gold type filter
-    if (goldTypeFilter !== 'all') {
-      filtered = filtered.filter(loan => loan.goldType === goldTypeFilter);
-    }
-
     // Apply sorting
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'loanId':
-          return a.id.localeCompare(b.id);
+        case 'createdAt':
+          return new Date(b.createdAt) - new Date(a.createdAt);
         case 'customer':
-          return a.customerName.localeCompare(b.customerName);
-        case 'amount':
-          return b.loanAmount - a.loanAmount;
+          return (a.customer?.name || '').localeCompare(b.customer?.name || '');
+        case 'loanAmount':
+          const amountA = a.principalPaise || 0;
+          const amountB = b.principalPaise || 0;
+          return amountB - amountA;
         case 'dueDate':
           return new Date(a.dueDate) - new Date(b.dueDate);
-        case 'createdDate':
-          return new Date(b.startDate) - new Date(a.startDate);
-        case 'weight':
-          return b.goldWeight - a.goldWeight;
         default:
           return 0;
       }
     });
 
     setFilteredLoans(filtered);
-  }, [goldLoans, searchTerm, statusFilter, goldTypeFilter, sortBy]);
+  }, [goldLoans, searchTerm, statusFilter, sortBy]);
 
-  const handleAddLoan = (formData) => {
-    const newLoan = {
-      ...formData,
-      id: `LOAN${String(goldLoans.length + 1).padStart(3, '0')}`,
-      customerId: formData.customerId || `CUS${String(goldLoans.length + 1).padStart(3, '0')}`
-    };
-    setGoldLoans(prev => [...prev, newLoan]);
-    setShowAddModal(false);
+  // Load data on component mount and when filters change
+  useEffect(() => {
+    loadGoldLoans();
+  }, []);
+
+  // Handle form submissions and actions
+  const handleAddLoan = async (formData) => {
+    try {
+      const response = await ApiService.createGoldLoan(formData);
+      if (response.success) {
+        setShowAddModal(false);
+        await loadGoldLoans(); // Refresh the list
+        alert('Gold loan created successfully!');
+      }
+    } catch (error) {
+      alert('Error creating gold loan: ' + error.message);
+    }
   };
 
   const handleEdit = (loan) => {
-    alert(`Edit functionality for ${loan.id} will be implemented in the next phase`);
+    // For now, just show an alert. You can implement edit modal later
+    alert(`Edit functionality for ${loan._id} will be implemented`);
   };
 
   const handleView = (loan) => {
-    alert(`Detailed view for ${loan.id} will be implemented in the next phase`);
+    // This is handled by the modal in GoldLoanCard
+    console.log('Viewing loan:', loan._id);
   };
 
-  const handlePayment = (loan) => {
-    alert(`Payment functionality for ${loan.id} will be implemented in the next phase`);
+  const handlePayment = async (loan) => {
+    try {
+      // Get payment options first
+      const options = await ApiService.getRepaymentOptions(loan._id);
+      // Show payment modal with options
+      alert(`Payment options for ${loan._id}:\n${JSON.stringify(options.data?.preFilledAmounts, null, 2)}`);
+    } catch (error) {
+      alert('Error getting payment options: ' + error.message);
+    }
   };
 
   const handleSendReminder = (loan) => {
@@ -135,40 +218,34 @@ const GoldLoanManagement = () => {
 
   const handleReminderAction = (actionData) => {
     console.log('Reminder sent:', actionData);
-    // Here you can implement the logic to track reminder history
-  };
-
-  const handleCalendarLoanClick = (loansForDay) => {
-    // Show loans for selected day in a modal or filter the main view
-    console.log('Loans for selected day:', loansForDay);
+    setShowReminderModal(false);
+    // Implement reminder sending logic here
   };
 
   const handleExport = () => {
-    // Enhanced CSV export with notification data
+    // Enhanced CSV export
     const csvContent = [
       [
-        'Loan ID', 'Customer', 'Phone', 'Gold Item', 'Weight (g)', 'Type', 'Purity', 
-        'Loan Amount', 'Outstanding', 'Interest Rate', 'Start Date', 'Due Date', 'Status',
-        'Days Until Due', 'Notification Priority'
+        'Loan ID', 'Customer', 'Phone', 'Items Count', 'Weight (g)', 
+        'Loan Amount', 'Outstanding', 'Interest Rate', 'Start Date', 'Due Date', 'Status'
       ],
       ...filteredLoans.map(loan => {
-        const notification = notifications.find(n => n.loanId === loan.id);
+        const loanAmount = loan.principalPaise ? loan.principalPaise / 100 : 0;
+        const outstanding = loan.currentPrincipalPaise ? loan.currentPrincipalPaise / 100 : loanAmount;
+        const totalWeight = loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0;
+        
         return [
-          loan.id,
-          loan.customerName,
-          loan.customerPhone,
-          loan.goldItem,
-          loan.goldWeight,
-          loan.goldType,
-          loan.purity,
-          loan.loanAmount,
-          loan.outstandingAmount,
-          loan.interestRate,
-          loan.startDate,
-          loan.dueDate,
-          loan.status,
-          notification ? notification.daysDiff : '',
-          notification ? notification.priority : ''
+          loan._id,
+          loan.customer?.name || 'Unknown',
+          loan.customer?.phone || 'N/A',
+          loan.items?.length || 0,
+          totalWeight,
+          loanAmount,
+          outstanding,
+          loan.interestRateMonthlyPct || 0,
+          loan.startDate ? new Date(loan.startDate).toLocaleDateString() : '',
+          loan.dueDate ? new Date(loan.dueDate).toLocaleDateString() : '',
+          loan.status
         ];
       })
     ].map(row => row.join(',')).join('\n');
@@ -184,19 +261,44 @@ const GoldLoanManagement = () => {
 
   const formatCurrency = (amount) => `₹${(amount / 100000).toFixed(1)}L`;
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 lg:p-6 flex items-center justify-center">
+        <div className="bg-white rounded-xl border border-red-200 p-8 max-w-md w-full text-center">
+          <AlertTriangle size={48} className="mx-auto text-red-500 mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Data</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              loadGoldLoans();
+            }}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-       
-        {/* Header Section with Title and Action Buttons */}
-        <div className="flex flex-col sm:flex-row sm:items sm:justify-between gap-4 ">
-         
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gold Loan Management</h1>
+            <p className="text-gray-600 mt-1">Manage your gold loans, payments, and customer relationships</p>
+          </div>
           
           <div className="flex items-center gap-3">
-            {/* Notification Bell */}
-            <NotificationBell loans={goldLoans} />
+            <NotificationBell 
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onToggle={() => setActiveTab('notifications')}
+            />
             
-            {/* Export Button */}
             <button
               onClick={handleExport}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm"
@@ -205,7 +307,6 @@ const GoldLoanManagement = () => {
               Export
             </button>
             
-            {/* Add New Loan Button */}
             <button
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-lg"
@@ -227,7 +328,7 @@ const GoldLoanManagement = () => {
             }`}
           >
             <Grid size={16} />
-            Loans
+            Loans ({stats.total})
           </button>
           <button
             onClick={() => setActiveTab('notifications')}
@@ -245,27 +346,16 @@ const GoldLoanManagement = () => {
               </span>
             )}
           </button>
-          <button
-            onClick={() => setActiveTab('calendar')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-              activeTab === 'calendar'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Calendar size={16} />
-            Calendar
-          </button>
         </div>
 
-        {/* Enhanced Stats Cards with Notification Metrics */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <StatsCard
             title="Total Loans"
             value={stats.total}
             icon={FileText}
             iconColor="text-blue-600"
-            trend="+12 this month"
+            trend="All time"
             className="bg-blue-50 border-blue-200"
           />
           <StatsCard
@@ -273,7 +363,7 @@ const GoldLoanManagement = () => {
             value={stats.active}
             icon={TrendingUp}
             iconColor="text-green-600"
-            trend="85% active rate"
+            trend="Currently active"
             className="bg-green-50 border-green-200"
           />
           <StatsCard
@@ -281,7 +371,7 @@ const GoldLoanManagement = () => {
             value={stats.overdue}
             icon={AlertTriangle}
             iconColor="text-red-600"
-            trend="-2 from last week"
+            trend="Needs attention"
             className="bg-red-50 border-red-200"
           />
           <StatsCard
@@ -289,20 +379,20 @@ const GoldLoanManagement = () => {
             value={stats.dueToday}
             icon={Clock}
             iconColor="text-yellow-600"
-            trend="Immediate attention"
+            trend="Immediate action"
             className="bg-yellow-50 border-yellow-200"
           />
           <StatsCard
             title="Total Amount"
-            value={formatCurrency(stats.totalAmount)}
+            value={formatCurrency(stats.totalAmount * 100000)}
             icon={DollarSign}
             iconColor="text-purple-600"
-            trend="+18% growth"
+            trend="Disbursed"
             className="bg-purple-50 border-purple-200"
           />
           <StatsCard
             title="Gold Weight"
-            value={`${stats.totalWeight}g`}
+            value={`${stats.totalWeight.toFixed(0)}g`}
             icon={Coins}
             iconColor="text-amber-600"
             trend="Total pledged"
@@ -313,28 +403,49 @@ const GoldLoanManagement = () => {
         {/* Main Content Area */}
         {activeTab === 'loans' && (
           <>
-            {/* Search and Filter Bar */}
-            <div className="mb-6">
-              <GoldLoanSearchFilterBar
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                statusFilter={statusFilter}
-                onStatusFilterChange={setStatusFilter}
-                goldTypeFilter={goldTypeFilter}
-                onGoldTypeFilterChange={setGoldTypeFilter}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                viewMode={viewMode}
-                 setViewMode={setViewMode}
-              />
-            </div>
+            <GoldLoanSearchFilterBar
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              onRefresh={loadGoldLoans}
+              loading={loading}
+            />
 
-            {/* Loans Display */}
-            {viewMode === 'grid' ? (
-              <div className="grid grid-cols md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {loading ? (
+              <div className="text-center py-12">
+                <RefreshCw size={48} className="mx-auto text-gray-300 mb-4 animate-spin" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Loading Gold Loans</h3>
+                <p className="text-gray-600">Please wait while we fetch your data...</p>
+              </div>
+            ) : filteredLoans.length === 0 ? (
+              <div className="text-center py-12">
+                <Coins size={48} className="mx-auto text-gray-300 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Gold Loans Found</h3>
+                <p className="text-gray-600 mb-4">
+                  {searchTerm || statusFilter !== 'all' 
+                    ? 'Try adjusting your search or filters'
+                    : 'Get started by creating your first gold loan'
+                  }
+                </p>
+                {!searchTerm && statusFilter === 'all' && (
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                  >
+                    Create First Loan
+                  </button>
+                )}
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredLoans.map(loan => (
                   <GoldLoanCard
-                    key={loan.id}
+                    key={loan._id}
                     loan={loan}
                     onEdit={handleEdit}
                     onView={handleView}
@@ -346,51 +457,51 @@ const GoldLoanManagement = () => {
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">Loan Directory</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Loan Directory ({filteredLoans.length})</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Loan Details
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Gold Details
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Loan Amount
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Outstanding
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Due Date
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Photos
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+                          Loan Details
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Customer
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Gold Details
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Loan Amount
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Outstanding
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Due Date
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Photos
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                     {filteredLoans.map((loan) => (
-                    <GoldLoanTableRow
-                      key={loan.id}
-                      loan={loan}
-                      onEdit={handleEdit}
-                      onView={handleView}
-                      onPayment={handlePayment}
-                    />
-                  ))}
+                      {filteredLoans.map((loan) => (
+                        <GoldLoanTableRow
+                          key={loan._id}
+                          loan={loan}
+                          onEdit={handleEdit}
+                          onView={handleView}
+                          onPayment={handlePayment}
+                        />
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -439,7 +550,9 @@ const GoldLoanManagement = () => {
                           </span>
                         </div>
                         <p className="text-sm text-gray-600 mb-2">
-                          {notification.loanId} • ₹{notification.outstandingAmount.toLocaleString()} • Due: {notification.dueDate}
+                          {notification.loanId} • ₹{notification.outstandingAmount?.toLocaleString()} • Due: {
+                            new Date(notification.dueDate).toLocaleDateString('en-IN')
+                          }
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -449,7 +562,10 @@ const GoldLoanManagement = () => {
                             Call
                           </button>
                           <button
-                            onClick={() => handleSendReminder(goldLoans.find(l => l.id === notification.loanId))}
+                            onClick={() => {
+                              const loan = goldLoans.find(l => l._id === notification.loanId);
+                              if (loan) handleSendReminder(loan);
+                            }}
                             className="px-3 py-1 bg-blue-600 text-white text-sm rounded-full hover:bg-blue-700 transition-colors"
                           >
                             Send Reminder
@@ -471,10 +587,6 @@ const GoldLoanManagement = () => {
             </div>
           </div>
         )}
-
-        {activeTab === 'calendar' && (
-          <DueDateCalendar loans={goldLoans} onLoanClick={handleCalendarLoanClick} />
-        )}
       </div>
 
       {/* Modals */}
@@ -482,11 +594,11 @@ const GoldLoanManagement = () => {
         <AddGoldLoanModal
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddLoan}
+          onSave={handleAddLoan}
         />
       )}
 
-      {showReminderModal && (
+      {showReminderModal && selectedLoan && (
         <PaymentReminderModal
           isOpen={showReminderModal}
           onClose={() => setShowReminderModal(false)}
@@ -497,5 +609,6 @@ const GoldLoanManagement = () => {
     </div>
   );
 };
+
 
 export default GoldLoanManagement;
