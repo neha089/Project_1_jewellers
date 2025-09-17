@@ -1,6 +1,5 @@
 // components/GoldLoanManagement.jsx - Complete Implementation with Fixed Layout
 import { useState, useEffect } from "react";
-import { mockGoldLoans } from "../data/mockGoldLoans";
 import {GoldLoanCard} from "./GoldLoanCard";
 import GoldLoanSearchFilterBar from "./GoldLoanSearchFilterBar";
 import StatsCard from "./StatsCard";

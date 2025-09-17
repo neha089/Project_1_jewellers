@@ -192,193 +192,94 @@ class ApiService {
   }
 
   // Gold Loan APIs
-  async createGoldLoan(loanData) {
-    return this.post("/api/gold-loans/", {
-      customer: loanData.customerId,
-      items: loanData.items.map((item) => ({
-        name: item.name || "Gold Item",
-        weightGram: parseFloat(item.weightGram),
-        amountPaise: Math.round(parseFloat(item.amountPaise) * 100),
-        purityK: parseInt(item.purityK),
-        images: item.images || [],
-      })),
-      interestRateMonthlyPct: parseFloat(loanData.interestRate),
-      principalPaise: Math.round(parseFloat(loanData.totalAmount) * 100),
-      startDate: loanData.date,
-      dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
-      status: "ACTIVE",
-    });
-  }
-
-  async getPaymentHistory(filters = {}) {
-    const params = {};
-    if (filters.page) params.page = filters.page.toString();
-    if (filters.limit) params.limit = filters.limit.toString();
-    if (filters.customer) params.customer = filters.customer;
-    if (filters.month) params.month = filters.month.toString();
-    if (filters.year) params.year = filters.year.toString();
+  async createGoldLoan(formData) {
+    console.log('Creating gold loan with data:', formData);
     
-    return this.get(`/api/gold-loans/payments/history`, params);
-  }
-
-  async getDashboardStats() {
-    return this.get("/api/dashboard/stats");
-  }
-
-  async getGoldLoanInterestSummary(loanId) {
-    return this.get(`/api/gold-loans/${loanId}/interest-summary`);
-  }
-
-  async getAllTransactions() {
-    return this.get(`/api/transactions`);
-  }
-
-  async getGoldLoanPaymentHistory(loanId) {
-    return this.get(`/api/gold-loans/${loanId}/payment-history`);
-  }
-
-  async makeGoldLoanPayment(loanId, paymentData) {
-    return this.post(`/api/gold-loans/${loanId}/payments`, {
-      principalPaise: Math.round(parseFloat(paymentData.principal || 0) * 100),
-      interestPaise: Math.round(parseFloat(paymentData.interest || 0) * 100),
-      forMonth: paymentData.forMonth || this.getCurrentMonth(),
-      photos: paymentData.photos || [],
-      notes: paymentData.notes || "",
-    });
-  }
-
-  async processGoldLoanRepayment(repaymentData) {
-    try {
-      console.log('API Service - Processing repayment:', repaymentData);
-      
-      const response = await this.post(
-        `/api/gold-loans/${repaymentData.loanId}/process-repayment`,
-        {
-          // Support multiple field names for backward compatibility
-          selectedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [],
-          returnedItemIds: repaymentData.returnedItems || repaymentData.selectedItemIds || [], // Alternative field name
-          
-          // Cash payment in multiple formats
-          repaymentAmount: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
-          cashPayment: repaymentData.cashPayment || repaymentData.repaymentAmount || 0,
-          cashPaymentPaise: repaymentData.cashPaymentPaise || 
-            Math.round((repaymentData.cashPayment || repaymentData.repaymentAmount || 0) * 100),
-          
-          // Additional fields
-          notes: repaymentData.notes || "Gold loan repayment processed",
-          summary: repaymentData.summary,
-          photos: repaymentData.photos || [],
-          autoSelectItems: repaymentData.autoSelectItems || false
-        }
-      );
-  
-      console.log('API Service - Repayment response:', response);
-      return response;
-    } catch (error) {
-      console.error('API Service - Repayment error:', error);
-      throw error;
-    }
-  }
-  
-  // Alternative method name for consistency
-  async makeGoldLoanRepayment(loanId, repaymentData) {
-    return this.processGoldLoanRepayment({
-      loanId,
-      ...repaymentData
-    });
-  }
-
-  async makeGoldLoanInterestPayment(loanId, interestAmount, notes = "") {
-    return this.post(`/api/gold-loans/${loanId}/interest-payment`, {
-      interestPaise: Math.round(parseFloat(interestAmount) * 100),
-      notes: notes,
-      forMonth: this.getCurrentMonth(),
-    });
-  }
-
-  async completeGoldLoan(loanId, completionData = {}) {
-    return this.put(`/api/gold-loans/${loanId}/complete`, {
-      finalPaymentPaise: Math.round((completionData.finalPayment || 0) * 100),
-      photos: completionData.photos || [],
-      notes: completionData.notes || "Loan completed - all gold returned to customer",
-    });
-  }
-
-  async addGoldLoanItems(loanId, items) {
-    return this.post(`/api/gold-loans/${loanId}/items`, {
-      items: items.map((item) => ({
-        name: item.name || "Gold Item",
-        weightGram: parseFloat(item.weightGram),
-        amountPaise: Math.round(parseFloat(item.amount) * 100),
-        purityK: parseInt(item.purityK),
+    // Match backend controller expectations exactly
+    const payload = {
+      customer: formData.customer, // Backend expects 'customer' field
+      items: formData.items.map(item => ({
+        name: item.name || 'Gold Item',
+        weightGram: parseFloat(item.weightGram), // Note: frontend uses 'weight', backend expects 'weightGram'
+        loanAmount: parseFloat(item.loanAmount
+), // Backend expects 'loanAmount' for manual amounts
+        purityK: parseInt(item.purityK), // Frontend uses 'purity', backend expects 'purityK'
         images: item.images || [],
+        goldPriceAtDeposit: parseFloat(item.goldPriceAtDeposit) || 0
       })),
-    });
-  }
+      interestRateMonthlyPct: parseFloat(formData.interestRateMonthlyPct),
+      startDate: formData.startDate
+ || new Date().toISOString(),
+      notes: formData.notes || ''
+    };
 
-  async updateGoldLoanItem(loanId, itemId, itemData) {
-    return this.put(`/api/gold-loans/${loanId}/items/${itemId}`, {
-      name: itemData.name,
-      weightGram: parseFloat(itemData.weightGram),
-      amountPaise: Math.round(parseFloat(itemData.amount) * 100),
-      purityK: parseInt(itemData.purityK),
-      images: itemData.images || [],
-    });
-  }
-
-  async removeGoldLoanItem(loanId, itemId) {
-    return this.delete(`/api/gold-loans/${loanId}/items/${itemId}`);
-  }
-
-  async validateGoldLoanClosure(loanId) {
-    return this.get(`/api/gold-loans/${loanId}/validate-closure`);
-  }
-
-  async getGoldLoanOutstanding(loanId) {
-    return this.get(`/api/gold-loans/${loanId}/outstanding-summary`);
-  }
-
-  async closeGoldLoan(loanId, closureData = {}) {
-    return this.put(`/api/gold-loans/${loanId}/close`, {
-      closureImages: closureData.photos || [],
-      notes: closureData.notes || "Loan closed",
-    });
-  }
-
-  async returnGoldLoanItems(loanId, itemIds, returnData = {}) {
-    return this.post(`/api/gold-loans/${loanId}/return-items`, {
-      itemIds,
-      returnImages: returnData.photos || [],
-      notes: returnData.notes || "",
-    });
-  }
-
-  async getGoldLoan(loanId) {
-    return this.get(`/api/gold-loans/${loanId}`);
-  }
-
-  async getGoldLoanReport(loanId) {
-    return this.get(`/api/gold-loans/${loanId}/report`);
+    return this.post('/api/gold-loans', payload);
   }
 
   async getAllGoldLoans(filters = {}) {
     const params = {};
     if (filters.page) params.page = filters.page.toString();
     if (filters.limit) params.limit = filters.limit.toString();
-    if (filters.status) params.status = filters.status;
+    if (filters.status && filters.status !== 'all') params.status = filters.status;
     if (filters.customer) params.customer = filters.customer;
     
-    return this.get(`/api/gold-loans`, params);
+    return this.get('/api/gold-loans', params);
   }
 
-  async getCustomerGoldLoanSummary(customerId) {
-    return this.get(`/api/gold-loans/customer/${customerId}/summary`);
+  async getGoldLoan(loanId) {
+    return this.get(`/api/gold-loans/${loanId}`);
   }
 
-  async getPendingInterest() {
-    return this.get("/api/gold-loans/analytics/pending-interest");
+  async getGoldLoansByCustomer(customerId) {
+    return this.get(`/api/gold-loans/customer/${customerId}`);
   }
 
+  
+    async getDashboardStats() {
+    return this.request("/api/dashboard/stats");
+  }
+
+  async getGoldLoanInterestSummary(loanId) {
+    return this.request(`/api/gold-loans/${loanId}/interest-summary`);
+  }
+
+  async getAllTransactions() {
+    return this.request(`/api/transactions`);
+  }
+
+  async addInterestPayment(loanId, paymentData) {
+    return this.post(`/api/gold-loans/${loanId}/interest-payment`, {
+      interestAmount: parseFloat(paymentData.interestAmount),
+      photos: paymentData.photos || [],
+      notes: paymentData.notes || '',
+      forMonth: paymentData.forMonth
+    });
+  }
+
+  async processItemRepayment(loanId, repaymentData) {
+    return this.post(`/api/gold-loans/${loanId}/process-repayment`, {
+      repaymentAmount: parseFloat(repaymentData.repaymentAmount || 0),
+      selectedItemIds: repaymentData.selectedItemIds || [],
+      currentGoldPrice: parseFloat(repaymentData.currentGoldPrice || 0),
+      photos: repaymentData.photos || [],
+      notes: repaymentData.notes || ''
+    });
+  }
+
+  async closeGoldLoan(loanId, closureData = {}) {
+    return this.put(`/api/gold-loans/${loanId}/close`, {
+      closureImages: closureData.photos || [],
+      notes: closureData.notes || 'Loan closed'
+    });
+  }
+
+  async getDashboardStats() {
+    return this.get('/api/gold-loans/analytics/dashboard');
+  }
+
+  async getPaymentHistory(loanId) {
+    return this.get(`/api/gold-loans/${loanId}/payment-history`);
+  }
   // Metal Sale APIs
   async createMetalSale(saleData) {
     return this.post("/api/metal-sales/", {
@@ -464,6 +365,16 @@ class ApiService {
   }
 
   // Udhari APIs
+ async getcustomeridudhaar(customerId) {
+    return this.get(`/api/udhari/customer/${customerId}`);
+  }
+
+  async getOverallUdhariSummary() {
+    return this.get(`/api/udhari/summary`);
+  }
+
+  // Add other API methods...
+
   async giveUdhari(udhariData) {
     return this.post("/api/udhari/give", {
       customer: udhariData.customerId,
@@ -477,11 +388,12 @@ class ApiService {
     return this.post("/api/udhari/receive-payment", {
       customer: paymentData.customerId,
       principalPaise: Math.round(parseFloat(paymentData.amount) * 100),
-      sourceRef: paymentData.sourceRef,  // ✅ Fixed: use sourceRef instead of udhariId
+      sourceRef: paymentData.sourceRef,
       note: paymentData.description,
       installmentNumber: parseInt(paymentData.installmentNumber || 1),
     });
   }
+
 
   // Gold/Silver Sale/Purchase APIs
   async createGoldSale(transactionData) {

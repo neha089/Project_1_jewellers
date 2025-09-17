@@ -11,9 +11,6 @@ import {
   User,
   Phone,
   ChevronRight,
-  Filter,
-  Plus,
-  FileText,
   AlertCircle,
   Loader2,
   RefreshCw
@@ -56,65 +53,49 @@ const Udhaar = () => {
 
   const loadCustomers = async () => {
     try {
-      // Get all customers
       const customersResponse = await ApiService.getAllCustomers(1, 1000);
-      
       if (!customersResponse.success || !customersResponse.data?.customers) {
         throw new Error('Failed to load customers');
       }
-
       const customersData = customersResponse.data.customers;
-      
-      // Calculate balances for each customer by getting their loans and payments
+
       const customerBalances = await Promise.all(
         customersData.map(async (customer) => {
           try {
-            // Initialize UdhaarResponse as empty array if API call is not available
-            let UdhaarResponse = [];
-            
-            try {
-              // Uncomment and fix this line when the API is ready
-              // UdhaarResponse = await ApiService.getcustomeridudhaar(customer._id);
-              // For now, we'll use an empty array
-              UdhaarResponse = [];
-            } catch (apiError) {
-              console.warn(`Could not fetch udhaar data for customer ${customer._id}:`, apiError);
-              UdhaarResponse = [];
-            }
+            const udhariResponse = await ApiService.getcustomeridudhaar(customer._id);
+            const data = udhariResponse.success ? udhariResponse.data : null;
 
-            // Calculate totals from gold loans
             let totalBorrowed = 0;
             let totalReturned = 0;
             let totalLent = 0;
-            let lastTransactionDate = customer.createdAt;
+            let udhaarcount = 0;
 
-            // Process UdhaarResponse if it contains data
-            if (Array.isArray(UdhaarResponse) && UdhaarResponse.length > 0) {
-              // Add your udhaar processing logic here
-              // For example:
-              // totalBorrowed = UdhaarResponse.reduce((sum, item) => sum + (item.borrowed || 0), 0);
-              // totalReturned = UdhaarResponse.reduce((sum, item) => sum + (item.returned || 0), 0);
+            if (data) {
+              totalLent = data.totalGiven || 0; 
+              totalBorrowed = data.totalTaken || 0; 
+              totalReturned = totalBorrowed - (data.outstandingToPay || 0);
+              udhaarcount = (data.transactions?.given?.length || 0) + (data.transactions?.taken?.length || 0);
             }
 
-            const netBalance = totalBorrowed - totalReturned - totalLent;
+            const netBalance = data ? data.netAmount : 0;
+            const lastTransactionDate = customer.createdAt || new Date();
 
             return {
               customerId: customer._id,
               customerName: customer.name || 'Unknown Customer',
               customerPhone: customer.phone || '',
               customerEmail: customer.email || '',
-              udhaarcount: UdhaarResponse ? UdhaarResponse.length : 0,
+              udhaarcount,
               totalBorrowed,
               totalReturned,
               totalLent,
               netBalance,
               lastTransactionDate,
-              UdhaarResponse,
+              UdhaarResponse: data?.transactions?.all || [],
               rawData: customer
             };
           } catch (error) {
             console.error(`Error processing customer ${customer._id}:`, error);
-            // Return customer with zero balances if there's an error
             return {
               customerId: customer._id,
               customerName: customer.name || 'Unknown Customer',
@@ -132,7 +113,6 @@ const Udhaar = () => {
           }
         })
       );
-
       setCustomers(customerBalances);
     } catch (error) {
       console.error('Error loading customers:', error);
@@ -142,34 +122,23 @@ const Udhaar = () => {
 
   const loadBusinessSummary = async () => {
     try {
-      // Try to get dashboard stats from API
-      const dashboardResponse = await ApiService.getDashboardStats().catch(() => null);
-      
-      if (dashboardResponse && dashboardResponse.success) {
+      const summaryResponse = await ApiService.getOverallUdhariSummary();
+      if (summaryResponse && summaryResponse.success && summaryResponse.data) {
         setBusinessSummary({
-          totalCustomers: dashboardResponse.data.totalCustomers || 0,
-          customersWithBalance: dashboardResponse.data.customersWithOutstanding || 0,
-          totalMoneyOut: (dashboardResponse.data.totalOutstandingPaise || 0) / 100,
-          totalMoneyIn: (dashboardResponse.data.totalAdvancesPaise || 0) / 100,
-          totalTransactions: dashboardResponse.data.totalTransactions || 0
+          totalMoneyOut: summaryResponse.data.totalToCollect || 0,
+          totalMoneyIn: summaryResponse.data.totalToPay || 0,
+          totalTransactions: summaryResponse.data.totalTransactions || 0
         });
       } else {
-        // Calculate from customer data if API doesn't provide dashboard stats
-        const summary = {
-          totalCustomers: customers.length,
-          customersWithBalance: customers.filter(c => Math.abs(c.netBalance) > 0).length,
-          totalMoneyOut: customers.reduce((sum, c) => sum + (c.netBalance > 0 ? c.netBalance : 0), 0),
-          totalMoneyIn: customers.reduce((sum, c) => sum + (c.netBalance < 0 ? Math.abs(c.netBalance) : 0), 0),
-          totalTransactions: customers.reduce((sum, c) => sum + (c.goldLoansCount || 0) + (c.regularLoansCount || 0), 0)
-        };
-        setBusinessSummary(summary);
+        setBusinessSummary({
+          totalMoneyOut: 0,
+          totalMoneyIn: 0,
+          totalTransactions: 0
+        });
       }
     } catch (error) {
       console.error('Error loading business summary:', error);
-      // Set default values
       setBusinessSummary({
-        totalCustomers: 0,
-        customersWithBalance: 0,
         totalMoneyOut: 0,
         totalMoneyIn: 0,
         totalTransactions: 0
@@ -196,38 +165,30 @@ const Udhaar = () => {
 
   const getCustomerTransactionHistory = (customer) => {
     const transactions = [];
-    
-    // Add udhaar transactions if available
+
     if (customer.UdhaarResponse && Array.isArray(customer.UdhaarResponse)) {
       customer.UdhaarResponse.forEach(udhaar => {
-        // Process udhaar transactions here
-        // This depends on the structure of your udhaar data
-        // Example:
-        // transactions.push({
-        //   id: udhaar._id,
-        //   type: 'borrowed',
-        //   amount: udhaar.amount,
-        //   date: udhaar.date,
-        //   description: udhaar.description || 'Udhaar transaction'
-        // });
+        // Adapt this logic as needed based on transaction data structure
+        transactions.push({
+          id: udhaar._id || udhaar.id,
+          type: udhaar.kind?.toLowerCase() || 'unknown',
+          amount: (udhaar.principalPaise || 0) / 100,
+          date: udhaar.takenDate || udhaar.date,
+          description: udhaar.note || 'Udhaar transaction'
+        });
       });
     }
-    
-    // Sort by date and calculate running balance
+
     transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
+
     let runningBalance = 0;
     return transactions.map(transaction => {
-      if (transaction.type === 'borrowed') {
+      if (transaction.type === 'given' || transaction.type === 'borrowed') {
         runningBalance += transaction.amount;
-      } else if (transaction.type === 'returned') {
+      } else if (transaction.type === 'taken' || transaction.type === 'returned') {
         runningBalance -= transaction.amount;
-      } else if (transaction.type === 'lent') {
-        runningBalance -= transaction.amount;
-      } else if (transaction.type === 'received') {
-        runningBalance += transaction.amount;
       }
-      
+
       return {
         ...transaction,
         runningBalance
@@ -239,8 +200,6 @@ const Udhaar = () => {
     e.stopPropagation();
     const amount = Math.abs(customer.netBalance);
     const message = `Dear ${customer.customerName}, your outstanding balance is ₹${amount.toLocaleString()}. Please arrange for payment. Thank you!`;
-    
-    // For now, show alert - in production, integrate with SMS service
     alert(`📱 Message would be sent to ${customer.customerName}:\n\n${message}`);
   };
 
@@ -265,7 +224,7 @@ const Udhaar = () => {
     const transactionDate = new Date(date);
     const diffTime = Math.abs(now - transactionDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays <= 7) return `${diffDays} days ago`;
@@ -316,11 +275,9 @@ const Udhaar = () => {
     );
   }
 
-  // Customer Detail Page
   if (showCustomerDetail) {
     return (
       <div className="min-h-screen bg-slate-50">
-        {/* Header */}
         <div className="bg-white border-b shadow-sm">
           <div className="p-4">
             <div className="flex items-center gap-4">
@@ -379,18 +336,6 @@ const Udhaar = () => {
               </div>
             </div>
 
-            {/* Loan Summary */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-                <p className="text-amber-700 text-xs font-medium">Gold Loans</p>
-                <p className="font-bold text-amber-700">{selectedCustomer?.goldLoansCount || 0}</p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                <p className="text-purple-700 text-xs font-medium">Udhaar Count</p>
-                <p className="font-bold text-purple-700">{selectedCustomer?.udhaarcount || 0}</p>
-              </div>
-            </div>
-
             {selectedCustomer?.netBalance > 0 && (
               <div className="flex gap-3">
                 <button
@@ -428,7 +373,7 @@ const Udhaar = () => {
             </div>
             
             <div className="divide-y divide-slate-100">
-              {transactionHistory.length > 0 ? transactionHistory.map((transaction, index) => (
+              {transactionHistory.length > 0 ? transactionHistory.map((transaction) => (
                 <div key={transaction.id} className="p-6 hover:bg-slate-50 transition-colors">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -444,7 +389,7 @@ const Udhaar = () => {
                            transaction.type === 'lent' ? 'Advance Given' : 'Payment Received'}
                         </span>
                         <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md">
-                          {transaction.loanType?.toUpperCase() || transaction.type.toUpperCase()}
+                          {transaction.type.toUpperCase()}
                         </span>
                       </div>
                       
@@ -502,11 +447,9 @@ const Udhaar = () => {
     );
   }
 
-  // Main List View
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="p-4">
-        {/* Header with refresh button */}
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-slate-900">Customer Balances</h1>
           <button
@@ -517,8 +460,7 @@ const Udhaar = () => {
             <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         </div>
-          
-        {/* Summary Cards */}
+
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 rounded-xl shadow-md">
             <div className="flex items-center justify-between mb-2">
@@ -543,7 +485,6 @@ const Udhaar = () => {
           </div>
         </div>
 
-        {/* Search Bar */}
         <div className="relative mb-4">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
           <input
@@ -555,7 +496,6 @@ const Udhaar = () => {
           />
         </div>
 
-        {/* Filter Tabs */}
         <div className="flex gap-2 mb-6">
           <button
             onClick={() => setFilterType('all')}
@@ -589,7 +529,6 @@ const Udhaar = () => {
           </button>
         </div>
 
-        {/* Customer List */}
         <div className="space-y-3">
           {filteredCustomers.map((customer) => (
             <div 

@@ -2,6 +2,7 @@ import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 
 const GStatsCards = ({ summary }) => {
+  console.log(summary);
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
       <div className="bg-white rounded-lg shadow-sm p-6">

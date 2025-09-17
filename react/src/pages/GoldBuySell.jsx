@@ -96,9 +96,9 @@ const GoldBuySell = () => {
   const loadSummary = async () => {
     try {
       const response = await ApiService.getDailyAnalytics_gold(); // Assuming getDailyAnalytics is for gold, adjust if needed
-       console.log('Gold Daily Analytics:', response.summary[0].overallAmount , response.summary[1].overallAmount);
+       console.log('Gold Daily Analytics:', response?.summary[0]?.overallAmount , response?.summary[1]?.overallAmount);
       setSummary({
-        totalBuy: response.summary[0].overallAmount || 0,
+        totalBuy: response?.summary[0]?.overallAmount || 0,
         totalSell:response.summary[1].overallAmount || 0,
       });
       

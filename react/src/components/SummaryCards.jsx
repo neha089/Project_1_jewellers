@@ -24,12 +24,12 @@ const SummaryCards = () => {
       if (response && response.data) {
         const data = response.data;
         // Calculate total income (all money coming in)
-        const totalIncome = data.financials.daily.income || 0;
+        const totalIncome = data.financials?.daily?.income || 0;
 
         // Calculate total expenses (all money going out)
-        const totalExpenses = data.financials.daily.expense || 0;
+        const totalExpenses = data.financials?.daily?.expense || 0;
         // Calculate net profit
-        const netProfit =data.financials.daily.netIncome || 0;
+        const netProfit = data.financials?.daily?.netIncome || 0;
         
         // Calculate profit margin percentage
         const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100) : 0;

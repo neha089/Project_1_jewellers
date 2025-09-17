@@ -12,7 +12,7 @@ const NotificationBell = ({ loans }) => {
       const today = new Date();
       const notifs = [];
 
-      loans.forEach(loan => {
+      loans?.forEach(loan => {
         const dueDate = new Date(loan.dueDate);
         const daysDiff = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
 

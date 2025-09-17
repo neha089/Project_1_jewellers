@@ -19,6 +19,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     weight: '',
     amount: '',
     purity: '22',
+    goldPriceAtDeposit: '',
     images: []
   }]);
 
@@ -37,16 +38,18 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   useEffect(() => {
     const fetchGoldPrice = async () => {
       try {
-        // Assuming there's an API endpoint for gold price
-        const response = await ApiService.get('/api/gold-price');
-        if (response.success) {
-          setCurrentGoldPrice({
-            pricePerGram: response.data.pricePerGram,
-            lastUpdated: response.data.lastUpdated
-          });
-        }
+        // Mock gold price for now - replace with actual API call
+        setCurrentGoldPrice({
+          pricePerGram: 6500, // Example price per gram
+          lastUpdated: new Date().toISOString()
+        });
       } catch (error) {
         console.error('Failed to fetch gold price:', error);
+        // Set a default price if API fails
+        setCurrentGoldPrice({
+          pricePerGram: 6500,
+          lastUpdated: new Date().toISOString()
+        });
       }
     };
     fetchGoldPrice();
@@ -70,102 +73,123 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   };
 
   const handleCreateCustomer = () => {
-    // Implement new customer creation logic if needed
-    console.log('Create new customer');
+    console.log('Create new customer functionality to be implemented');
   };
 
   const handleItemsChange = (updatedItems) => {
     setItems(updatedItems);
-    if (errors.items) {
-      setErrors(prev => ({ ...prev, items: '' }));
-    }
+    // Clear item-related errors when items change
+    const newErrors = { ...errors };
+    Object.keys(newErrors).forEach(key => {
+      if (key.startsWith('item_')) {
+        delete newErrors[key];
+      }
+    });
+    setErrors(newErrors);
   };
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!selectedCustomer) newErrors.customer = 'Please select a customer';
-    if (items.length === 0) newErrors.items = 'At least one gold item is required';
-    
-    items.forEach((item, index) => {
-      if (!item.name.trim()) newErrors[`item_${index}_name`] = 'Item name is required';
-      if (!item.weight || parseFloat(item.weight) <= 0) newErrors[`item_${index}_weight`] = 'Valid weight is required';
-      if (!item.amount || parseFloat(item.amount) <= 0) newErrors[`item_${index}_amount`] = 'Valid loan amount is required';
-      if (item.images.length === 0) newErrors[`item_${index}_images`] = 'At least one photo is required';
-    });
+    // Customer validation
+    if (!selectedCustomer) {
+      newErrors.customer = 'Please select a customer';
+    }
 
+    // Items validation
+    if (items.length === 0) {
+      newErrors.items = 'At least one gold item is required';
+    } else {
+      items.forEach((item, index) => {
+        if (!item.name.trim()) {
+          newErrors[`item_${index}_name`] = 'Item name is required';
+        }
+        if (!item.weight || parseFloat(item.weight) <= 0) {
+          newErrors[`item_${index}_weight`] = 'Valid weight is required';
+        }
+        if (!item.amount || parseFloat(item.amount) <= 0) {
+          newErrors[`item_${index}_amount`] = 'Valid loan amount is required';
+        }
+        if (!item.purity || parseInt(item.purity) <= 0) {
+          newErrors[`item_${index}_purity`] = 'Valid purity is required';
+        }
+        if (!item.goldPriceAtDeposit || parseFloat(item.goldPriceAtDeposit) <= 0) {
+          newErrors[`item_${index}_goldPrice`] = 'Gold price at deposit is required';
+        }
+        if (item.images.length === 0) {
+          newErrors[`item_${index}_images`] = 'At least one photo is required';
+        }
+      });
+    }
+
+    // Form data validation
     if (!formData.interestRate || parseFloat(formData.interestRate) <= 0) {
       newErrors.interestRate = 'Valid interest rate is required';
+    }
+
+    if (!formData.date) {
+      newErrors.date = 'Date is required';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    console.log("click submit");
+  const handleSubmit = async () => {
+    console.log("Submit button clicked");
     
-    // if (!validateForm()) return;
+    if (!validateForm()) {
+      console.log("Validation failed:", errors);
+      return;
+    }
 
-    // setLoading(true);
+    setLoading(true);
     try {
-      const totalAmount = items.reduce(
-        (total, item) => total + (parseFloat(item.amount) || 0),
-        0
-      );
-
+      // Prepare the payload to match backend expectations exactly
       const loanData = {
-        customerId: selectedCustomer._id,
+        customer: selectedCustomer._id, // Backend expects 'customer' field with customer ID
         items: items.map(item => ({
           name: item.name,
-          weightGram: parseFloat(item.weight),
-          amountPaise: Math.round(parseFloat(item.amount) * 100),
-          purityK: parseInt(item.purity),
-          images: item.images.map(img => img.dataUrl)
+          weightGram: parseFloat(item.weight), // Backend expects 'weightGram'
+          loanAmount: parseFloat(item.amount), // Backend expects 'loanAmount'
+          purityK: parseInt(item.purity), // Backend expects 'purityK'
+          goldPriceAtDeposit: parseFloat(item.goldPriceAtDeposit), // Required by backend
+          images: item.images.map(img => img.dataUrl || img) // Handle both objects and strings
         })),
-        totalAmount,
-        interestRate: parseFloat(formData.interestRate),
-        durationMonths: parseInt(formData.durationMonths),
-        date: formData.date,
-        branch: formData.branch,
-        notes: formData.notes
+        interestRateMonthlyPct: parseFloat(formData.interestRate), // Backend expects 'interestRateMonthlyPct'
+        startDate: formData.date, // Backend expects 'startDate'
+        notes: formData.notes || '' // Optional notes
       };
-      console.log("call api");
+
+      console.log("Sending loan data to API:", loanData);
+      
       const response = await ApiService.createGoldLoan(loanData);
-      console.log("called");
+      console.log("API response:", response);
 
       if (response.success) {
-        onSave({
-          ...loanData,
-          startDate: formData.date,
-          dueDate: new Date(new Date(formData.date).setMonth(
-            new Date(formData.date).getMonth() + parseInt(formData.durationMonths)
-          )).toISOString().split('T')[0],
-          createdDate: new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          }),
-          maturityDate: new Date(new Date(formData.date).setMonth(
-            new Date(formData.date).getMonth() + parseInt(formData.durationMonths)
-          )).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          }),
-          outstandingAmount: totalAmount,
-          totalPaid: 0,
-          interestEarned: 0,
-          status: 'active'
-        });
+        // Calculate totals for UI feedback
+        const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
+        const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
+        
+        // Prepare data for parent component (matching the expected structure)
+        const loanForParent = {
+          ...response.data,
+          totalAmount,
+          totalWeight,
+          customerName: selectedCustomer.name,
+          customerPhone: selectedCustomer.phone,
+          itemsCount: items.length
+        };
+
+        onSave(loanForParent);
         handleReset();
+        alert(`Gold loan created successfully! Total amount: ₹${totalAmount.toLocaleString()}`);
       } else {
-        setErrors({ submit: response.message || 'Failed to create gold loan' });
+        setErrors({ submit: response.error || 'Failed to create gold loan' });
       }
     } catch (error) {
-      setErrors({ submit: 'Failed to create gold loan. Please try again.' });
       console.error('Error creating gold loan:', error);
+      setErrors({ submit: `Failed to create gold loan: ${error.message}` });
     } finally {
       setLoading(false);
     }
@@ -185,12 +209,25 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
       weight: '',
       amount: '',
       purity: '22',
+      goldPriceAtDeposit: currentGoldPrice?.pricePerGram?.toString() || '',
       images: []
     }]);
     setSelectedCustomer(null);
     setSearchTerm('');
     setErrors({});
   };
+
+  // Auto-fill gold price when current price is available
+  useEffect(() => {
+    if (currentGoldPrice && items.length > 0) {
+      setItems(prevItems => 
+        prevItems.map(item => ({
+          ...item,
+          goldPriceAtDeposit: item.goldPriceAtDeposit || currentGoldPrice.pricePerGram.toString()
+        }))
+      );
+    }
+  }, [currentGoldPrice]);
 
   if (!isOpen) return null;
 
@@ -203,7 +240,14 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center text-white">
               <Coins size={20} />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Create New Gold Loan</h2>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Create New Gold Loan</h2>
+              {currentGoldPrice && (
+                <p className="text-sm text-gray-600">
+                  Current Gold Price: ₹{currentGoldPrice.pricePerGram}/gram
+                </p>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -214,8 +258,8 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
+        {/* Form Content */}
+        <div className="p-6">
           <div className="space-y-6">
             {/* Customer Search */}
             <div>
@@ -226,98 +270,113 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
               />
-              {errors.customer && <p className="text-red-500 text-xs mt-2">{errors.customer}</p>}
+              {errors.customer && <p className="text-red-500 text-sm mt-2">{errors.customer}</p>}
               {selectedCustomer && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="font-medium text-gray-900">{selectedCustomer.name}</p>
                   <p className="text-sm text-gray-600">{selectedCustomer.phone}</p>
-                  <p className="text-sm text-gray-600">{selectedCustomer.email}</p>
+                  {selectedCustomer.email && (
+                    <p className="text-sm text-gray-600">{selectedCustomer.email}</p>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Gold Items */}
-            <GoldLoanItems
-              items={items}
-              errors={errors}
-              loading={loading}
-              onItemsChange={handleItemsChange}
-              currentGoldPrice={currentGoldPrice}
-            />
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Gold Items *</h3>
+              <GoldLoanItems
+                items={items}
+                errors={errors}
+                loading={loading}
+                onItemsChange={handleItemsChange}
+                currentGoldPrice={currentGoldPrice}
+              />
+              {errors.items && <p className="text-red-500 text-sm mt-2">{errors.items}</p>}
+            </div>
 
             {/* Loan Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-gray-200">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Interest Rate (% per month) *
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  name="interestRate"
-                  value={formData.interestRate}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
-                    errors.interestRate ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
-                  placeholder="2.5"
-                  disabled={loading}
-                />
-                {errors.interestRate && <p className="text-red-500 text-xs mt-1">{errors.interestRate}</p>}
-              </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Loan Details *</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Interest Rate (% per month) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    name="interestRate"
+                    value={formData.interestRate}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
+                      errors.interestRate ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                    placeholder="2.5"
+                    disabled={loading}
+                  />
+                  {errors.interestRate && <p className="text-red-500 text-sm mt-1">{errors.interestRate}</p>}
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Duration (months)
-                </label>
-                <select
-                  name="durationMonths"
-                  value={formData.durationMonths}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                  disabled={loading}
-                >
-                  <option value="3">3 Months</option>
-                  <option value="6">6 Months</option>
-                  <option value="9">9 Months</option>
-                  <option value="12">12 Months</option>
-                </select>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Loan Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
+                      errors.date ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                    disabled={loading}
+                  />
+                  {errors.date && <p className="text-red-500 text-sm mt-1">{errors.date}</p>}
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Branch
-                </label>
-                <select
-                  name="branch"
-                  value={formData.branch}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                  disabled={loading}
-                >
-                  {branches.map(branch => (
-                    <option key={branch} value={branch}>{branch}</option>
-                  ))}
-                </select>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Branch
+                  </label>
+                  <select
+                    name="branch"
+                    value={formData.branch}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                    disabled={loading}
+                  >
+                    {branches.map(branch => (
+                      <option key={branch} value={branch}>{branch}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                  disabled={loading}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Duration (months) - Info Only
+                  </label>
+                  <select
+                    name="durationMonths"
+                    value={formData.durationMonths}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                    disabled={loading}
+                  >
+                    <option value="3">3 Months</option>
+                    <option value="6">6 Months</option>
+                    <option value="9">9 Months</option>
+                    <option value="12">12 Months</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Duration is for reference only. Loan terms are flexible.
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* Additional Notes */}
-            <div className="pt-6 border-t border-gray-200">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Additional Notes
               </label>
@@ -334,8 +393,37 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
 
             {/* Submission Error */}
             {errors.submit && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                {errors.submit}
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                <strong>Error:</strong> {errors.submit}
+              </div>
+            )}
+
+            {/* Summary */}
+            {items.length > 0 && items.some(item => item.weight && item.amount) && (
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="font-medium text-gray-900 mb-2">Loan Summary</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Total Items:</span>
+                    <p className="font-medium">{items.length}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Total Weight:</span>
+                    <p className="font-medium">
+                      {items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0).toFixed(2)}g
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Total Amount:</span>
+                    <p className="font-medium text-amber-600">
+                      ₹{items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Interest Rate:</span>
+                    <p className="font-medium">{formData.interestRate}% per month</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -361,14 +449,14 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
+              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
               disabled={loading}
             >
               <Coins size={16} />
               {loading ? 'Creating...' : 'Create Gold Loan'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

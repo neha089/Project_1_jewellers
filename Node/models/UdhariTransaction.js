@@ -9,7 +9,7 @@ const udhariTransactionSchema = new mongoose.Schema({
   },
   kind: {
     type: String,
-    enum: ["GIVEN", "TAKEN", "REPAYMENT", "INTEREST"],
+    enum: ["GIVEN", "TAKEN", "REPAYMENT", "INTEREST","CLOSE"],
     required: true,
     index: true
   },
