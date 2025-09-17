@@ -18,56 +18,26 @@ import {
   Percent
 } from 'lucide-react';
 
-export const GoldLoanCard = ({ 
-  loan, 
-  onEdit, 
-  onView, 
-  onPayment, 
-  onSendReminder,
-  compact = false 
-}) => {
+
+export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }) => {
   const [showModal, setShowModal] = useState(false);
 
   const getStatusConfig = (status) => {
     const configs = {
-      active: { 
-        bg: 'bg-green-100', 
-        text: 'text-green-800', 
-        border: 'border-green-200',
-        icon: CheckCircle,
-        label: 'Active' 
-      },
-      overdue: { 
-        bg: 'bg-red-100', 
-        text: 'text-red-800', 
-        border: 'border-red-200',
-        icon: AlertTriangle,
-        label: 'Overdue' 
-      },
-      completed: { 
-        bg: 'bg-blue-100', 
-        text: 'text-blue-800', 
-        border: 'border-blue-200',
-        icon: CheckCircle,
-        label: 'Completed' 
-      },
-      pending: { 
-        bg: 'bg-yellow-100', 
-        text: 'text-yellow-800', 
-        border: 'border-yellow-200',
-        icon: Clock,
-        label: 'Pending' 
-      }
+      ACTIVE: { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle, label: 'Active' },
+      OVERDUE: { bg: 'bg-red-100', text: 'text-red-800', icon: AlertTriangle, label: 'Overdue' },
+      COMPLETED: { bg: 'bg-blue-100', text: 'text-blue-800', icon: CheckCircle, label: 'Completed' },
+      CLOSED: { bg: 'bg-gray-100', text: 'text-gray-800', icon: CheckCircle, label: 'Closed' }
     };
-    return configs[status] || configs.pending;
+    return configs[status] || configs.ACTIVE;
   };
 
   const getDaysUntilDue = () => {
+    if (!loan.dueDate) return 0;
     const today = new Date();
     const dueDate = new Date(loan.dueDate);
     const diffTime = dueDate - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const statusConfig = getStatusConfig(loan.status);
@@ -77,7 +47,12 @@ export const GoldLoanCard = ({
   const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
 
   const formatCurrency = (amount) => `₹${amount?.toLocaleString() || '0'}`;
-  const formatDate = (date) => new Date(date).toLocaleDateString('en-IN');
+  const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-IN') : 'N/A';
+
+  // Calculate current values from items
+  const totalWeight = loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0;
+  const loanAmount = loan.principalPaise ? loan.principalPaise / 100 : 0;
+  const outstandingAmount = loan.currentPrincipalPaise ? loan.currentPrincipalPause / 100 : loanAmount;
 
   return (
     <>
@@ -85,7 +60,6 @@ export const GoldLoanCard = ({
         className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl hover:border-amber-300 transition-all duration-300 transform hover:-translate-y-1 cursor-pointer w-full"
         onClick={() => setShowModal(true)}
       >
-        {/* Header with Golden Icon - Responsive */}
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-3 sm:p-5 border-b border-amber-100">
           <div className="flex items-start justify-between flex-wrap gap-2 sm:gap-0">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
@@ -93,15 +67,17 @@ export const GoldLoanCard = ({
                 <Coins size={20} className="sm:w-6 sm:h-6 drop-shadow-sm" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{loan.id}</h3>
-                <p className="text-xs sm:text-sm text-amber-700 font-medium truncate">{loan.goldItem}</p>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{loan._id}</h3>
+                <p className="text-xs sm:text-sm text-amber-700 font-medium truncate">
+                  {loan.items?.length || 0} items • {totalWeight}g
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               {(isOverdue || isDueSoon) && (
                 <AlertTriangle size={16} className={`sm:w-[18px] sm:h-[18px] ${isOverdue ? 'text-red-500' : 'text-yellow-500'}`} />
               )}
-              <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-semibold rounded-full border whitespace-nowrap ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}>
+              <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-semibold rounded-full border whitespace-nowrap ${statusConfig.bg} ${statusConfig.text}`}>
                 <StatusIcon size={10} className="sm:w-3 sm:h-3" />
                 {statusConfig.label}
               </span>
@@ -109,7 +85,6 @@ export const GoldLoanCard = ({
           </div>
         </div>
 
-        {/* Alert Section - Responsive */}
         {(isOverdue || isDueSoon) && (
           <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-400 p-3">
             <div className="flex items-center gap-2">
@@ -124,25 +99,24 @@ export const GoldLoanCard = ({
           </div>
         )}
 
-        {/* Essential Information - Responsive */}
         <div className="p-3 sm:p-5 space-y-3 sm:space-y-4">
-          {/* Customer Info - Stack on mobile */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <User size={14} className="sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-              <span className="font-semibold text-gray-900 text-sm sm:text-base truncate">{loan.customerName}</span>
+              <span className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                {loan.customer?.name || 'Unknown Customer'}
+              </span>
             </div>
             <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 ml-6 sm:ml-0">
               <Phone size={12} className="sm:w-[14px] sm:h-[14px] text-gray-400 flex-shrink-0" />
-              <span className="truncate">{loan.customerPhone}</span>
+              <span className="truncate">{loan.customer?.phone || 'N/A'}</span>
             </div>
           </div>
 
-          {/* Key Financial Info - Always 2 columns but responsive sizing */}
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
             <div className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg sm:rounded-xl">
               <div className="text-sm sm:text-lg font-bold text-gray-900 mb-1">
-                {formatCurrency(loan.loanAmount)}
+                {formatCurrency(loanAmount)}
               </div>
               <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
                 Loan Amount
@@ -150,7 +124,7 @@ export const GoldLoanCard = ({
             </div>
             <div className="text-center p-2 sm:p-3 bg-gradient-to-br from-red-50 to-pink-50 rounded-lg sm:rounded-xl border border-red-100">
               <div className="text-sm sm:text-lg font-bold text-red-600 mb-1">
-                {formatCurrency(loan.outstandingAmount)}
+                {formatCurrency(outstandingAmount)}
               </div>
               <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
                 Outstanding
@@ -158,30 +132,29 @@ export const GoldLoanCard = ({
             </div>
           </div>
 
-          {/* Gold Info - Responsive text */}
           <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-3 border border-amber-100">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0 text-xs sm:text-sm">
-              <span className="text-gray-600">Weight & Purity:</span>
-              <span className="font-semibold text-gray-900">{loan.goldWeight}g • {loan.purity}</span>
+              <span className="text-gray-600">Weight & Interest:</span>
+              <span className="font-semibold text-gray-900">
+                {totalWeight}g • {loan.interestRateMonthlyPct || 0}% /month
+              </span>
             </div>
           </div>
 
-          {/* Due Date - Stack on mobile */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
             <div className="flex items-center gap-2">
               <Calendar size={14} className="sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
               <span className="text-xs sm:text-sm text-gray-600">Due: {formatDate(loan.dueDate)}</span>
             </div>
-            {loan.photos && loan.photos.length > 0 && (
+            {loan.items && loan.items.length > 0 && (
               <div className="flex items-center gap-1 text-xs sm:text-sm text-amber-600 ml-6 sm:ml-0">
                 <Camera size={12} className="sm:w-[14px] sm:h-[14px]" />
-                <span>{loan.photos.length} photos</span>
+                <span>{loan.items.reduce((sum, item) => sum + (item.images?.length || 0), 0)} photos</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Action Buttons - Responsive wrapping */}
         <div className="px-3 sm:px-5 pb-3 sm:pb-5">
           <div className="flex flex-wrap gap-2">
             <button
@@ -205,7 +178,7 @@ export const GoldLoanCard = ({
               <Edit3 size={14} className="sm:w-4 sm:h-4" />
               Edit
             </button>
-            {loan.status === 'active' && (
+            {loan.status === 'ACTIVE' && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -233,7 +206,6 @@ export const GoldLoanCard = ({
         </div>
       </div>
       
-      {/* Modal */}
       <GoldLoanDetailModal
         loan={loan}
         isOpen={showModal}
@@ -254,45 +226,31 @@ export const GoldLoanCard = ({
     </>
   );
 };
-
-// Detailed View Modal with Full Responsiveness
-export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendReminder }) => {
+const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendReminder }) => {
   if (!isOpen || !loan) return null;
 
   const formatCurrency = (amount) => `₹${amount?.toLocaleString() || '0'}`;
-  const formatDate = (date) => new Date(date).toLocaleDateString('en-IN');
+  const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-IN') : 'N/A';
 
   const getStatusConfig = (status) => {
     const configs = {
-      active: { 
-        bg: 'bg-green-100', 
-        text: 'text-green-800', 
-        icon: CheckCircle,
-        label: 'Active' 
-      },
-      overdue: { 
-        bg: 'bg-red-100', 
-        text: 'text-red-800', 
-        icon: AlertTriangle,
-        label: 'Overdue' 
-      },
-      completed: { 
-        bg: 'bg-blue-100', 
-        text: 'text-blue-800', 
-        icon: CheckCircle,
-        label: 'Completed' 
-      }
+      ACTIVE: { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle, label: 'Active' },
+      OVERDUE: { bg: 'bg-red-100', text: 'text-red-800', icon: AlertTriangle, label: 'Overdue' },
+      COMPLETED: { bg: 'bg-blue-100', text: 'text-blue-800', icon: CheckCircle, label: 'Completed' },
+      CLOSED: { bg: 'bg-gray-100', text: 'text-gray-800', icon: CheckCircle, label: 'Closed' }
     };
-    return configs[status] || configs.active;
+    return configs[status] || configs.ACTIVE;
   };
 
   const statusConfig = getStatusConfig(loan.status);
   const StatusIcon = statusConfig.icon;
+  const loanAmount = loan.principalPaise ? loan.principalPaise / 100 : 0;
+  const outstandingAmount = loan.currentPrincipalPaise ? loan.currentPrincipalPaise / 100 : loanAmount;
+  const totalWeight = loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-lg sm:rounded-2xl w-full max-w-4xl h-full sm:max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Sticky Modal Header - Responsive */}
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 sm:p-6 border-b border-amber-100 flex-shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
@@ -300,8 +258,10 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
                 <Coins size={24} className="sm:w-7 sm:h-7" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{loan.id}</h2>
-                <p className="text-sm sm:text-base text-amber-700 font-medium truncate">{loan.goldItem}</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{loan._id}</h2>
+                <p className="text-sm sm:text-base text-amber-700 font-medium truncate">
+                  {loan.items?.length || 0} items • {totalWeight}g
+                </p>
                 <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-semibold rounded-full mt-2 ${statusConfig.bg} ${statusConfig.text}`}>
                   <StatusIcon size={10} className="sm:w-3 sm:h-3" />
                   {statusConfig.label}
@@ -317,9 +277,7 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
           </div>
         </div>
 
-        {/* Scrollable Modal Content - Responsive */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
-          {/* Customer Information */}
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Customer Details</h3>
             <div className="grid grid-cols-1 gap-4">
@@ -328,41 +286,39 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
                   <User size={16} className="text-gray-400 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <span className="text-xs sm:text-sm text-gray-500 block">Name</span>
-                    <span className="font-medium text-gray-900 text-sm sm:text-base truncate block">{loan.customerName}</span>
+                    <span className="font-medium text-gray-900 text-sm sm:text-base truncate block">
+                      {loan.customer?.name || 'Unknown Customer'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                   <Phone size={16} className="text-gray-400 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <span className="text-xs sm:text-sm text-gray-500 block">Phone</span>
-                    <span className="font-medium text-gray-900 text-sm sm:text-base">{loan.customerPhone}</span>
+                    <span className="font-medium text-gray-900 text-sm sm:text-base">
+                      {loan.customer?.phone || 'N/A'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                   <MapPin size={16} className="text-gray-400 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <span className="text-xs sm:text-sm text-gray-500 block">Address</span>
-                    <span className="font-medium text-gray-900 text-sm sm:text-base">{loan.customerAddress || 'Not provided'}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <User size={16} className="text-gray-400 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs sm:text-sm text-gray-500 block">Customer ID</span>
-                    <span className="font-medium text-gray-900 text-sm sm:text-base">{loan.customerId || 'N/A'}</span>
+                    <span className="text-xs sm:text-sm text-gray-500 block">Email</span>
+                    <span className="font-medium text-gray-900 text-sm sm:text-base">
+                      {loan.customer?.email || 'Not provided'}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Loan Financial Details - Responsive Grid */}
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Financial Information</h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <div className="text-center p-3 sm:p-4 bg-blue-50 rounded-xl">
                 <div className="text-lg sm:text-2xl font-bold text-blue-600 mb-1">
-                  {formatCurrency(loan.loanAmount)}
+                  {formatCurrency(loanAmount)}
                 </div>
                 <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
                   Principal Amount
@@ -370,7 +326,7 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
               </div>
               <div className="text-center p-3 sm:p-4 bg-red-50 rounded-xl">
                 <div className="text-lg sm:text-2xl font-bold text-red-600 mb-1">
-                  {formatCurrency(loan.outstandingAmount)}
+                  {formatCurrency(outstandingAmount)}
                 </div>
                 <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
                   Outstanding
@@ -378,7 +334,7 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
               </div>
               <div className="text-center p-3 sm:p-4 bg-green-50 rounded-xl">
                 <div className="text-lg sm:text-2xl font-bold text-green-600 mb-1">
-                  {loan.interestRate || 12}%
+                  {loan.interestRateMonthlyPct || 0}%
                 </div>
                 <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
                   Interest Rate
@@ -386,41 +342,71 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
               </div>
               <div className="text-center p-3 sm:p-4 bg-purple-50 rounded-xl">
                 <div className="text-lg sm:text-2xl font-bold text-purple-600 mb-1">
-                  ₹{((loan.outstandingAmount - loan.loanAmount) || 0).toLocaleString()}
+                  {totalWeight}g
                 </div>
                 <div className="text-xs text-gray-600 uppercase tracking-wide font-medium">
-                  Interest Due
+                  Total Weight
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Gold Details - Responsive */}
           <div>
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Gold Item Details</h3>
-            <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 rounded-xl p-4 sm:p-6">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                <div className="text-center sm:text-left">
-                  <span className="text-gray-600 block mb-1 text-sm sm:text-base">Weight</span>
-                  <span className="text-lg sm:text-xl font-bold text-gray-900">{loan.goldWeight}g</span>
-                </div>
-                <div className="text-center sm:text-left">
-                  <span className="text-gray-600 block mb-1 text-sm sm:text-base">Purity</span>
-                  <span className="text-lg sm:text-xl font-bold text-gray-900">{loan.purity}</span>
-                </div>
-                <div className="text-center sm:text-left">
-                  <span className="text-gray-600 block mb-1 text-sm sm:text-base">Type</span>
-                  <span className="text-lg sm:text-xl font-bold text-gray-900">{loan.goldType || 'Jewelry'}</span>
-                </div>
-                <div className="text-center sm:text-left">
-                  <span className="text-gray-600 block mb-1 text-sm sm:text-base">Market Rate</span>
-                  <span className="text-lg sm:text-xl font-bold text-gray-900">₹{loan.goldRate || '5,500'}/g</span>
-                </div>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Gold Items ({loan.items?.length || 0})</h3>
+            {loan.items && loan.items.length > 0 ? (
+              <div className="space-y-3">
+                {loan.items.map((item, index) => (
+                  <div key={index} className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 rounded-xl p-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <span className="text-gray-600 block mb-1 text-sm">Item Name</span>
+                        <span className="text-base font-medium text-gray-900">{item.name || 'Gold Item'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block mb-1 text-sm">Weight</span>
+                        <span className="text-base font-medium text-gray-900">{item.weightGram}g</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block mb-1 text-sm">Purity</span>
+                        <span className="text-base font-medium text-gray-900">{item.purityK}K</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block mb-1 text-sm">Amount</span>
+                        <span className="text-base font-medium text-gray-900">
+                          {formatCurrency(item.amountPaise ? item.amountPaise / 100 : 0)}
+                        </span>
+                      </div>
+                    </div>
+                    {item.images && item.images.length > 0 && (
+                      <div className="mt-3">
+                        <span className="text-gray-600 text-sm mb-2 block">Photos ({item.images.length})</span>
+                        <div className="flex gap-2 flex-wrap">
+                          {item.images.slice(0, 3).map((image, imgIndex) => (
+                            <div key={imgIndex} className="w-16 h-16 rounded-lg overflow-hidden border border-amber-200">
+                              <img 
+                                src={image} 
+                                alt={`${item.name} ${imgIndex + 1}`}
+                                className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
+                                onClick={() => window.open(image, '_blank')}
+                              />
+                            </div>
+                          ))}
+                          {item.images.length > 3 && (
+                            <div className="w-16 h-16 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                              <span className="text-xs text-gray-500">+{item.images.length - 3}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No items found</p>
+            )}
           </div>
 
-          {/* Date Information - Responsive */}
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Timeline</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -441,38 +427,13 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
               <div className="flex items-center gap-3 p-3 sm:p-4 bg-blue-50 rounded-xl">
                 <Percent size={18} className="sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" />
                 <div className="min-w-0">
-                  <span className="text-xs sm:text-sm text-gray-500 block">Term</span>
-                  <span className="font-medium text-gray-900 text-sm sm:text-base">{loan.loanTerm || '6'} months</span>
+                  <span className="text-xs sm:text-sm text-gray-500 block">Monthly Interest</span>
+                  <span className="font-medium text-gray-900 text-sm sm:text-base">{loan.interestRateMonthlyPct || 0}%</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Photos - Responsive Grid */}
-          {loan.photos && loan.photos.length > 0 && (
-            <div>
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-                Item Photos ({loan.photos.length})
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                {loan.photos.map((photo, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={photo}
-                      alt={`Gold item ${index + 1}`}
-                      className="w-full h-24 sm:h-32 object-cover rounded-lg border-2 border-amber-200 cursor-pointer hover:border-amber-400 transition-colors"
-                      onClick={() => window.open(photo, '_blank')}
-                    />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
-                      <Eye size={18} className="sm:w-5 sm:h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons - Responsive */}
           <div className="flex flex-wrap gap-2 sm:gap-3 pt-4 sm:pt-6 border-t border-gray-100">
             <button
               onClick={() => onEdit(loan)}
@@ -481,7 +442,7 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
               <Edit3 size={14} className="sm:w-4 sm:h-4" />
               Edit Loan
             </button>
-            {loan.status === 'active' && (
+            {loan.status === 'ACTIVE' && (
               <button
                 onClick={() => onPayment(loan)}
                 className="flex items-center gap-1 sm:gap-2 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg transition-all shadow-sm"
@@ -498,7 +459,7 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
               Send Reminder
             </button>
             <button
-              onClick={() => window.location.href = `tel:${loan.customerPhone}`}
+              onClick={() => window.location.href = `tel:${loan.customer?.phone}`}
               className="flex items-center gap-1 sm:gap-2 px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
             >
               <Phone size={14} className="sm:w-4 sm:h-4" />
@@ -510,4 +471,3 @@ export const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, 
     </div>
   );
 };
-
