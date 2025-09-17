@@ -2,24 +2,18 @@
 import express from 'express';
 import {
   createExpense,
-  getAllExpenses,
-  getExpenseById,
-  updateExpensePayment,
-  getExpenseSummaryByCategory,
-  getMonthlyExpenseSummary,
-  getOverdueExpenses,
+  getExpenses,
   updateExpense,
   deleteExpense,
   getExpenseDashboard,
-  getVendorExpenseSummary
+  updateExpensePayment,
 } from '../controllers/businessExpenseController.js';
 
 const router = express.Router();
 
 // Basic CRUD operations
 router.post('/', createExpense);
-router.get('/', getAllExpenses);
-router.get('/:id', getExpenseById);
+router.get('/', getExpenses);
 router.put('/:id', updateExpense);
 router.delete('/:id', deleteExpense);
 
@@ -28,11 +22,4 @@ router.put('/:id/payment', updateExpensePayment);
 
 // Dashboard and analytics
 router.get('/dashboard/summary', getExpenseDashboard);
-router.get('/summary/category', getExpenseSummaryByCategory);
-router.get('/summary/monthly', getMonthlyExpenseSummary);
-router.get('/summary/vendors', getVendorExpenseSummary);
-
-// Special queries
-router.get('/overdue/list', getOverdueExpenses);
-
 export default router;

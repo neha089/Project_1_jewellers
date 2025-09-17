@@ -1,10 +1,11 @@
 // controllers/businessExpenseController.js
 import BusinessExpense from '../models/BusinessExpense.js';
 import Transaction from '../models/Transaction.js';
+import mongoose from 'mongoose';
 
 /**
  * Create a new business expense
- * POST /api/expenses
+ * POST /api/business-expenses
  */
 export const createExpense = async (req, res) => {
   try {
@@ -22,7 +23,9 @@ export const createExpense = async (req, res) => {
       metadata = {},
       tags = [],
       isRecurring = false,
-      recurringDetails = {}
+      recurringDetails = {},
+      referenceNumber,
+      paymentStatus 
     } = req.body;
 
     // Validate required fields
@@ -33,22 +36,60 @@ export const createExpense = async (req, res) => {
       });
     }
 
-    // Convert amounts to paise
+    if (grossAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Gross amount must be greater than 0'
+      });
+    }
+
+    // Calculate tax amounts (convert to paise)
+    const totalTax = taxDetails.totalTax || 0;
     const grossAmountPaise = Math.round(grossAmount * 100);
-    const totalTax = (taxDetails.cgst || 0) + (taxDetails.sgst || 0) + (taxDetails.igst || 0) + (taxDetails.cess || 0);
     const totalTaxPaise = Math.round(totalTax * 100);
     const netAmountPaise = grossAmountPaise - totalTaxPaise;
 
-    // Generate reference number
-    const referenceNumber = await BusinessExpense.generateReferenceNumber(category);
+    if (totalTaxPaise > grossAmountPaise) {
+      return res.status(400).json({
+        success: false,
+        error: 'Tax amount cannot exceed gross amount'
+      });
+    }
 
-    const expense = new BusinessExpense({
-      referenceNumber,
+    // Generate reference number if not provided
+    const finalReferenceNumber = referenceNumber || 
+      await BusinessExpense.generateReferenceNumber(category);
+
+    // Prepare vendor object with proper structure
+    const vendorData = {
+      name: vendor.name.trim(),
+      code: vendor.code ? vendor.code.trim() : undefined,
+      contact: {
+        phone: vendor.contact?.phone || undefined,
+        email: vendor.contact?.email || undefined,
+        address: vendor.contact?.address || undefined
+      },
+      gstNumber: vendor.gstNumber || undefined
+    };
+
+    // Calculate payment amounts based on status
+    let paidAmount = 0;
+    let pendingAmount = grossAmountPaise;
+    let paidDate = null;
+
+    if (paymentStatus === 'PAID') {
+      paidAmount = grossAmountPaise;
+      pendingAmount = 0;
+      paidDate = new Date();
+    }
+
+    const expenseData = {
+      referenceNumber: finalReferenceNumber,
       category,
-      subcategory,
-      title,
-      description,
-      vendor,
+      subcategory: subcategory || undefined,
+      title: title.trim(),
+      description: description.trim(),
+      vendor: vendorData,
       grossAmount: grossAmountPaise,
       taxDetails: {
         cgst: Math.round((taxDetails.cgst || 0) * 100),
@@ -58,15 +99,20 @@ export const createExpense = async (req, res) => {
         totalTax: totalTaxPaise
       },
       netAmount: netAmountPaise,
-      paymentMethod,
+      paymentStatus,
+      paymentMethod: paymentStatus === 'PAID' ? paymentMethod : undefined,
+      paidAmount,
+      pendingAmount,
       expenseDate: new Date(expenseDate),
-      dueDate: dueDate ? new Date(dueDate) : null,
+      dueDate: dueDate ? new Date(dueDate) : undefined,
+      paidDate,
       metadata,
       tags,
       isRecurring,
       recurringDetails: isRecurring ? recurringDetails : undefined
-    });
+    };
 
+    const expense = new BusinessExpense(expenseData);
     await expense.save();
 
     // Create corresponding transaction record
@@ -81,7 +127,7 @@ export const createExpense = async (req, res) => {
       metadata: {
         expenseCategory: category,
         vendorName: vendor.name,
-        referenceNumber: referenceNumber,
+        referenceNumber: finalReferenceNumber,
         taxAmount: totalTaxPaise,
         netAmount: netAmountPaise
       }
@@ -91,9 +137,10 @@ export const createExpense = async (req, res) => {
     res.status(201).json({
       success: true,
       data: expense.formatForDisplay(),
-      message: `Business expense created successfully with reference ${referenceNumber}`
+      message: `Business expense created successfully with reference ${finalReferenceNumber}`
     });
   } catch (error) {
+    console.error('Error creating expense:', error);
     res.status(400).json({
       success: false,
       error: error.message
@@ -102,68 +149,230 @@ export const createExpense = async (req, res) => {
 };
 
 /**
- * Get all expenses with filtering, pagination, and sorting
- * GET /api/expenses
+ * Update expense details
+ * PUT /api/business-expenses/:id
  */
-export const getAllExpenses = async (req, res) => {
+export const updateExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid expense ID'
+      });
+    }
+
+    const expense = await BusinessExpense.findById(id);
+    if (!expense) {
+      return res.status(404).json({
+        success: false,
+        error: 'Expense not found'
+      });
+    }
+
+    const {
+      category,
+      subcategory,
+      title,
+      description,
+      vendor,
+      grossAmount,
+      taxDetails,
+      paymentMethod,
+      expenseDate,
+      dueDate,
+      metadata,
+      tags,
+      paymentStatus,
+      referenceNumber
+    } = req.body;
+
+    // Validate required fields if they are being updated
+    if (title !== undefined && !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title cannot be empty'
+      });
+    }
+
+    if (description !== undefined && !description.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Description cannot be empty'
+      });
+    }
+
+    if (grossAmount !== undefined && grossAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Gross amount must be greater than 0'
+      });
+    }
+
+    if (vendor?.name !== undefined && !vendor.name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Vendor name cannot be empty'
+      });
+    }
+
+    // Update basic fields
+    if (category !== undefined) expense.category = category;
+    if (subcategory !== undefined) expense.subcategory = subcategory || undefined;
+    if (title !== undefined) expense.title = title.trim();
+    if (description !== undefined) expense.description = description.trim();
+    if (expenseDate !== undefined) expense.expenseDate = new Date(expenseDate);
+    if (dueDate !== undefined) expense.dueDate = dueDate ? new Date(dueDate) : undefined;
+    if (referenceNumber !== undefined) expense.referenceNumber = referenceNumber;
+    if (paymentMethod !== undefined) expense.paymentMethod = paymentMethod;
+    if (paymentStatus !== undefined) expense.paymentStatus = paymentStatus;
+    if (tags !== undefined) expense.tags = tags;
+
+    // Update vendor information
+    if (vendor !== undefined) {
+      expense.vendor = {
+        name: vendor.name ? vendor.name.trim() : expense.vendor.name,
+        code: vendor.code !== undefined ? (vendor.code ? vendor.code.trim() : undefined) : expense.vendor.code,
+        contact: {
+          phone: vendor.contact?.phone !== undefined ? vendor.contact.phone : expense.vendor.contact?.phone,
+          email: vendor.contact?.email !== undefined ? vendor.contact.email : expense.vendor.contact?.email,
+          address: vendor.contact?.address !== undefined ? vendor.contact.address : expense.vendor.contact?.address
+        },
+        gstNumber: vendor.gstNumber !== undefined ? vendor.gstNumber : expense.vendor.gstNumber
+      };
+    }
+
+    // Update metadata
+    if (metadata !== undefined) {
+      expense.metadata = { ...expense.metadata, ...metadata };
+    }
+
+    // Update financial details
+    if (grossAmount !== undefined || taxDetails !== undefined) {
+      const newGrossAmount = grossAmount !== undefined ? grossAmount : expense.grossAmount / 100;
+      const newTaxDetails = taxDetails || {
+        totalTax: expense.taxDetails.totalTax / 100
+      };
+
+      const grossAmountPaise = Math.round(newGrossAmount * 100);
+      const totalTaxPaise = Math.round((newTaxDetails.totalTax || 0) * 100);
+      const netAmountPaise = grossAmountPaise - totalTaxPaise;
+
+      if (totalTaxPaise > grossAmountPaise) {
+        return res.status(400).json({
+          success: false,
+          error: 'Tax amount cannot exceed gross amount'
+        });
+      }
+
+      expense.grossAmount = grossAmountPaise;
+      expense.taxDetails = {
+        cgst: Math.round((newTaxDetails.cgst || 0) * 100),
+        sgst: Math.round((newTaxDetails.sgst || 0) * 100),
+        igst: Math.round((newTaxDetails.igst || 0) * 100),
+        cess: Math.round((newTaxDetails.cess || 0) * 100),
+        totalTax: totalTaxPaise
+      };
+      expense.netAmount = netAmountPaise;
+
+      // Recalculate pending amount if gross amount changed
+      expense.pendingAmount = grossAmountPaise - expense.paidAmount;
+    }
+
+    // Handle payment status changes
+    if (paymentStatus === 'PAID' && expense.paidAmount === 0) {
+      expense.paidAmount = expense.grossAmount;
+      expense.pendingAmount = 0;
+      expense.paidDate = new Date();
+    } else if (paymentStatus === 'PENDING' && expense.paymentStatus === 'PAID') {
+      // Reset to pending (keeping existing paid amount if any)
+      expense.pendingAmount = expense.grossAmount - expense.paidAmount;
+    }
+
+    await expense.save();
+
+    res.json({
+      success: true,
+      data: expense.formatForDisplay(),
+      message: 'Business expense updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating expense:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Get all expenses with filtering and pagination
+ * GET /api/business-expenses
+ */
+export const getExpenses = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit = 50,
+      search,
       category,
       paymentStatus,
-      vendor,
       startDate,
       endDate,
+      vendor,
       sortBy = 'expenseDate',
-      sortOrder = 'desc',
-      search,
-      overdue = false
+      sortOrder = 'desc'
     } = req.query;
 
     const query = { isActive: true };
 
-    // Apply filters
-    if (category) query.category = category;
-    if (paymentStatus) query.paymentStatus = paymentStatus;
-    if (vendor) query['vendor.name'] = new RegExp(vendor, 'i');
-    
-    // Date range filter
-    if (startDate && endDate) {
-      query.expenseDate = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    }
-
-    // Search filter
+    // Search functionality
     if (search) {
+      const searchRegex = new RegExp(search, 'i');
       query.$or = [
-        { title: new RegExp(search, 'i') },
-        { description: new RegExp(search, 'i') },
-        { 'vendor.name': new RegExp(search, 'i') },
-        { referenceNumber: new RegExp(search, 'i') }
+        { title: searchRegex },
+        { description: searchRegex },
+        { 'vendor.name': searchRegex },
+        { 'vendor.code': searchRegex },
+        { referenceNumber: searchRegex }
       ];
     }
 
-    // Overdue filter
-    if (overdue === 'true') {
-      query.paymentStatus = { $in: ['PENDING', 'PARTIAL'] };
-      query.dueDate = { $lt: new Date() };
+    // Filter by category
+    if (category && category !== 'All') {
+      query.category = category;
+    }
+
+    // Filter by payment status
+    if (paymentStatus && paymentStatus !== 'All') {
+      query.paymentStatus = paymentStatus;
+    }
+
+    // Filter by vendor
+    if (vendor) {
+      query['vendor.name'] = new RegExp(vendor, 'i');
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.expenseDate = {};
+      if (startDate) query.expenseDate.$gte = new Date(startDate);
+      if (endDate) query.expenseDate.$lte = new Date(endDate + 'T23:59:59.999Z');
     }
 
     const sortOptions = {};
-    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    const expenses = await BusinessExpense.find(query)
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .sort(sortOptions);
-
-    const total = await BusinessExpense.countDocuments(query);
-
-    // Format expenses for display
-    const formattedExpenses = expenses.map(expense => expense.formatForDisplay());
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const [expenses, totalCount] = await Promise.all([
+      BusinessExpense.find(query)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(parseInt(limit)),
+      BusinessExpense.countDocuments(query)
+    ]);
 
     // Calculate summary
     const summary = await BusinessExpense.aggregate([
@@ -175,41 +384,76 @@ export const getAllExpenses = async (req, res) => {
           totalNetAmount: { $sum: '$netAmount' },
           totalPaidAmount: { $sum: '$paidAmount' },
           totalPendingAmount: { $sum: '$pendingAmount' },
-          totalTaxAmount: { $sum: '$taxDetails.totalTax' }
+          totalTaxAmount: { $sum: '$taxDetails.totalTax' },
+          paidExpenses: {
+            $sum: { $cond: [{ $eq: ['$paymentStatus', 'PAID'] }, 1, 0] }
+          },
+          pendingExpenses: {
+            $sum: { $cond: [{ $ne: ['$paymentStatus', 'PAID'] }, 1, 0] }
+          }
         }
       }
     ]);
 
-    const summaryData = summary[0] || {
+    const summaryData = summary[0] ? {
+      totalGrossAmount: Math.round(summary[0].totalGrossAmount / 100),
+      totalNetAmount: Math.round(summary[0].totalNetAmount / 100),
+      totalPaidAmount: Math.round(summary[0].totalPaidAmount / 100),
+      totalPendingAmount: Math.round(summary[0].totalPendingAmount / 100),
+      totalTaxAmount: Math.round(summary[0].totalTaxAmount / 100),
+      paidExpenses: summary[0].paidExpenses,
+      pendingExpenses: summary[0].pendingExpenses
+    } : {
       totalGrossAmount: 0,
       totalNetAmount: 0,
       totalPaidAmount: 0,
       totalPendingAmount: 0,
-      totalTaxAmount: 0
+      totalTaxAmount: 0,
+      paidExpenses: 0,
+      pendingExpenses: 0
     };
 
     res.json({
       success: true,
-      data: formattedExpenses,
+      data: expenses.map(expense => ({
+        _id: expense._id,
+        referenceNumber: expense.referenceNumber,
+        category: expense.category,
+        subcategory: expense.subcategory,
+        title: expense.title,
+        description: expense.description,
+        vendor: expense.vendor,
+        grossAmount: expense.grossAmount / 100,
+        netAmount: expense.netAmount / 100,
+        taxDetails: {
+          totalTax: expense.taxDetails.totalTax / 100,
+          cgst: expense.taxDetails.cgst / 100,
+          sgst: expense.taxDetails.sgst / 100,
+          igst: expense.taxDetails.igst / 100,
+          cess: expense.taxDetails.cess / 100
+        },
+        paidAmount: expense.paidAmount / 100,
+        pendingAmount: expense.pendingAmount / 100,
+        paymentStatus: expense.paymentStatus,
+        paymentMethod: expense.paymentMethod,
+        expenseDate: expense.expenseDate,
+        dueDate: expense.dueDate,
+        paidDate: expense.paidDate,
+        metadata: expense.metadata,
+        createdAt: expense.createdAt,
+        updatedAt: expense.updatedAt
+      })),
+      summary: summaryData,
       pagination: {
-        current: parseInt(page),
-        pages: Math.ceil(total / limit),
-        total,
-        limit: parseInt(limit)
-      },
-      summary: {
-        totalGrossAmount: summaryData.totalGrossAmount / 100,
-        totalNetAmount: summaryData.totalNetAmount / 100,
-        totalPaidAmount: summaryData.totalPaidAmount / 100,
-        totalPendingAmount: summaryData.totalPendingAmount / 100,
-        totalTaxAmount: summaryData.totalTaxAmount / 100,
-        formattedTotalGross: `₹${(summaryData.totalGrossAmount / 100).toLocaleString('en-IN')}`,
-        formattedTotalNet: `₹${(summaryData.totalNetAmount / 100).toLocaleString('en-IN')}`,
-        formattedTotalPaid: `₹${(summaryData.totalPaidAmount / 100).toLocaleString('en-IN')}`,
-        formattedTotalPending: `₹${(summaryData.totalPendingAmount / 100).toLocaleString('en-IN')}`
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalCount / parseInt(limit)),
+        totalCount,
+        hasNext: skip + expenses.length < totalCount,
+        hasPrev: parseInt(page) > 1
       }
     });
   } catch (error) {
+    console.error('Error fetching expenses:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -218,15 +462,21 @@ export const getAllExpenses = async (req, res) => {
 };
 
 /**
- * Get expense by ID
- * GET /api/expenses/:id
+ * Delete business expense (soft delete)
+ * DELETE /api/business-expenses/:id
  */
-export const getExpenseById = async (req, res) => {
+export const deleteExpense = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const expense = await BusinessExpense.findById(id);
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid expense ID'
+      });
+    }
 
+    const expense = await BusinessExpense.findById(id);
     if (!expense) {
       return res.status(404).json({
         success: false,
@@ -234,20 +484,24 @@ export const getExpenseById = async (req, res) => {
       });
     }
 
-    // Get related transactions
-    const transactions = await Transaction.find({
-      relatedDoc: id,
-      relatedModel: 'BusinessExpense'
-    }).sort({ date: -1 });
+    // Check if expense has payments
+    if (expense.paidAmount > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete expense with payments. Only pending expenses can be deleted.'
+      });
+    }
+
+    // Soft delete
+    expense.isActive = false;
+    await expense.save();
 
     res.json({
       success: true,
-      data: {
-        ...expense.formatForDisplay(),
-        transactions
-      }
+      message: 'Business expense deleted successfully'
     });
   } catch (error) {
+    console.error('Error deleting expense:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -256,8 +510,95 @@ export const getExpenseById = async (req, res) => {
 };
 
 /**
- * Update expense payment status
- * PUT /api/expenses/:id/payment
+ * Get expense dashboard summary
+ * GET /api/business-expenses/dashboard
+ */
+export const getExpenseDashboard = async (req, res) => {
+  try {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    // This month date range
+    const thisMonthStart = new Date(currentYear, currentMonth, 1);
+    const thisMonthEnd = new Date(currentYear, currentMonth + 1, 0);
+
+    const [overviewData, thisMonthData] = await Promise.all([
+      BusinessExpense.aggregate([
+        { $match: { isActive: true } },
+        {
+          $group: {
+            _id: null,
+            totalGrossAmount: { $sum: '$grossAmount' },
+            totalNetAmount: { $sum: '$netAmount' },
+            totalPaidAmount: { $sum: '$paidAmount' },
+            totalPendingAmount: { $sum: '$pendingAmount' },
+            totalTaxAmount: { $sum: '$taxDetails.totalTax' },
+            paidExpenses: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'PAID'] }, 1, 0] }
+            },
+            pendingExpenses: {
+              $sum: { $cond: [{ $ne: ['$paymentStatus', 'PAID'] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      BusinessExpense.aggregate([
+        {
+          $match: {
+            isActive: true,
+            expenseDate: { $gte: thisMonthStart, $lte: thisMonthEnd }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalAmount: { $sum: '$grossAmount' },
+            totalExpenses: { $sum: 1 }
+          }
+        }
+      ])
+    ]);
+
+    const overview = overviewData[0] ? {
+      totalGrossAmount: Math.round(overviewData[0].totalGrossAmount / 100),
+      totalNetAmount: Math.round(overviewData[0].totalNetAmount / 100),
+      totalPaidAmount: Math.round(overviewData[0].totalPaidAmount / 100),
+      totalPendingAmount: Math.round(overviewData[0].totalPendingAmount / 100),
+      totalTaxAmount: Math.round(overviewData[0].totalTaxAmount / 100),
+      paidExpenses: overviewData[0].paidExpenses,
+      pendingExpenses: overviewData[0].pendingExpenses,
+      thisMonth: thisMonthData[0] ? {
+        totalAmount: Math.round(thisMonthData[0].totalAmount / 100),
+        totalExpenses: thisMonthData[0].totalExpenses
+      } : { totalAmount: 0, totalExpenses: 0 }
+    } : {
+      totalGrossAmount: 0,
+      totalNetAmount: 0,
+      totalPaidAmount: 0,
+      totalPendingAmount: 0,
+      totalTaxAmount: 0,
+      paidExpenses: 0,
+      pendingExpenses: 0,
+      thisMonth: { totalAmount: 0, totalExpenses: 0 }
+    };
+
+    res.json({
+      success: true,
+      data: { overview }
+    });
+  } catch (error) {
+    console.error('Error fetching expense dashboard:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update expense payment
+ * PUT /api/business-expenses/:id/payment
  */
 export const updateExpensePayment = async (req, res) => {
   try {
@@ -339,476 +680,6 @@ export const updateExpensePayment = async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get expense summary by category
- * GET /api/expenses/summary/category
- */
-export const getExpenseSummaryByCategory = async (req, res) => {
-  try {
-    const { startDate, endDate, year } = req.query;
-
-    let matchStartDate, matchEndDate;
-
-    if (year) {
-      matchStartDate = new Date(`${year}-01-01`);
-      matchEndDate = new Date(`${year}-12-31`);
-    } else if (startDate && endDate) {
-      matchStartDate = new Date(startDate);
-      matchEndDate = new Date(endDate);
-    } else {
-      // Default to current year
-      const currentYear = new Date().getFullYear();
-      matchStartDate = new Date(`${currentYear}-01-01`);
-      matchEndDate = new Date(`${currentYear}-12-31`);
-    }
-
-    const summary = await BusinessExpense.getExpenseSummaryByCategory(matchStartDate, matchEndDate);
-
-    // Calculate total percentages
-    const totalGrossAmount = summary.reduce((sum, item) => sum + item.totalGrossAmount, 0);
-    
-    const summaryWithPercentages = summary.map(item => ({
-      ...item,
-      percentage: totalGrossAmount > 0 ? ((item.totalGrossAmount / totalGrossAmount) * 100).toFixed(1) : 0
-    }));
-
-    res.json({
-      success: true,
-      data: summaryWithPercentages,
-      totalSummary: {
-        totalGrossAmount: totalGrossAmount / 100,
-        totalTransactions: summary.reduce((sum, item) => sum + item.count, 0),
-        formattedTotal: `₹${(totalGrossAmount / 100).toLocaleString('en-IN')}`
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get monthly expense summary
- * GET /api/expenses/summary/monthly
- */
-export const getMonthlyExpenseSummary = async (req, res) => {
-  try {
-    const { year = new Date().getFullYear() } = req.query;
-
-    const summary = await BusinessExpense.getMonthlyExpenseSummary(year);
-
-    // Fill in missing months with zero values
-    const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-
-    const fullYearSummary = monthNames.map((monthName, index) => {
-      const monthData = summary.find(item => item.month === index + 1);
-      return {
-        month: index + 1,
-        monthName,
-        year: parseInt(year),
-        totalGrossAmount: monthData?.totalGrossAmount || 0,
-        totalNetAmount: monthData?.totalNetAmount || 0,
-        totalPaidAmount: monthData?.totalPaidAmount || 0,
-        totalPendingAmount: monthData?.totalPendingAmount || 0,
-        count: monthData?.count || 0,
-        formattedAmount: `₹${((monthData?.totalGrossAmount || 0)).toLocaleString('en-IN')}`
-      };
-    });
-
-    const yearlyTotal = {
-      totalGrossAmount: fullYearSummary.reduce((sum, month) => sum + month.totalGrossAmount, 0),
-      totalNetAmount: fullYearSummary.reduce((sum, month) => sum + month.totalNetAmount, 0),
-      totalPaidAmount: fullYearSummary.reduce((sum, month) => sum + month.totalPaidAmount, 0),
-      totalPendingAmount: fullYearSummary.reduce((sum, month) => sum + month.totalPendingAmount, 0),
-      totalTransactions: fullYearSummary.reduce((sum, month) => sum + month.count, 0)
-    };
-
-    res.json({
-      success: true,
-      data: fullYearSummary,
-      yearlyTotal: {
-        ...yearlyTotal,
-        formattedTotal: `₹${yearlyTotal.totalGrossAmount.toLocaleString('en-IN')}`,
-        year: parseInt(year)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get overdue expenses
- * GET /api/expenses/overdue
- */
-export const getOverdueExpenses = async (req, res) => {
-  try {
-    const { days = 0 } = req.query;
-    const checkDate = new Date();
-    checkDate.setDate(checkDate.getDate() + parseInt(days));
-
-    const overdueExpenses = await BusinessExpense.find({
-      paymentStatus: { $in: ['PENDING', 'PARTIAL'] },
-      dueDate: { $lte: checkDate },
-      isActive: true
-    }).sort({ dueDate: 1 });
-
-    const formattedExpenses = overdueExpenses.map(expense => {
-      const daysOverdue = Math.ceil((new Date() - expense.dueDate) / (1000 * 60 * 60 * 24));
-      return {
-        ...expense.formatForDisplay(),
-        daysOverdue,
-        severity: daysOverdue > 30 ? 'CRITICAL' : daysOverdue > 7 ? 'HIGH' : 'MEDIUM'
-      };
-    });
-
-    const summary = {
-      totalOverdueExpenses: formattedExpenses.length,
-      totalOverdueAmount: formattedExpenses.reduce((sum, exp) => sum + exp.pendingAmount, 0),
-      criticalCount: formattedExpenses.filter(exp => exp.severity === 'CRITICAL').length,
-      highCount: formattedExpenses.filter(exp => exp.severity === 'HIGH').length,
-      mediumCount: formattedExpenses.filter(exp => exp.severity === 'MEDIUM').length
-    };
-
-    res.json({
-      success: true,
-      data: formattedExpenses,
-      summary: {
-        ...summary,
-        formattedTotalOverdueAmount: `₹${summary.totalOverdueAmount.toLocaleString('en-IN')}`
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-/**
- * Update expense details
- * PUT /api/expenses/:id
- */
-export const updateExpense = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      title,
-      description,
-      vendor,
-      grossAmount,
-      taxDetails,
-      dueDate,
-      metadata,
-      tags
-    } = req.body;
-
-    const expense = await BusinessExpense.findById(id);
-
-    if (!expense) {
-      return res.status(404).json({
-        success: false,
-        error: 'Expense not found'
-      });
-    }
-
-    if (expense.paymentStatus === 'PAID') {
-      return res.status(400).json({
-        success: false,
-        error: 'Cannot update paid expense. Only pending or partial expenses can be updated.'
-      });
-    }
-
-    // Update fields if provided
-    if (title) expense.title = title;
-    if (description) expense.description = description;
-    if (vendor) expense.vendor = { ...expense.vendor, ...vendor };
-    if (dueDate) expense.dueDate = new Date(dueDate);
-    if (metadata) expense.metadata = { ...expense.metadata, ...metadata };
-    if (tags) expense.tags = tags;
-
-    // Update financial details if provided
-    if (grossAmount && taxDetails) {
-      const grossAmountPaise = Math.round(grossAmount * 100);
-      const totalTax = (taxDetails.cgst || 0) + (taxDetails.sgst || 0) + (taxDetails.igst || 0) + (taxDetails.cess || 0);
-      const totalTaxPaise = Math.round(totalTax * 100);
-      const netAmountPaise = grossAmountPaise - totalTaxPaise;
-
-      expense.grossAmount = grossAmountPaise;
-      expense.taxDetails = {
-        cgst: Math.round((taxDetails.cgst || 0) * 100),
-        sgst: Math.round((taxDetails.sgst || 0) * 100),
-        igst: Math.round((taxDetails.igst || 0) * 100),
-        cess: Math.round((taxDetails.cess || 0) * 100),
-        totalTax: totalTaxPaise
-      };
-      expense.netAmount = netAmountPaise;
-      expense.pendingAmount = grossAmountPaise - expense.paidAmount;
-    }
-
-    await expense.save();
-
-    res.json({
-      success: true,
-      data: expense.formatForDisplay(),
-      message: 'Expense updated successfully'
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-/**
- * Delete (deactivate) expense
- * DELETE /api/expenses/:id
- */
-export const deleteExpense = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const expense = await BusinessExpense.findById(id);
-
-    if (!expense) {
-      return res.status(404).json({
-        success: false,
-        error: 'Expense not found'
-      });
-    }
-
-    if (expense.paymentStatus === 'PAID' || expense.paymentStatus === 'PARTIAL') {
-      return res.status(400).json({
-        success: false,
-        error: 'Cannot delete expense with payments. Only pending expenses can be deleted.'
-      });
-    }
-
-    expense.isActive = false;
-    await expense.save();
-
-    res.json({
-      success: true,
-      message: 'Expense deleted successfully'
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get expense dashboard summary
- * GET /api/expenses/dashboard
- */
-export const getExpenseDashboard = async (req, res) => {
-  try {
-    const currentDate = new Date();
-    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const startOfYear = new Date(currentDate.getFullYear(), 0, 1);
-    const startOfWeek = new Date(currentDate.setDate(currentDate.getDate() - currentDate.getDay()));
-
-    // Overall summary
-    const overallSummary = await BusinessExpense.aggregate([
-      { $match: { isActive: true } },
-      {
-        $group: {
-          _id: null,
-          totalExpenses: { $sum: 1 },
-          totalGrossAmount: { $sum: '$grossAmount' },
-          totalPaidAmount: { $sum: '$paidAmount' },
-          totalPendingAmount: { $sum: '$pendingAmount' },
-          paidExpenses: {
-            $sum: { $cond: [{ $eq: ['$paymentStatus', 'PAID'] }, 1, 0] }
-          },
-          pendingExpenses: {
-            $sum: { $cond: [{ $ne: ['$paymentStatus', 'PAID'] }, 1, 0] }
-          }
-        }
-      }
-    ]);
-
-    // This month summary
-    const monthSummary = await BusinessExpense.aggregate([
-      { 
-        $match: { 
-          isActive: true,
-          expenseDate: { $gte: startOfMonth }
-        } 
-      },
-      {
-        $group: {
-          _id: null,
-          totalExpenses: { $sum: 1 },
-          totalAmount: { $sum: '$grossAmount' }
-        }
-      }
-    ]);
-
-    // This week summary
-    const weekSummary = await BusinessExpense.aggregate([
-      { 
-        $match: { 
-          isActive: true,
-          expenseDate: { $gte: startOfWeek }
-        } 
-      },
-      {
-        $group: {
-          _id: null,
-          totalExpenses: { $sum: 1 },
-          totalAmount: { $sum: '$grossAmount' }
-        }
-      }
-    ]);
-
-    // Category-wise current month breakdown
-    const categoryBreakdown = await BusinessExpense.aggregate([
-      { 
-        $match: { 
-          isActive: true,
-          expenseDate: { $gte: startOfMonth }
-        } 
-      },
-      {
-        $group: {
-          _id: '$category',
-          totalAmount: { $sum: '$grossAmount' },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { totalAmount: -1 } },
-      { $limit: 10 }
-    ]);
-
-    // Overdue expenses count
-    const overdueCount = await BusinessExpense.countDocuments({
-      paymentStatus: { $in: ['PENDING', 'PARTIAL'] },
-      dueDate: { $lt: new Date() },
-      isActive: true
-    });
-
-    // Recent expenses
-    const recentExpenses = await BusinessExpense.find({ isActive: true })
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    const overall = overallSummary[0] || {};
-    const month = monthSummary[0] || {};
-    const week = weekSummary[0] || {};
-
-    res.json({
-      success: true,
-      data: {
-        overview: {
-          totalExpenses: overall.totalExpenses || 0,
-          totalGrossAmount: (overall.totalGrossAmount || 0) / 100,
-          totalPaidAmount: (overall.totalPaidAmount || 0) / 100,
-          totalPendingAmount: (overall.totalPendingAmount || 0) / 100,
-          paidExpenses: overall.paidExpenses || 0,
-          pendingExpenses: overall.pendingExpenses || 0,
-          overdueExpenses: overdueCount,
-          formattedTotalGross: `₹${((overall.totalGrossAmount || 0) / 100).toLocaleString('en-IN')}`,
-          formattedTotalPaid: `₹${((overall.totalPaidAmount || 0) / 100).toLocaleString('en-IN')}`,
-          formattedTotalPending: `₹${((overall.totalPendingAmount || 0) / 100).toLocaleString('en-IN')}`
-        },
-        thisMonth: {
-          totalExpenses: month.totalExpenses || 0,
-          totalAmount: (month.totalAmount || 0) / 100,
-          formattedAmount: `₹${((month.totalAmount || 0) / 100).toLocaleString('en-IN')}`
-        },
-        thisWeek: {
-          totalExpenses: week.totalExpenses || 0,
-          totalAmount: (week.totalAmount || 0) / 100,
-          formattedAmount: `₹${((week.totalAmount || 0) / 100).toLocaleString('en-IN')}`
-        },
-        categoryBreakdown: categoryBreakdown.map(cat => ({
-          category: cat._id,
-          totalAmount: cat.totalAmount / 100,
-          count: cat.count,
-          formattedAmount: `₹${(cat.totalAmount / 100).toLocaleString('en-IN')}`
-        })),
-        recentExpenses: recentExpenses.map(expense => expense.formatForDisplay())
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get vendor-wise expense summary
- * GET /api/expenses/summary/vendors
- */
-export const getVendorExpenseSummary = async (req, res) => {
-  try {
-    const { startDate, endDate, limit = 10 } = req.query;
-
-    const matchStage = { isActive: true };
-    
-    if (startDate && endDate) {
-      matchStage.expenseDate = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    }
-
-    const vendorSummary = await BusinessExpense.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: '$vendor.name',
-          vendorCode: { $first: '$vendor.code' },
-          totalAmount: { $sum: '$grossAmount' },
-          totalPaid: { $sum: '$paidAmount' },
-          totalPending: { $sum: '$pendingAmount' },
-          expenseCount: { $sum: 1 },
-          avgExpenseAmount: { $avg: '$grossAmount' }
-        }
-      },
-      { $sort: { totalAmount: -1 } },
-      { $limit: parseInt(limit) }
-    ]);
-
-    const formattedSummary = vendorSummary.map(vendor => ({
-      vendorName: vendor._id,
-      vendorCode: vendor.vendorCode,
-      totalAmount: vendor.totalAmount / 100,
-      totalPaid: vendor.totalPaid / 100,
-      totalPending: vendor.totalPending / 100,
-      expenseCount: vendor.expenseCount,
-      avgExpenseAmount: vendor.avgExpenseAmount / 100,
-      formattedTotalAmount: `₹${(vendor.totalAmount / 100).toLocaleString('en-IN')}`,
-      formattedAvgAmount: `₹${(vendor.avgExpenseAmount / 100).toLocaleString('en-IN')}`
-    }));
-
-    res.json({
-      success: true,
-      data: formattedSummary
-    });
-  } catch (error) {
-    res.status(500).json({
       success: false,
       error: error.message
     });

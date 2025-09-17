@@ -719,35 +719,65 @@ async getGoldTransactions(params = {}) {
    async getDailyAnalytics_gold() {
     return this.get("/api/gold/reports/daily-summary");
   }
- async getExpenses(params = {}) {
+  async getExpenses(params = {}) {
     return this.get('/api/business-expenses', params);
   }
 
   async createExpense(data) {
-    return this.post('/api/business-expenses', data);
+    // Ensure all required fields are present and properly formatted
+    const expenseData = {
+      category: data.category,
+      subcategory: data.subcategory || undefined,
+      title: data.title,
+      description: data.description,
+      vendor: {
+        name: data.vendor.name,
+        code: data.vendor.code || undefined,
+        contact: data.vendor.contact || {},
+        gstNumber: data.vendor.gstNumber || undefined
+      },
+      grossAmount: Math.round(data.grossAmount * 100), // Convert to paise
+      taxDetails: {
+        totalTax: Math.round((data.taxDetails?.totalTax || 0) * 100), // Convert to paise
+        cgst: Math.round((data.taxDetails?.cgst || 0) * 100),
+        sgst: Math.round((data.taxDetails?.sgst || 0) * 100),
+        igst: Math.round((data.taxDetails?.igst || 0) * 100),
+        cess: Math.round((data.taxDetails?.cess || 0) * 100)
+      },
+      netAmount: Math.round((data.grossAmount - (data.taxDetails?.totalTax || 0)) * 100), // Convert to paise
+      paymentMethod: data.paymentMethod,
+      expenseDate: data.expenseDate,
+      referenceNumber: data.referenceNumber || undefined,
+      paymentStatus: data.paymentStatus || 'PENDING',
+      dueDate: data.dueDate || undefined,
+      metadata: data.metadata || {}
+    };
+
+    return this.post('/api/business-expenses', expenseData);
   }
 
-  async getExpenseById(id) {
-    return this.get(`/api/business-expenses/${id}`);
-  }
-
-  async updateExpense(id, data) {
+  // In your api.js file
+// In api.js
+async updateExpense(id, data) {
+    console.log('API updateExpense called with:', { id, data });
+    
+    // Don't modify the data here - send it exactly as received from the form
     return this.put(`/api/business-expenses/${id}`, data);
-  }
-
+}
   async deleteExpense(id) {
     return this.delete(`/api/business-expenses/${id}`);
   }
 
-  async updateExpensePayment(id, data) {
-    return this.put(`/api/business-expenses/${id}/payment`, data);
-  }
-
   async getExpenseDashboard() {
-    return this.get('/api/business-expenses/dashboard/summary');
+    return this.get('/api/business-expenses/dashboard');
   }
 
-  async getExpenseSummaryByCategory(params = {}) {
+  async updateExpensePayment(id, paymentData) {
+    return this.put(`/api/business-expenses/${id}/payment`, paymentData);
+  }
+
+
+ async getExpenseSummaryByCategory(params = {}) {
     return this.get('/api/business-expenses/summary/category', params);
   }
 
