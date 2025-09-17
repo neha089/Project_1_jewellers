@@ -387,7 +387,7 @@ const TransactionForm = ({
               weightGram: parseFloat(item.weight),
               amountPaise: Math.round(parseFloat(item.amount) * 100),
               purityK: parseInt(item.purity),
-              images: item.images.map(img => img.dataUrl),
+              images: item.images?.map(img => img.dataUrl),
             })),
             totalAmount: totalAmount,
             interestRate: transactionData.interestRate,
