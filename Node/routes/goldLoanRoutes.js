@@ -2,6 +2,7 @@
 import express from 'express';
 import * as goldLoanController from '../controllers/goldLoanController.js';
 import * as reportController from '../controllers/reportController.js';
+import { addInterestPayment, getInterestPayments } from '../controllers/goldLoanController.js';
 
 const router = express.Router();
 const authenticateToken = (req, res, next) => {
@@ -39,8 +40,8 @@ router.get('/:id/timeline', reportController.getLoanTimeline);
 
 // ENHANCED PAYMENT OPERATIONS - SEPARATE MODELS
 // Interest payment operations
-router.post('/:id/interest-payment', goldLoanController.addInterestPayment);
-router.get('/:id/interest-payments', goldLoanController.getInterestPayments);
+router.post('/:loanId/interest-payment', addInterestPayment);
+router.get('/:loanId/interest-payments', getInterestPayments);
 
 // Repayment operations
 router.post('/:id/repayment', goldLoanController.processItemRepayment);
