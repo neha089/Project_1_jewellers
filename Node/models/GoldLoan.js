@@ -1,10 +1,10 @@
-// models/GoldLoan.js - SIMPLIFIED VERSION
+// models/GoldLoan.js - UPDATED VERSION WITH ENHANCED METHODS
 import mongoose from "mongoose";
 
 const loanItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   weightGram: { type: Number, required: true, min: 0 },
-  loanAmount: { type: Number, required: true, min: 0 }, // Amount in rupees (not paisa)
+  loanAmount: { type: Number, required: true, min: 0 }, // Amount in rupees
   purityK: { type: Number, min: 0, required: true },
   images: [{ type: String }], // Images when item was deposited
   goldPriceAtDeposit: { type: Number, default: 0 }, // Gold price when deposited
@@ -68,6 +68,7 @@ const goldLoanSchema = new mongoose.Schema({
     index: true 
   },
   payments: [paymentSchema],
+  lastInterestPayment: { type: Date }, // NEW: Track last interest payment date
   closureDate: { type: Date },
   closureImages: [{ type: String }],
   notes: { type: String }
@@ -110,7 +111,7 @@ goldLoanSchema.methods.getTotalActiveWeight = function() {
   return this.getActiveItems().reduce((total, item) => total + item.weightGram, 0);
 };
 
-// Method to get payment summary by month
+// Method to get payments by month
 goldLoanSchema.methods.getPaymentsByMonth = function() {
   const paymentsByMonth = {};
   
@@ -126,18 +127,17 @@ goldLoanSchema.methods.getPaymentsByMonth = function() {
         totalInterest: 0,
         itemsReturned: []
       };
-    
+    }
     paymentsByMonth[key].payments.push(payment);
     paymentsByMonth[key].totalPrincipal += payment.principalAmount || 0;
     paymentsByMonth[key].totalInterest += payment.interestAmount || 0;
-    }
     if (payment.itemsReturned && payment.itemsReturned.length > 0) {
       paymentsByMonth[key].itemsReturned.push(...payment.itemsReturned);
     }
   });
   
   return Object.values(paymentsByMonth).sort((a, b) => {
-    return new Date(a.month) - new Date(b.month);
+    return new Date(b.month) - new Date(a.month); // Descending order
   });
 };
 
@@ -173,7 +173,7 @@ goldLoanSchema.methods.calculateLoanDurationMonths = function() {
   const endDate = this.closureDate ? new Date(this.closureDate) : new Date();
   
   return (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
- (endDate.getMonth() - startDate.getMonth()) + 1;
+         (endDate.getMonth() - startDate.getMonth()) + 1;
 };
 
 // Indexes for better performance

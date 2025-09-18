@@ -1,4 +1,4 @@
-// controllers/goldLoanController.js - SIMPLIFIED VERSION
+// controllers/goldLoanController.js - UPDATED AND CLEANED VERSION
 import Transaction from '../models/Transaction.js';
 import mongoose from 'mongoose';
 import GoldLoan from '../models/GoldLoan.js';
@@ -6,19 +6,20 @@ import InterestPayment from '../models/InterestPayment.js';
 import Repayment from '../models/Repayment.js';
 import Customer from '../models/Customer.js';
 
-// Create new gold loan with manual amounts
+// Create new gold loan with manual amounts and enhanced validation
 export const createGoldLoan = async (req, res) => {
   try {
     const { customer, items, interestRateMonthlyPct, startDate, notes } = req.body;
     
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'At least one item is required for gold loan' 
-      });
+    if (!customer) {
+      return res.status(400).json({ success: false, error: 'Customer is required' });
     }
 
-    // Process items with manual amounts (no auto-calculation)
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one item is required for gold loan' });
+    }
+
+    // Validate and process items
     const processedItems = [];
     let totalPrincipal = 0;
 
@@ -92,154 +93,7 @@ export const createGoldLoan = async (req, res) => {
   }
 };
 
-// Add interest payment (new separate model approach)
-// export const addInterestPayment = async (req, res) => {
-//   try {
-//     const { 
-//       interestAmount, 
-//       paymentMethod = 'CASH',
-//       paymentDate,
-//       forMonth,
-//       referenceNumber,
-//       chequeNumber,
-//       bankName,
-//       chequeDate,
-//       photos = [], 
-//       notes,
-//       recordedBy = 'Admin'
-//     } = req.body;
-
-//     const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
-//     if (!goldLoan) {
-//       return res.status(404).json({ success: false, error: 'Gold loan not found' });
-//     }
-
-//     if (goldLoan.status !== 'ACTIVE') {
-//       return res.status(400).json({ 
-//         success: false, 
-//         error: 'Cannot add interest payment to inactive loan' 
-//       });
-//     }
-
-//     const receivedAmount = parseFloat(interestAmount);
-    
-//     if (!receivedAmount || receivedAmount <= 0) {
-//       return res.status(400).json({ 
-//         success: false, 
-//         error: 'Interest amount must be greater than 0' 
-//       });
-//     }
-
-//     // Calculate monthly interest based on current loan amount
-//     const monthlyInterestAmount = (goldLoan.currentLoanAmount * goldLoan.interestRateMonthlyPct) / 100;
-
-//     // Determine which month this payment is for
-//     let paymentMonth = forMonth;
-//     if (!paymentMonth) {
-//       const currentDate = new Date();
-//       paymentMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-//     }
-
-//     const [year, month] = paymentMonth.split('-');
-//     const monthNames = [
-//       'January', 'February', 'March', 'April', 'May', 'June',
-//       'July', 'August', 'September', 'October', 'November', 'December'
-//     ];
-//     const monthName = monthNames[parseInt(month) - 1];
-
-//     // Check if payment already exists for this month
-//     const existingPayment = await InterestPayment.findOne({
-//       goldLoan: req.params.id,
-//       forMonth: paymentMonth,
-//       status: 'CONFIRMED'
-//     });
-
-//     if (existingPayment) {
-//       return res.status(400).json({
-//         success: false,
-//         error: `Interest payment for ${monthName} ${year} already recorded`
-//       });
-//     }
-
-//     // Create interest payment record
-//     const interestPayment = new InterestPayment({
-//       goldLoan: req.params.id,
-//       customer: goldLoan.customer._id,
-//       paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-//       interestAmount: receivedAmount,
-//       calculatedInterestDue: monthlyInterestAmount,
-//       loanAmountAtPayment: goldLoan.currentLoanAmount,
-//       paymentMethod,
-//       referenceNumber,
-//       chequeNumber,
-//       bankName,
-//       chequeDate: chequeDate ? new Date(chequeDate) : null,
-//       forMonth: paymentMonth,
-//       forYear: parseInt(year),
-//       forMonthName: monthName,
-//       photos,
-//       notes: notes || 'Interest payment received',
-//       recordedBy,
-//       interestRate: goldLoan.interestRateMonthlyPct
-//     });
-
-//     await interestPayment.save();
-
-//     // Update the legacy payments array in GoldLoan for backward compatibility
-//     goldLoan.payments.push({
-//       date: interestPayment.paymentDate,
-//       principalAmount: 0,
-//       interestAmount: receivedAmount,
-//       forMonth: paymentMonth,
-//       forYear: parseInt(year),
-//       forMonthName: monthName,
-//       photos,
-//       notes: notes || 'Interest payment received',
-//       currentLoanAmountAtPayment: goldLoan.currentLoanAmount
-//     });
-
-//     await goldLoan.save();
-
-//     // Create transaction record
-//     const interestTransaction = new Transaction({
-//       type: 'GOLD_LOAN_INTEREST_RECEIVED',
-//       customer: goldLoan.customer._id,
-//       amount: receivedAmount,
-//       direction: -1, // incoming
-//       description: `Interest payment - ${goldLoan.customer.name} - ${monthName} ${year}`,
-//       relatedDoc: goldLoan._id,
-//       relatedModel: 'GoldLoan',
-//       category: 'INCOME',
-//       metadata: {
-//         paymentType: 'INTEREST',
-//         forMonth: paymentMonth,
-//         monthlyInterestDue: monthlyInterestAmount,
-//         paymentMethod,
-//         interestPaymentId: interestPayment._id,
-//         photos
-//       }
-//     });
-//     await interestTransaction.save();
-
-//     res.json({ 
-//       success: true, 
-//       data: interestPayment,
-//       goldLoan: goldLoan,
-//       interestSummary: {
-//         monthlyInterestDue: monthlyInterestAmount,
-//         paymentAmount: receivedAmount,
-//         currentLoanAmount: goldLoan.currentLoanAmount,
-//         paymentFor: `${monthName} ${year}`,
-//         receiptNumber: interestPayment.receiptNumber
-//       },
-//       message: `Interest payment received: ₹${receivedAmount} for ${monthName} ${year}`
-//     });
-//   } catch (error) {
-//     console.error('Interest payment error:', error);
-//     res.status(500).json({ success: false, error: error.message });
-//   }
-// };
-
+// Add interest payment - Updated to handle partial payments and validations
 export const addInterestPayment = async (req, res) => {
   try {
     const { loanId } = req.params;
@@ -256,8 +110,6 @@ export const addInterestPayment = async (req, res) => {
       notes,
       recordedBy
     } = req.body;
-
-    console.log('Processing interest payment for loan:', loanId);
 
     // Validate loan exists
     const loan = await GoldLoan.findById(loanId).populate('customer');
@@ -333,34 +185,51 @@ export const addInterestPayment = async (req, res) => {
       notes: notes || '',
       recordedBy: recordedBy || 'Admin',
       interestRate: loan.interestRateMonthlyPct
-      // Remove status field completely - let it use the default 'CONFIRMED'
     });
 
-    // Save the payment (receiptNumber will be auto-generated by pre-save hook)
+    // Save the payment (receiptNumber will be auto-generated by pre-save hook if defined)
     const savedPayment = await interestPayment.save();
 
-    // Update loan with latest payment
-    loan.interestPayments = loan.interestPayments || [];
-    loan.interestPayments.push(savedPayment._id);
+    // Update loan with latest payment (for backward compatibility)
+    loan.payments.push({
+      date: savedPayment.paymentDate,
+      principalAmount: 0,
+      interestAmount: savedPayment.interestAmount,
+      forMonth: savedPayment.forMonth,
+      forYear: savedPayment.forYear,
+      forMonthName: savedPayment.forMonthName,
+      photos: savedPayment.photos,
+      notes: savedPayment.notes,
+      currentLoanAmountAtPayment: loan.currentLoanAmount,
+      currentLoanAmountAfterPayment: loan.currentLoanAmount // No change for interest payment
+    });
     loan.lastInterestPayment = savedPayment.paymentDate;
     await loan.save();
 
-    console.log('Interest payment saved successfully:', savedPayment._id);
+    // Create transaction record
+    const interestTransaction = new Transaction({
+      type: 'GOLD_LOAN_INTEREST_RECEIVED',
+      customer: loan.customer._id,
+      amount: savedPayment.interestAmount,
+      direction: -1, // incoming
+      description: `Interest payment - ${loan.customer.name} - ${forMonthName} ${year}`,
+      relatedDoc: loan._id,
+      relatedModel: 'GoldLoan',
+      category: 'INCOME',
+      metadata: {
+        paymentType: 'INTEREST',
+        forMonth: forMonth,
+        monthlyInterestDue: monthlyInterest,
+        paymentMethod,
+        interestPaymentId: savedPayment._id,
+        photos: savedPayment.photos
+      }
+    });
+    await interestTransaction.save();
 
-    // Prepare response
     res.status(200).json({
       success: true,
-      data: {
-        _id: savedPayment._id,
-        receiptNumber: savedPayment.receiptNumber,
-        interestAmount: savedPayment.interestAmount,
-        paymentDate: savedPayment.paymentDate,
-        paymentMethod: savedPayment.paymentMethod,
-        forMonth: savedPayment.forMonth,
-        forMonthName: savedPayment.forMonthName,
-        forYear: savedPayment.forYear,
-        status: savedPayment.status
-      },
+      data: savedPayment,
       interestSummary: {
         monthlyInterest,
         totalPaidForMonth: totalPaid + parseFloat(interestAmount),
@@ -373,13 +242,11 @@ export const addInterestPayment = async (req, res) => {
   }
 };
 
-// Updated getInterestPayments to match schema
+// Get interest payments for a loan
 export const getInterestPayments = async (req, res) => {
   try {
     const { loanId } = req.params;
     const { page = 1, limit = 50, fromDate, toDate, status } = req.query;
-    
-    console.log('Fetching interest payments for loan:', loanId);
     
     // Verify loan exists
     const loan = await GoldLoan.findById(loanId);
@@ -410,8 +277,6 @@ export const getInterestPayments = async (req, res) => {
 
     const total = await InterestPayment.countDocuments(query);
 
-    console.log(`Found ${payments.length} interest payments for loan ${loanId}`);
-
     res.json({
       success: true,
       data: payments,
@@ -427,14 +292,14 @@ export const getInterestPayments = async (req, res) => {
   }
 };
 
-
+// Process repayment (principal or item return)
 export const processItemRepayment = async (req, res) => {
   try {
     const { 
       repaymentAmount,
       paymentMethod = 'CASH',
       repaymentDate,
-      repaymentType = 'PARTIAL_PRINCIPAL', // Updated to match schema
+      repaymentType = 'PARTIAL_PRINCIPAL',
       currentGoldPrice,
       referenceNumber,
       chequeNumber,
@@ -466,6 +331,10 @@ export const processItemRepayment = async (req, res) => {
 
     const finalRepaymentAmount = parseFloat(repaymentAmount) || 0;
     const finalCurrentGoldPrice = parseFloat(currentGoldPrice) || 0;
+    const netRepaymentAmount = finalRepaymentAmount - 
+      (parseFloat(processingFee) || 0) - 
+      (parseFloat(lateFee) || 0) + 
+      (parseFloat(adjustmentAmount) || 0);
 
     if (finalRepaymentAmount <= 0) {
       return res.status(400).json({ 
@@ -480,6 +349,9 @@ export const processItemRepayment = async (req, res) => {
     let totalWeight = 0;
     let totalMarketValue = 0;
 
+    const currentLoanAmountBefore = goldLoan.currentLoanAmount || goldLoan.totalLoanAmount || 0;
+
+    // Process different repayment types
     if (repaymentType === 'ITEM_RETURN' && selectedItemIds.length > 0) {
       itemsToReturn = goldLoan.items.filter(item => 
         selectedItemIds.includes(item._id.toString()) && !item.returnDate
@@ -492,6 +364,17 @@ export const processItemRepayment = async (req, res) => {
         });
       }
 
+      // Calculate total value of items to return
+      totalItemValue = itemsToReturn.reduce((sum, item) => sum + (item.loanAmount || 0), 0);
+
+      if (netRepaymentAmount < totalItemValue) {
+        return res.status(400).json({
+          success: false,
+          error: `Net repayment amount (₹${netRepaymentAmount.toLocaleString()}) is insufficient to return selected items (₹${totalItemValue.toLocaleString()} required)`
+        });
+      }
+
+      // Mark items as returned
       itemsToReturn.forEach(item => {
         let currentValue = item.loanAmount;
         if (finalCurrentGoldPrice > 0) {
@@ -504,36 +387,32 @@ export const processItemRepayment = async (req, res) => {
         item.returnValue = currentValue;
         item.returnNotes = notes || `Returned on ${new Date().toDateString()}`;
         
-        totalItemValue += item.loanAmount;
         totalWeight += item.weightGram;
         totalMarketValue += currentValue;
       });
 
-      if (finalRepaymentAmount < totalItemValue) {
-        return res.status(400).json({
-          success: false,
-          error: `Repayment amount (₹${finalRepaymentAmount.toLocaleString()}) is insufficient to return selected items (₹${totalItemValue.toLocaleString()} required)`
-        });
-      }
+      // Reduce loan amount by item value
+      goldLoan.currentLoanAmount = Math.max(0, currentLoanAmountBefore - totalItemValue);
 
-      goldLoan.currentLoanAmount = Math.max(0, goldLoan.currentLoanAmount - totalItemValue);
     } else if (repaymentType === 'PARTIAL_PRINCIPAL') {
-      const currentLoanAmount = goldLoan.currentLoanAmount || goldLoan.totalLoanAmount;
-      if (finalRepaymentAmount > currentLoanAmount) {
+      if (netRepaymentAmount > currentLoanAmountBefore) {
         return res.status(400).json({
           success: false,
-          error: `Repayment amount (₹${finalRepaymentAmount.toLocaleString()}) exceeds remaining loan amount (₹${currentLoanAmount.toLocaleString()})`
+          error: `Net repayment amount (₹${netRepaymentAmount.toLocaleString()}) exceeds remaining loan amount (₹${currentLoanAmountBefore.toLocaleString()})`
         });
       }
-      goldLoan.currentLoanAmount = Math.max(0, currentLoanAmount - finalRepaymentAmount);
-    } else if (repaymentType === 'FULL_PRINCIPAL') {
-      const currentLoanAmount = goldLoan.currentLoanAmount || goldLoan.totalLoanAmount;
-      if (finalRepaymentAmount < currentLoanAmount) {
+      // Reduce loan amount by payment amount
+      goldLoan.currentLoanAmount = Math.max(0, currentLoanAmountBefore - netRepaymentAmount);
+
+    } else if (repaymentType === 'FULL_PRINCIPAL' || repaymentType === 'LOAN_CLOSURE') {
+      if (netRepaymentAmount < currentLoanAmountBefore) {
         return res.status(400).json({
           success: false,
-          error: `Repayment amount (₹${finalRepaymentAmount.toLocaleString()}) is insufficient for full payment (₹${currentLoanAmount.toLocaleString()} required)`
+          error: `Net repayment amount (₹${netRepaymentAmount.toLocaleString()}) is insufficient for full payment (₹${currentLoanAmountBefore.toLocaleString()} required)`
         });
       }
+      
+      // Full payment - return all remaining items and close loan
       goldLoan.currentLoanAmount = 0;
       goldLoan.items.forEach(item => {
         if (!item.returnDate) {
@@ -548,42 +427,31 @@ export const processItemRepayment = async (req, res) => {
           itemsToReturn.push(item);
         }
       });
-    } else if (repaymentType === 'LOAN_CLOSURE') {
-      goldLoan.currentLoanAmount = 0;
-      goldLoan.items.forEach(item => {
-        if (!item.returnDate) {
-          item.returnDate = new Date();
-          item.returnImages = photos;
-          item.goldPriceAtReturn = finalCurrentGoldPrice;
-          item.returnValue = (item.weightGram * finalCurrentGoldPrice * item.purityK) / 24 || item.loanAmount;
-          item.returnNotes = notes || `Returned on loan closure ${new Date().toDateString()}`;
-          totalItemValue += item.loanAmount;
-          totalWeight += item.weightGram;
-          totalMarketValue += item.returnValue;
-          itemsToReturn.push(item);
-        }
-      });
     }
 
-    const loanAmountBefore = goldLoan.currentLoanAmount + (repaymentType === 'ITEM_RETURN' ? totalItemValue : finalRepaymentAmount);
     const loanAmountAfter = goldLoan.currentLoanAmount;
 
-    const shouldCloseLoan = repaymentType === 'FULL_PRINCIPAL' || repaymentType === 'LOAN_CLOSURE' || 
-                           (goldLoan.currentLoanAmount <= 0 && 
-                            goldLoan.items.filter(item => !item.returnDate).length === 0);
+    // FIXED: Determine if loan should be closed
+    const shouldCloseLoan = (
+      repaymentType === 'FULL_PRINCIPAL' || 
+      repaymentType === 'LOAN_CLOSURE' || 
+      (loanAmountAfter <= 0 && goldLoan.items.filter(item => !item.returnDate).length === 0)
+    );
 
+    // FIXED: Update loan status properly
     if (shouldCloseLoan) {
       goldLoan.status = 'CLOSED';
       goldLoan.closureDate = new Date();
       goldLoan.currentLoanAmount = 0;
     }
 
+    // Create repayment record
     const repayment = new Repayment({
       goldLoan: req.params.id,
       customer: goldLoan.customer._id,
       repaymentDate: repaymentDate ? new Date(repaymentDate) : new Date(),
       repaymentAmount: finalRepaymentAmount,
-      loanAmountBeforeRepayment: loanAmountBefore,
+      loanAmountBeforeRepayment: currentLoanAmountBefore,
       loanAmountAfterRepayment: loanAmountAfter,
       paymentMethod,
       referenceNumber,
@@ -621,13 +489,14 @@ export const processItemRepayment = async (req, res) => {
 
     await repayment.save();
 
+    // Update loan payments array (for backward compatibility)
     const currentDate = new Date();
     const forMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
     const monthName = currentDate.toLocaleString('default', { month: 'long' });
 
     goldLoan.payments.push({
       date: currentDate,
-      principalAmount: finalRepaymentAmount,
+      principalAmount: netRepaymentAmount, // Use net amount for loan reduction
       interestAmount: parseFloat(interestPaidWithRepayment) || 0,
       forMonth,
       forYear: currentDate.getFullYear(),
@@ -636,28 +505,36 @@ export const processItemRepayment = async (req, res) => {
       notes: notes || `${repaymentType.replace(/_/g, ' ')} - ${itemsToReturn.length} items returned`,
       itemsReturned: repayment.returnedItems,
       repaymentAmount: finalRepaymentAmount,
-      currentLoanAmountAfterPayment: goldLoan.currentLoanAmount
+      currentLoanAmountAtPayment: currentLoanAmountBefore,
+      currentLoanAmountAfterPayment: loanAmountAfter
     });
 
     await goldLoan.save();
 
+    // FIXED: Create only ONE transaction record
     const repaymentTransaction = new Transaction({
-      type: 'GOLD_LOAN_REPAYMENT',
+      type: shouldCloseLoan ? 'GOLD_LOAN_CLOSURE' : 'GOLD_LOAN_REPAYMENT',
       customer: goldLoan.customer._id,
       amount: finalRepaymentAmount,
-      direction: -1,
-      description: `Gold loan repayment - ${repaymentType.replace(/_/g, ' ')} - ${goldLoan.customer.name}`,
+      direction: -1, // incoming
+      description: shouldCloseLoan 
+        ? `Gold loan closed - Full payment by ${goldLoan.customer.name}`
+        : `Gold loan repayment - ${repaymentType.replace(/_/g, ' ')} - ${goldLoan.customer.name}`,
       relatedDoc: goldLoan._id,
       relatedModel: 'GoldLoan',
       category: 'INCOME',
       metadata: {
-      paymentType: (parseFloat(interestPaidWithRepayment) || 0) > 0 ? 'COMBINED' : 'PRINCIPAL',
+        paymentType: (parseFloat(interestPaidWithRepayment) || 0) > 0 ? 'COMBINED' : 'PRINCIPAL',
         repaymentType,
         itemCount: itemsToReturn.length,
         totalWeight: totalWeight,
         goldPriceUsed: finalCurrentGoldPrice,
         repaymentId: repayment._id,
         isLoanClosed: shouldCloseLoan,
+        netAmount: netRepaymentAmount,
+        processingFee: parseFloat(processingFee) || 0,
+        lateFee: parseFloat(lateFee) || 0,
+        adjustmentAmount: parseFloat(adjustmentAmount) || 0,
         photos
       },
       affectedItems: itemsToReturn.map(item => ({
@@ -672,6 +549,13 @@ export const processItemRepayment = async (req, res) => {
 
     const remainingItems = goldLoan.items.filter(item => !item.returnDate);
 
+    // FIXED: Return proper status message
+    const statusMessage = shouldCloseLoan 
+      ? 'Loan completed and closed successfully!' 
+      : repaymentType === 'ITEM_RETURN'
+      ? `Repayment processed. ${itemsToReturn.length} items returned. Remaining loan: ₹${loanAmountAfter.toLocaleString()}`
+      : `Partial payment processed. Remaining loan: ₹${loanAmountAfter.toLocaleString()}`;
+
     res.json({ 
       success: true, 
       data: repayment,
@@ -679,12 +563,14 @@ export const processItemRepayment = async (req, res) => {
       repaymentSummary: {
         receiptNumber: repayment.receiptNumber,
         repaymentAmount: finalRepaymentAmount,
+        netRepaymentAmount: netRepaymentAmount,
         itemsReturned: itemsToReturn.length,
         totalItemLoanValue: totalItemValue,
         totalMarketValue: totalMarketValue,
         remainingItems: remainingItems.length,
-        remainingLoanAmount: goldLoan.currentLoanAmount,
+        remainingLoanAmount: loanAmountAfter,
         loanStatus: goldLoan.status,
+        isLoanClosed: shouldCloseLoan,
         returnedItems: itemsToReturn.map(item => ({
           name: item.name,
           weight: item.weightGram,
@@ -693,21 +579,16 @@ export const processItemRepayment = async (req, res) => {
           returnValue: item.returnValue || item.loanAmount,
           goldPriceAtReturn: item.goldPriceAtReturn
         })),
-        newMonthlyInterest: goldLoan.currentLoanAmount > 0 ? 
-          (goldLoan.currentLoanAmount * goldLoan.interestRateMonthlyPct) / 100 : 0
+        newMonthlyInterest: loanAmountAfter > 0 ? 
+          (loanAmountAfter * goldLoan.interestRateMonthlyPct) / 100 : 0
       },
-      message: shouldCloseLoan ? 
-        'Loan completed successfully' : 
-        `Repayment processed. ${itemsToReturn.length} items returned. Remaining loan: ₹${goldLoan.currentLoanAmount.toLocaleString()}`
+      message: statusMessage
     });
   } catch (error) {
     console.error('Repayment processing error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
-};
-
-// goldLoanController.js - Add this method to your existing controller
-
+};// Get all repayments for a loan with enhanced summary
 export const getRepayments = async (req, res) => {
   try {
     const goldLoanId = req.params.id;
@@ -795,14 +676,12 @@ export const getRepayments = async (req, res) => {
     // Process repayment data for response
     const processedRepayments = repayments.map(repayment => ({
       ...repayment,
-      // Add calculated fields
       netRepaymentAmount: repayment.repaymentAmount - 
         (repayment.processingFee || 0) - 
         (repayment.lateFee || 0) + 
         (repayment.adjustmentAmount || 0),
       isFullRepayment: repayment.loanAmountAfterRepayment <= 0 || repayment.isLoanClosed,
       principalReduced: repayment.loanAmountBeforeRepayment - repayment.loanAmountAfterRepayment,
-      // Format dates for easier frontend consumption
       formattedRepaymentDate: new Date(repayment.repaymentDate).toLocaleDateString('en-IN'),
       formattedCreatedAt: new Date(repayment.createdAt).toLocaleDateString('en-IN')
     }));
@@ -847,90 +726,7 @@ export const getRepayments = async (req, res) => {
   }
 };
 
-// export const getRepayments = async (req, res) => {
-//   try {
-//     const goldLoanId = req.params.id;
-//     const { page = 1, limit = 10, repaymentType, status, startDate, endDate } = req.query;
-
-//     // Validate gold loan exists
-//     const goldLoan = await GoldLoan.findById(goldLoanId).populate('customer');
-//     if (!goldLoan) {
-//       return res.status(404).json({ 
-//         success: false, 
-//         error: 'Gold loan not found' 
-//       });
-//     }
-
-//     // Build query filter
-//     const filter = { goldLoan: goldLoanId };
-    
-//     if (repaymentType) {
-//       filter.repaymentType = repaymentType;
-//     }
-    
-//     if (status) {
-//       filter.status = status;
-//     }
-    
-//     if (startDate || endDate) {
-//       filter.repaymentDate = {};
-//       if (startDate) {
-//         filter.repaymentDate.$gte = new Date(startDate);
-//       }
-//       if (endDate) {
-//         filter.repaymentDate.$lte = new Date(endDate);
-//       }
-//     }
-
-//     // Calculate pagination
-//     const pageNum = parseInt(page);
-//     const limitNum = parseInt(limit);
-//     const skip = (pageNum - 1) * limitNum;
-
-//     // Get repayments with pagination
-//     const [repayments, totalCount] = await Promise.all([
-//       Repayment.find(filter)
-//         .populate('customer', 'name phone email')
-//         .sort({ repaymentDate: -1, createdAt: -1 })
-//         .skip(skip)
-//         .limit(limitNum)
-//         .lean(),
-//       Repayment.countDocuments(filter)
-//     ]);
-
-//     // Calculate pagination info
-//     const totalPages = Math.ceil(totalCount / limitNum);
-//     const hasNext = pageNum < totalPages;
-//     const hasPrev = pageNum > 1;
-
-//     res.json({
-//       success: true,
-//       data: repayments,
-//       pagination: {
-//         currentPage: pageNum,
-//         totalPages,
-//         totalCount,
-//         limit: limitNum,
-//         hasNext,
-//         hasPrev
-//       },
-//       loanInfo: {
-//         loanId: goldLoanId,
-//         customerName: goldLoan.customer?.name,
-//         totalRepaymentRecords: totalCount
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error('Get repayments error:', error);
-//     res.status(500).json({ 
-//       success: false, 
-//       error: error.message || 'Failed to fetch repayments' 
-//     });
-//   }
-// };
-
-// Also add this utility method to get repayment statistics
+// Get repayment statistics for a loan
 export const getRepaymentStats = async (req, res) => {
   try {
     const goldLoanId = req.params.id;
@@ -1045,6 +841,7 @@ export const getRepaymentStats = async (req, res) => {
   }
 };
 
+// Validate repayment data before processing
 export const validateRepayment = async (req, res) => {
   try {
     const goldLoanId = req.params.id;
@@ -1161,7 +958,7 @@ export const validateRepayment = async (req, res) => {
   }
 };
 
-// Get repayment details
+// Get repayment details by ID
 export const getRepaymentDetails = async (req, res) => {
   try {
     const repaymentId = req.params.repaymentId;
@@ -1191,7 +988,7 @@ export const getRepaymentDetails = async (req, res) => {
   }
 };
 
-// Get repayment receipt
+// Get repayment receipt data
 export const getRepaymentReceipt = async (req, res) => {
   try {
     const repaymentId = req.params.repaymentId;
@@ -1252,7 +1049,7 @@ export const getRepaymentReceipt = async (req, res) => {
   }
 };
 
-// Search all repayments
+// Search all repayments across loans
 export const searchAllRepayments = async (req, res) => {
   try {
     const {
@@ -1342,7 +1139,7 @@ export const searchAllRepayments = async (req, res) => {
   }
 };
 
-// Cancel repayment
+// Cancel a repayment (with reversal logic if needed)
 export const cancelRepayment = async (req, res) => {
   try {
     const repaymentId = req.params.repaymentId;
@@ -1368,8 +1165,8 @@ export const cancelRepayment = async (req, res) => {
     repayment.notes = (repayment.notes || '') + `\n\nCANCELLED: ${reason} (${new Date().toISOString()})`;
     await repayment.save();
 
-    // Reverse the loan changes if needed
-    // This would require more complex logic to restore the previous state
+    // TODO: Add reversal logic if needed (e.g., update goldLoan.currentLoanAmount, item returnDate, etc.)
+    // This would require careful implementation to avoid data inconsistencies
 
     res.json({
       success: true,
@@ -1386,13 +1183,12 @@ export const cancelRepayment = async (req, res) => {
   }
 };
 
-// Get current gold price
+// Get current gold price (mock or integrate with API)
 export const getCurrentGoldPrice = async (req, res) => {
   try {
-    // This could integrate with external APIs for real-time pricing
-    // For now, returning a mock price
+    // TODO: Integrate with real gold price API if needed
     const currentPrice = {
-      pricePerGram: 5000,
+      pricePerGram: 6500, // Example value; replace with real data
       lastUpdated: new Date().toISOString(),
       source: 'internal',
       currency: 'INR'
@@ -1412,7 +1208,7 @@ export const getCurrentGoldPrice = async (req, res) => {
   }
 };
 
-// Get all gold loans with pagination
+// Get all gold loans with pagination and filters
 export const getAllGoldLoans = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, customer } = req.query;
@@ -1443,7 +1239,7 @@ export const getAllGoldLoans = async (req, res) => {
   }
 };
 
-// Get gold loan by ID
+// Get gold loan by ID with full summary
 export const getGoldLoanById = async (req, res) => {
   try {
     const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
@@ -1483,7 +1279,7 @@ export const getGoldLoanById = async (req, res) => {
   }
 };
 
-// Get loans by customer
+// Get gold loans by customer ID
 export const getGoldLoansByCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
@@ -1525,7 +1321,7 @@ export const getGoldLoansByCustomer = async (req, res) => {
   }
 };
 
-// Get dashboard statistics
+// Get dashboard statistics for gold loans
 export const getDashboardStats = async (req, res) => {
   try {
     const stats = await GoldLoan.aggregate([
@@ -1598,7 +1394,7 @@ export const getDashboardStats = async (req, res) => {
   }
 };
 
-// Close gold loan (all money returned, return all items)
+// Close gold loan manually (if all conditions met)
 export const closeGoldLoan = async (req, res) => {
   try {
     const { closureImages = [], notes } = req.body;
@@ -1612,20 +1408,16 @@ export const closeGoldLoan = async (req, res) => {
       return res.status(400).json({ success: false, error: "Loan is already closed" });
     }
 
-    // Mark all unreturned items as returned
-    const currentDate = new Date();
-    goldLoan.items.forEach((item) => {
-      if (!item.returnDate) {
-        item.returnDate = currentDate;
-        item.returnImages = closureImages;
-        item.returnNotes = notes || 'Loan closure - all money repaid';
-      }
-    });
+    // Check if can be closed
+    if (goldLoan.currentLoanAmount > 0 || goldLoan.getActiveItems().length > 0) {
+      return res.status(400).json({ success: false, error: "Cannot close loan with outstanding amount or items" });
+    }
 
+    // Mark as closed
+    const currentDate = new Date();
     goldLoan.status = "CLOSED";
     goldLoan.closureDate = currentDate;
     goldLoan.closureImages = closureImages;
-    goldLoan.currentLoanAmount = 0; // All money repaid
     if (notes) goldLoan.notes = notes;
 
     await goldLoan.save();
@@ -1645,14 +1437,14 @@ export const closeGoldLoan = async (req, res) => {
     res.json({ 
       success: true, 
       data: goldLoan,
-      message: "Gold loan closed successfully. All items returned to customer."
+      message: "Gold loan closed successfully."
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// Get payment history for a loan
+// Get payment history for a loan (combined interest and repayments)
 export const getPaymentHistory = async (req, res) => {
   try {
     const goldLoan = await GoldLoan.findById(req.params.id).populate('customer');
@@ -1698,6 +1490,68 @@ export const getPaymentHistory = async (req, res) => {
       }
     });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// NEW: Get all transactions related to a specific gold loan
+export const getLoanTransactions = async (req, res) => {
+  try {
+    const goldLoanId = req.params.id;
+
+    // Validate gold loan exists
+    const goldLoan = await GoldLoan.findById(goldLoanId);
+    if (!goldLoan) {
+      return res.status(404).json({ success: false, error: 'Gold loan not found' });
+    }
+
+    const transactions = await Transaction.find({
+      relatedDoc: goldLoanId,
+      relatedModel: 'GoldLoan'
+    }).sort({ date: -1 }).populate('customer', 'name phone');
+
+    res.json({
+      success: true,
+      data: transactions,
+      summary: {
+        totalTransactions: transactions.length,
+        totalIncoming: transactions.reduce((sum, t) => t.direction === -1 ? sum + t.amount : sum, 0),
+        totalOutgoing: transactions.reduce((sum, t) => t.direction === 1 ? sum + t.amount : sum, 0)
+      }
+    });
+  } catch (error) {
+    console.error('Get loan transactions error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// NEW: Get daily gold loan summary (loans given on a specific day)
+export const getDailyGoldLoanSummary = async (req, res) => {
+  try {
+    const { date } = req.query; // Expect date in YYYY-MM-DD format
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    const dailyLoans = await GoldLoan.find({
+      startDate: { $gte: start, $lte: end }
+    }).populate('customer', 'name phone');
+
+    const summary = {
+      totalLoans: dailyLoans.length,
+      totalAmount: dailyLoans.reduce((sum, loan) => sum + loan.totalLoanAmount, 0),
+      totalItems: dailyLoans.reduce((sum, loan) => sum + loan.items.length, 0),
+      totalWeight: dailyLoans.reduce((sum, loan) => sum + loan.items.reduce((wSum, item) => wSum + item.weightGram, 0), 0)
+    };
+
+    res.json({
+      success: true,
+      data: dailyLoans,
+      summary
+    });
+  } catch (error) {
+    console.error('Get daily summary error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };

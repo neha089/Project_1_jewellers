@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { X, Coins, Calculator } from 'lucide-react';
 import CustomerSearch from './CustomerSearch';
 import GoldLoanItems from './GoldLoanItems';
@@ -7,7 +7,6 @@ import ApiService from '../services/api';
 const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     interestRate: '2.5',
-    durationMonths: '6',
     branch: 'Main Branch',
     notes: '',
     date: new Date().toISOString().split('T')[0]
@@ -30,7 +29,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const [loading, setLoading] = useState(false);
 
   const branches = [
-    'Main Branch', 'North Branch', 'South Branch', 
+    'Main Branch', 'North Branch', 'South Branch',
     'East Branch', 'West Branch'
   ];
 
@@ -38,14 +37,17 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   useEffect(() => {
     const fetchGoldPrice = async () => {
       try {
-        // Mock gold price for now - replace with actual API call
-        setCurrentGoldPrice({
-          pricePerGram: 6500, // Example price per gram
-          lastUpdated: new Date().toISOString()
-        });
+        const result = await ApiService.getCurrentGoldPrice();
+        if (result.success && result.data) {
+          setCurrentGoldPrice(result.data);
+        } else {
+          setCurrentGoldPrice({
+            pricePerGram: 6500,
+            lastUpdated: new Date().toISOString()
+          });
+        }
       } catch (error) {
         console.error('Failed to fetch gold price:', error);
-        // Set a default price if API fails
         setCurrentGoldPrice({
           pricePerGram: 6500,
           lastUpdated: new Date().toISOString()
@@ -58,7 +60,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+   
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -137,11 +139,11 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
 
   const handleSubmit = async () => {
     console.log("Submit button clicked");
-    
-    if (!validateForm()) {
-      console.log("Validation failed:", errors);
-      return;
-    }
+   
+    // if (!validateForm()) {
+    //   console.log("Validation failed:", errors);
+    //   return;
+    // }
 
     setLoading(true);
     try {
@@ -162,7 +164,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
       };
 
       console.log("Sending loan data to API:", loanData);
-      
+     
       const response = await ApiService.createGoldLoan(loanData);
       console.log("API response:", response);
 
@@ -170,7 +172,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
         // Calculate totals for UI feedback
         const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
         const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
-        
+       
         // Prepare data for parent component (matching the expected structure)
         const loanForParent = {
           ...response.data,
@@ -198,7 +200,6 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const handleReset = () => {
     setFormData({
       interestRate: '2.5',
-      durationMonths: '6',
       branch: 'Main Branch',
       notes: '',
       date: new Date().toISOString().split('T')[0]
@@ -220,7 +221,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   // Auto-fill gold price when current price is available
   useEffect(() => {
     if (currentGoldPrice && items.length > 0) {
-      setItems(prevItems => 
+      setItems(prevItems =>
         prevItems.map(item => ({
           ...item,
           goldPriceAtDeposit: item.goldPriceAtDeposit || currentGoldPrice.pricePerGram.toString()
@@ -350,27 +351,6 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                       <option key={branch} value={branch}>{branch}</option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration (months) - Info Only
-                  </label>
-                  <select
-                    name="durationMonths"
-                    value={formData.durationMonths}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                    disabled={loading}
-                  >
-                    <option value="3">3 Months</option>
-                    <option value="6">6 Months</option>
-                    <option value="9">9 Months</option>
-                    <option value="12">12 Months</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Duration is for reference only. Loan terms are flexible.
-                  </p>
                 </div>
               </div>
             </div>

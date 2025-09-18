@@ -25,17 +25,17 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-const ItemRepaymentModal = ({ 
-  isOpen, 
-  onClose, 
-  loan, 
-  onRepaymentSuccess 
+const ItemRepaymentModal = ({
+  isOpen,
+  onClose,
+  loan,
+  onRepaymentSuccess
 }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+ 
   // Form state
   const [formData, setFormData] = useState({
     repaymentAmount: '',
@@ -88,10 +88,10 @@ const ItemRepaymentModal = ({
     try {
       setLoading(true);
       console.log('Loading current gold price...');
-      
+     
       const result = await ApiService.getCurrentGoldPrice();
       console.log('Gold price result:', result);
-      
+     
       if (result.success && result.data) {
         setFormData(prev => ({
           ...prev,
@@ -103,8 +103,8 @@ const ItemRepaymentModal = ({
           currentGoldPrice: '5000'
         }));
       }
-    } catch (err) {
-      console.error('Failed to load gold price:', err);
+    } catch (error) {
+      console.error('Failed to load gold price:', error);
       setFormData(prev => ({
         ...prev,
         currentGoldPrice: '5000'
@@ -143,13 +143,13 @@ const ItemRepaymentModal = ({
   const calculateRepaymentValues = () => {
     if (!loan) return;
 
-    const selectedItemsData = loan.items?.filter(item => 
+    const selectedItemsData = loan.items?.filter(item =>
       formData.selectedItemIds.includes(item._id?.toString())
     ) || [];
 
     const totalItemValue = selectedItemsData.reduce((sum, item) => sum + (item.loanAmount || 0), 0);
     const totalWeight = selectedItemsData.reduce((sum, item) => sum + (item.weightGram || 0), 0);
-    
+   
     const currentGoldPrice = parseFloat(formData.currentGoldPrice) || 0;
     const totalMarketValue = selectedItemsData.reduce((sum, item) => {
       return sum + ((item.weightGram * currentGoldPrice * item.purityK) / 24);
@@ -250,70 +250,70 @@ const ItemRepaymentModal = ({
     }));
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setSubmitting(true);
-  setError('');
-  setSuccess('');
+  const handleSubmit = async (e) => {
+    // e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
 
-  try {
-    console.log('Submitting repayment with formData:', formData); // Log formData to inspect repaymentType
+    try {
+      console.log('Submitting repayment with formData:', formData); // Log formData to inspect repaymentType
 
-    if (!formData.repaymentAmount || parseFloat(formData.repaymentAmount) <= 0) {
-      throw new Error('Please enter a valid repayment amount');
-    }
-
-    if (formData.repaymentType === 'ITEM_RETURN') {
-      if (formData.selectedItemIds.length === 0) {
-        throw new Error('Please select at least one item to return');
+      if (!formData.repaymentAmount || parseFloat(formData.repaymentAmount) <= 0) {
+        throw new Error('Please enter a valid repayment amount');
       }
-      if (!calculations.canReturnItems) {
-        throw new Error(`Payment amount (₹${calculations.netRepaymentAmount.toLocaleString()}) is insufficient to return selected items (₹${calculations.totalItemValue.toLocaleString()} required)`);
+
+      if (formData.repaymentType === 'ITEM_RETURN') {
+        if (formData.selectedItemIds.length === 0) {
+          throw new Error('Please select at least one item to return');
+        }
+        if (!calculations.canReturnItems) {
+          throw new Error(`Payment amount (₹${calculations.netRepaymentAmount.toLocaleString()}) is insufficient to return selected items (₹${calculations.totalItemValue.toLocaleString()} required)`);
+        }
       }
-    }
 
-    if (formData.repaymentType === 'FULL_PRINCIPAL') {
-      const currentLoanAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
-      if (calculations.netRepaymentAmount < currentLoanAmount) {
-        throw new Error(`Payment amount (₹${calculations.netRepaymentAmount.toLocaleString()}) is insufficient for full payment (₹${currentLoanAmount.toLocaleString()} required)`);
+      if (formData.repaymentType === 'FULL_PRINCIPAL') {
+        const currentLoanAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
+        if (calculations.netRepaymentAmount < currentLoanAmount) {
+          throw new Error(`Payment amount (₹${calculations.netRepaymentAmount.toLocaleString()}) is insufficient for full payment (₹${currentLoanAmount.toLocaleString()} required)`);
+        }
       }
+
+      if (!formData.currentGoldPrice || parseFloat(formData.currentGoldPrice) <= 0) {
+        throw new Error('Please enter current gold price');
+      }
+
+      const repaymentData = {
+        ...formData,
+        items: loan.items // Include items for weightGrams calculation in api.js
+      };
+
+      console.log('Sending repaymentData to API:', repaymentData); // Log the payload
+
+      const result = await ApiService.processItemRepayment(loan._id, repaymentData);
+
+      if (result.success) {
+        const message = formData.repaymentType === 'PARTIAL_PRINCIPAL'
+          ? `Partial payment of ₹${parseFloat(formData.repaymentAmount).toLocaleString()} processed successfully! Remaining: ₹${calculations.remainingLoanAmount.toLocaleString()}`
+          : formData.repaymentType === 'ITEM_RETURN'
+          ? `Payment processed and ${selectedItems.length} items returned successfully!`
+          : 'Loan fully paid and closed successfully!';
+       
+        setSuccess(message);
+        setTimeout(() => {
+          onRepaymentSuccess?.(result);
+          onClose();
+        }, 3000);
+      } else {
+        throw new Error(result.error || 'Failed to process repayment');
+      }
+    } catch (err) {
+      console.error('Submission error:', err);
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
-
-    if (!formData.currentGoldPrice || parseFloat(formData.currentGoldPrice) <= 0) {
-      throw new Error('Please enter current gold price');
-    }
-
-    const repaymentData = {
-      ...formData,
-      items: loan.items // Include items for weightGrams calculation in api.js
-    };
-
-    console.log('Sending repaymentData to API:', repaymentData); // Log the payload
-
-    const result = await ApiService.processItemRepayment(loan._id, repaymentData);
-
-    if (result.success) {
-      const message = formData.repaymentType === 'PARTIAL_PRINCIPAL' 
-        ? `Partial payment of ₹${parseFloat(formData.repaymentAmount).toLocaleString()} processed successfully! Remaining: ₹${calculations.remainingLoanAmount.toLocaleString()}`
-        : formData.repaymentType === 'ITEM_RETURN'
-        ? `Payment processed and ${selectedItems.length} items returned successfully!`
-        : 'Loan fully paid and closed successfully!';
-      
-      setSuccess(message);
-      setTimeout(() => {
-        onRepaymentSuccess?.(result);
-        onClose();
-      }, 3000);
-    } else {
-      throw new Error(result.error || 'Failed to process repayment');
-    }
-  } catch (err) {
-    console.error('Submission error:', err);
-    setError(err.message);
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   const formatCurrency = (amount) => `₹${amount?.toLocaleString() || '0'}`;
   const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-IN') : 'N/A';
@@ -395,9 +395,9 @@ const handleSubmit = async (e) => {
                 Repayment Type
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div 
+                <div
                   className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                    formData.repaymentType === 'PARTIAL_PAYMENT'
+                    formData.repaymentType === 'PARTIAL_PRINCIPAL'
                       ? 'border-blue-300 bg-blue-50'
                       : 'border-gray-200 bg-white hover:border-blue-200'
                   }`}
@@ -420,7 +420,7 @@ const handleSubmit = async (e) => {
                   </div>
                 </div>
 
-                <div 
+                <div
                   className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                     formData.repaymentType === 'ITEM_RETURN'
                       ? 'border-green-300 bg-green-50'
@@ -445,7 +445,7 @@ const handleSubmit = async (e) => {
                   </div>
                 </div>
 
-                <div 
+                <div
                   className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                     formData.repaymentType === 'FULL_PRINCIPAL'
                       ? 'border-purple-300 bg-purple-50'
@@ -477,19 +477,19 @@ const handleSubmit = async (e) => {
               <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <CheckCircle size={18} />
-                  {formData.repaymentType === 'FULL_PRINCIPAL' ? 'All Items to Return' : 'Select Items to Return'} 
+                  {formData.repaymentType === 'FULL_PRINCIPAL' ? 'All Items to Return' : 'Select Items to Return'}
                   ({loan.items?.filter(item => !item.returnDate).length || 0} available)
                 </h3>
-                
+               
                 {loan.items && loan.items.filter(item => !item.returnDate).length > 0 ? (
                   <div className="space-y-3">
                     {loan.items.filter(item => !item.returnDate).map((item, index) => {
-                      const isSelected = formData.repaymentType === 'FULL_PRINCIPAL' || 
+                      const isSelected = formData.repaymentType === 'FULL_PRINCIPAL' ||
                                         formData.selectedItemIds.includes(item._id?.toString());
                       const isDisabled = formData.repaymentType === 'FULL_PRINCIPAL';
-                      
+                     
                       return (
-                        <div 
+                        <div
                           key={item._id || index}
                           className={`border rounded-lg p-4 transition-all ${
                             isSelected
@@ -549,7 +549,7 @@ const handleSubmit = async (e) => {
                   Payment Calculation
                 </h3>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {formData.repaymentType !== 'PARTIAL_PAYMENT' && (
+                  {formData.repaymentType !== 'PARTIAL_PRINCIPAL' && (
                     <>
                       <div className="text-center p-3 bg-white rounded-lg">
                         <div className="text-lg font-bold text-blue-600">
@@ -578,7 +578,7 @@ const handleSubmit = async (e) => {
                     <div className="text-xs text-gray-600">Remaining Loan</div>
                   </div>
                 </div>
-                
+               
                 {/* Payment Status Indicator */}
                 {formData.repaymentAmount && (
                   <div className="mt-4 p-3 rounded-lg border-l-4 bg-white">
@@ -639,7 +639,7 @@ const handleSubmit = async (e) => {
                   <DollarSign size={18} />
                   Payment Details
                 </h3>
-                
+               
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Current Gold Price (per gram) *
@@ -687,7 +687,7 @@ const handleSubmit = async (e) => {
                       Net Amount: {formatCurrency(calculations.netRepaymentAmount)}
                     </p>
                   )}
-                  
+                 
                   {/* Quick Amount Buttons */}
                   <div className="flex flex-wrap gap-2 mt-2">
                     {formData.repaymentType === 'PARTIAL_PRINCIPAL' && (
@@ -781,8 +781,8 @@ const handleSubmit = async (e) => {
                 </div>
 
                 {/* Conditional fields based on payment method */}
-                {(formData.paymentMethod === 'CHEQUE' || 
-                  formData.paymentMethod === 'NET_BANKING' || 
+                {(formData.paymentMethod === 'CHEQUE' ||
+                  formData.paymentMethod === 'NET_BANKING' ||
                   formData.paymentMethod === 'BANK_TRANSFER') && (
                   <>
                     <div>
@@ -865,7 +865,7 @@ const handleSubmit = async (e) => {
                 <Camera size={18} />
                 Upload Photos (Optional)
               </h3>
-              
+             
               <div className="space-y-4">
                 <div className="flex items-center justify-center w-full">
                   <label htmlFor="photo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-purple-300 border-dashed rounded-lg cursor-pointer bg-purple-50 hover:bg-purple-100">
@@ -916,7 +916,7 @@ const handleSubmit = async (e) => {
               <button
                 type="button"
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4"
+                className="flex items-center gap-2 px-3 py-2 text-blue-600 hover:text-blue-700 font-medium mb-4"
               >
                 {showAdvanced ? <EyeOff size={16} /> : <Eye size={16} />}
                 {showAdvanced ? 'Hide' : 'Show'} Advanced Options
@@ -925,7 +925,7 @@ const handleSubmit = async (e) => {
               {showAdvanced && (
                 <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900">Advanced Settings</h3>
-                  
+                 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1120,28 +1120,28 @@ const handleSubmit = async (e) => {
               )}
             </button>
           </div>
-          
+         
           {/* Quick Stats Footer */}
           {formData.repaymentAmount && parseFloat(formData.repaymentAmount) > 0 && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="text-center text-sm text-gray-600">
                 {formData.repaymentType === 'PARTIAL_PRINCIPAL' && (
                   <>
-                    Processing partial payment of <span className="font-semibold text-blue-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> • 
+                    Processing partial payment of <span className="font-semibold text-blue-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> •
                     Remaining: <span className="font-semibold text-red-600">{formatCurrency(calculations.remainingLoanAmount)}</span>
                   </>
                 )}
                 {formData.repaymentType === 'ITEM_RETURN' && (
                   <>
-                    Returning <span className="font-semibold">{selectedItems.length} items</span> • 
-                    Payment: <span className="font-semibold text-green-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> • 
+                    Returning <span className="font-semibold">{selectedItems.length} items</span> •
+                    Payment: <span className="font-semibold text-green-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> •
                     Remaining: <span className="font-semibold text-red-600">{formatCurrency(calculations.remainingLoanAmount)}</span>
                   </>
                 )}
                 {formData.repaymentType === 'FULL_PRINCIPAL' && (
                   <>
-                    <span className="font-semibold text-purple-600">Full Payment</span> • 
-                    Amount: <span className="font-semibold text-green-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> • 
+                    <span className="font-semibold text-purple-600">Full Payment</span> •
+                    Amount: <span className="font-semibold text-green-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> •
                     <span className="font-semibold text-green-600">LOAN WILL BE CLOSED</span>
                   </>
                 )}

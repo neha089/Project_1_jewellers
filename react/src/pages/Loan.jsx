@@ -16,7 +16,7 @@ import AddLoanModal from '../components/AddLoanModal';
 import LoanCard from '../components/LoanCard';
 import LoanDetailModal from '../components/LoanDetailModal';
 import LoanPaymentModal from '../components/LoanPaymentModal';
-import InterestPaymentModal from '../components/InterestPaymentModal';
+import LInterstPaymentModal from '../components/LInterestPaymentModal';
 
 const Loan = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -419,7 +419,7 @@ const handlePrincipalPayment = (loan) => {
           onSuccess={handlePaymentSuccess}
         />
 
-        <InterestPaymentModal
+        <LInterstPaymentModal
           isOpen={showInterestModal}
           loan={selectedLoan}
           onClose={() => setShowInterestModal(false)}
