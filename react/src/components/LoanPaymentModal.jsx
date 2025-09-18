@@ -3,8 +3,8 @@ import { X, CreditCard, AlertCircle, Loader2 } from 'lucide-react';
 import ApiService from '../services/api.js';
 
 const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
+  const [principalAmount, setPrincipalAmount] = useState('');
+  const [interestAmount, setInterestAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -13,18 +13,20 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (isOpen && loan && loan.transactions && loan.transactions.length > 0) {
-      if (loan.transactions.length === 1) {
-        setSelectedTransaction(loan.transactions[0]);
-      }
-      setPaymentAmount('');
-      setPaymentNote('');
-      setPaymentDate(new Date().toISOString().split('T')[0]);
-      setPaymentMethod('CASH');
-      setPaymentReference('');
-      setError(null);
+    if (isOpen) {
+      resetForm();
     }
-  }, [isOpen, loan]);
+  }, [isOpen]);
+
+  const resetForm = () => {
+    setPrincipalAmount('');
+    setInterestAmount('');
+    setPaymentNote('');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentMethod('CASH');
+    setPaymentReference('');
+    setError(null);
+  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -39,46 +41,46 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const getOutstandingAmount = () => {
+    // Handle both API response formats
+    if (loan?.outstandingAmount) return loan.outstandingAmount;
+    if (loan?.outstandingPrincipal) return loan.outstandingPrincipal / 100;
+    return 0;
   };
 
-  const getOutstandingAmount = (transaction) => {
-    if (transaction.outstandingBalance !== undefined) {
-      return transaction.outstandingBalance / 100;
-    }
-    const originalAmount = transaction.principalPaise ? transaction.principalPaise / 100 : 0;
-    const paidAmount = transaction.summary?.totalPaid || 0;
-    return Math.max(0, originalAmount - paidAmount);
+  const getMonthlyInterest = () => {
+    const outstanding = loan?.outstandingAmount ? loan.outstandingAmount * 100 : loan?.outstandingPrincipal || 0;
+    const interestRate = loan?.interestRateMonthlyPct || loan?.interestRate || 0;
+    
+    if (!outstanding || !interestRate) return 0;
+    return (outstanding * interestRate) / 100; // Return in paise for calculation
   };
 
   const handlePayment = async (e) => {
     e.preventDefault();
     
-    if (!selectedTransaction) {
-      setError('Please select a transaction');
+    if (!loan?._id && !loan?.id) {
+      setError('Loan ID is missing');
       return;
     }
 
-    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-      setError('Please enter a valid payment amount');
+    const principalPaise = principalAmount ? parseInt(parseFloat(principalAmount) * 100) : 0;
+    const interestPaise = interestAmount ? parseInt(parseFloat(interestAmount) * 100) : 0;
+
+    if (principalPaise <= 0 && interestPaise <= 0) {
+      setError('Please enter at least one payment amount');
       return;
     }
 
-    const outstandingAmount = getOutstandingAmount(selectedTransaction);
-    if (parseFloat(paymentAmount) > outstandingAmount) {
-      setError(`Payment amount cannot exceed outstanding amount of ${formatCurrency(outstandingAmount)}`);
+    const outstandingAmount = getOutstandingAmount();
+    if (principalPaise > 0 && (principalPaise / 100) > outstandingAmount) {
+      setError(`Principal payment cannot exceed outstanding amount of ${formatCurrency(outstandingAmount)}`);
       return;
     }
 
-    if (!loan.customer || !loan.customer._id) {
-      setError('Customer information is missing');
-      return;
-    }
-
-    if (!selectedTransaction._id) {
-      setError('Transaction ID is missing');
+    const expectedInterest = getMonthlyInterest();
+    if (interestPaise > 0 && interestPaise > expectedInterest) {
+      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest / 100)}`);
       return;
     }
 
@@ -87,51 +89,57 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
       setError(null);
 
       const paymentData = {
-        customer: String(loan.customer._id),
-        principalPaise: parseInt(parseFloat(paymentAmount) * 100),
-        sourceRef: String(selectedTransaction._id),
+        loanId: loan._id || loan.id,
+        principalPaise,
+        interestPaise,
         note: paymentNote.trim() || undefined,
-        installmentNumber: 1,
         paymentDate: paymentDate,
         paymentMethod: paymentMethod,
         reference: paymentReference.trim() || '',
         transactionId: paymentReference.trim() || ''
       };
 
-      console.log('Making principal payment:', { loan, selectedTransaction, paymentData });
+      console.log('Making loan payment:', paymentData);
 
-      const response = loan.type === 'receivable' 
+      // Determine if this is a loan you gave or took based on loanType
+      const isGivenLoan = loan.loanType === 'GIVEN';
+      const response = isGivenLoan 
         ? await ApiService.receiveLoanPayment(paymentData)
         : await ApiService.makeLoanPayment(paymentData);
 
       if (response.success) {
-        console.log('Principal payment successful!');
+        console.log('Loan payment successful!');
         onSuccess();
         onClose();
       } else {
-        throw new Error(response.message || response.error || 'Principal payment failed');
+        throw new Error(response.message || response.error || 'Payment failed');
       }
     } catch (error) {
-      console.error('Principal payment error:', error);
-      setError(error.message || 'Failed to process principal payment');
+      console.error('Payment error:', error);
+      setError(error.message || 'Failed to process payment');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickAmount = (percentage) => {
-    if (selectedTransaction) {
-      const outstandingAmount = getOutstandingAmount(selectedTransaction);
-      const amount = (outstandingAmount * percentage / 100).toFixed(2);
-      setPaymentAmount(amount);
-    }
+  const handleQuickPrincipalAmount = (percentage) => {
+    const outstandingAmount = getOutstandingAmount();
+    const amount = (outstandingAmount * percentage / 100).toFixed(2);
+    setPrincipalAmount(amount);
+  };
+
+  const handleQuickInterestAmount = (percentage) => {
+    const expectedInterest = getMonthlyInterest();
+    const amount = (expectedInterest * percentage / 10000).toFixed(2); // Convert from paise to rupees
+    setInterestAmount(amount);
   };
 
   if (!isOpen || !loan) return null;
 
   const customer = loan.customer || {};
-  const isReceivable = loan.type === 'receivable';
-  const transactions = loan.transactions || [];
+  const isReceivable = loan.loanType === 'GIVEN';
+  const outstandingAmount = getOutstandingAmount();
+  const monthlyInterest = getMonthlyInterest() / 100; // Convert to rupees for display
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -144,7 +152,9 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
               <span className="text-white text-sm font-bold">{getInitials(customer.name)}</span>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900">{isReceivable ? 'Receive Principal Payment' : 'Make Principal Payment'}</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                {isReceivable ? 'Receive Loan Payment' : 'Make Loan Payment'}
+              </h2>
               <p className="text-sm text-slate-600">{customer.name}</p>
             </div>
           </div>
@@ -157,129 +167,138 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
         </div>
 
         <div className="p-6 space-y-6">
-          {transactions.length > 1 && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">Select Transaction *</label>
-              <div className="space-y-2">
-                {transactions.map((transaction, index) => {
-                  const originalAmount = transaction.principalPaise ? transaction.principalPaise / 100 : 0;
-                  const outstandingAmount = getOutstandingAmount(transaction);
-                  
-                  return (
-                    <div
-                      key={transaction._id || index}
-                      onClick={() => setSelectedTransaction(transaction)}
-                      className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        selectedTransaction?._id === transaction._id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-slate-900">{transaction.note || 'Loan Transaction'}</p>
-                          <p className="text-sm text-slate-500">{formatDate(transaction.takenDate || transaction.date)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-slate-900">{formatCurrency(outstandingAmount)}</p>
-                          <p className="text-sm text-slate-500">of {formatCurrency(originalAmount)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+          {/* Loan Summary */}
+          <div className="bg-slate-50 p-4 rounded-xl">
+            <h3 className="font-semibold text-slate-900 mb-3">Loan Summary</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-slate-600">Outstanding Principal</p>
+                <p className="font-bold text-slate-900">{formatCurrency(outstandingAmount)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">
+                  Monthly Interest ({loan.interestRateMonthlyPct || loan.interestRate}%)
+                </p>
+                <p className="font-bold text-purple-600">{formatCurrency(monthlyInterest)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Original Amount</p>
+                <p className="text-slate-700">
+                  {formatCurrency(loan.originalAmount || (loan.principalPaise || 0) / 100)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Payments Made</p>
+                <p className="text-slate-700">{loan.paymentHistory?.length || loan.paidInstallments || 0}</p>
               </div>
             </div>
-          )}
-
-          {selectedTransaction && (
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <h3 className="font-semibold text-slate-900 mb-3">Selected Transaction</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-slate-600">Original Principal</p>
-                  <p className="font-bold text-slate-900">
-                    {formatCurrency(selectedTransaction.principalPaise ? selectedTransaction.principalPaise / 100 : 0)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Outstanding Principal</p>
-                  <p className="font-bold text-red-600">{formatCurrency(getOutstandingAmount(selectedTransaction))}</p>
-                </div>
+            {loan.note && (
+              <div className="mt-3">
+                <p className="text-sm text-slate-600">Loan Note</p>
+                <p className="text-slate-900">{loan.note}</p>
               </div>
-              {selectedTransaction.note && (
-                <div className="mt-3">
-                  <p className="text-sm text-slate-600">Note</p>
-                  <p className="text-slate-900">{selectedTransaction.note}</p>
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
+          {/* Principal Payment */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Payment Amount *</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Principal Payment</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">₹</span>
               <input
                 type="number"
-                required
-                min="0.01"
+                min="0"
                 step="0.01"
                 className="w-full pl-8 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
+                value={principalAmount}
+                onChange={(e) => setPrincipalAmount(e.target.value)}
                 placeholder="0.00"
-                max={selectedTransaction ? getOutstandingAmount(selectedTransaction) : undefined}
+                max={outstandingAmount}
               />
             </div>
-            {selectedTransaction && (
+            {outstandingAmount > 0 && (
               <div className="flex gap-2 mt-3">
                 <button
                   type="button"
-                  onClick={() => handleQuickAmount(25)}
+                  onClick={() => handleQuickPrincipalAmount(25)}
                   className="px-3 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
                 >
                   25%
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickAmount(50)}
+                  onClick={() => handleQuickPrincipalAmount(50)}
                   className="px-3 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
                 >
                   50%
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickAmount(75)}
-                  className="px-3 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                >
-                  75%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickAmount(100)}
+                  onClick={() => handleQuickPrincipalAmount(100)}
                   className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
                 >
                   Full Payment
                 </button>
               </div>
             )}
-            {paymentAmount && selectedTransaction && (
-              <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Payment Amount:</span>
-                  <span className="font-medium text-slate-900">{formatCurrency(parseFloat(paymentAmount))}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Remaining After Payment:</span>
-                  <span className="font-medium text-orange-600">
-                    {formatCurrency(Math.max(0, getOutstandingAmount(selectedTransaction) - parseFloat(paymentAmount)))}
-                  </span>
-                </div>
+          </div>
+
+          {/* Interest Payment */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Interest Payment</label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">₹</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-full pl-8 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                value={interestAmount}
+                onChange={(e) => setInterestAmount(e.target.value)}
+                placeholder="0.00"
+                max={monthlyInterest}
+              />
+            </div>
+            {monthlyInterest > 0 && (
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => handleQuickInterestAmount(100)}
+                  className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
+                >
+                  Current Month ({formatCurrency(monthlyInterest)})
+                </button>
               </div>
             )}
           </div>
 
+          {/* Payment Summary */}
+          {(principalAmount || interestAmount) && (
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-slate-600">Principal Payment:</span>
+                <span className="font-medium text-slate-900">{formatCurrency(parseFloat(principalAmount || 0))}</span>
+              </div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-slate-600">Interest Payment:</span>
+                <span className="font-medium text-slate-900">{formatCurrency(parseFloat(interestAmount || 0))}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold border-t pt-1">
+                <span className="text-slate-700">Total Payment:</span>
+                <span className="text-slate-900">{formatCurrency((parseFloat(principalAmount || 0) + parseFloat(interestAmount || 0)))}</span>
+              </div>
+              {principalAmount && (
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="text-slate-600">Remaining Principal:</span>
+                  <span className="font-medium text-orange-600">
+                    {formatCurrency(Math.max(0, outstandingAmount - parseFloat(principalAmount)))}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payment Method */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
             <select
@@ -299,6 +318,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </select>
           </div>
 
+          {/* Payment Reference */}
           {paymentMethod !== 'CASH' && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Payment Reference / Transaction ID</label>
@@ -312,6 +332,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </div>
           )}
 
+          {/* Payment Date */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Date *</label>
             <input
@@ -324,6 +345,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             />
           </div>
 
+          {/* Payment Note */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Note (Optional)</label>
             <textarea
@@ -335,6 +357,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             />
           </div>
 
+          {/* Error Message */}
           {error && (
             <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
               <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
@@ -342,6 +365,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </div>
           )}
 
+          {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -354,7 +378,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             <button
               type="button"
               onClick={handlePayment}
-              disabled={loading || !selectedTransaction || !paymentAmount}
+              disabled={loading || (!principalAmount && !interestAmount)}
               className={`flex-1 px-6 py-3 text-white rounded-xl transition-colors font-medium ${
                 isReceivable ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -367,7 +391,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
               ) : (
                 <div className="flex items-center justify-center gap-2">
                   <CreditCard size={18} />
-                  {isReceivable ? 'Receive Principal' : 'Pay Principal'}
+                  {isReceivable ? 'Receive Payment' : 'Make Payment'}
                 </div>
               )}
             </button>
@@ -377,4 +401,5 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
     </div>
   );
 };
+
 export default LoanPaymentModal;
