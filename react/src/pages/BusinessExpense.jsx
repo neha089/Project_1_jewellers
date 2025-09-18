@@ -10,6 +10,7 @@ import ExpenseTable from '../components/BusinessExpense/ExpenseTable';
 import ExpenseModal from '../components/BusinessExpense/ExpenseModal';
 import CategoryBreakdown from '../components/BusinessExpense/CategoryBreakdown';
 import { CATEGORIES, PAYMENT_METHODS } from '../components/BusinessExpense/constants';
+import { formatIndianAmount } from '../components/BusinessExpense/utils';
 
 const BusinessExpense = () => {
     const [expenses, setExpenses] = useState([]);
@@ -259,7 +260,7 @@ const handleUpdateExpense = async (expenseId, updatedExpenseData) => {
                         <div className="text-right">
                             <p className="text-sm text-slate-500 font-medium">Total Expenses (YTD)</p>
                             <p className="text-2xl font-bold text-slate-900">
-                                ₹{summary.totalGrossAmount?.toLocaleString('en-IN')}
+                                ₹ {formatIndianAmount(summary.totalGrossAmount)}
                             </p>
                         </div>
                         <div className="h-12 w-px bg-slate-200"></div>
