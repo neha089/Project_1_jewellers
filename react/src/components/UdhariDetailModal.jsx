@@ -161,7 +161,7 @@ const UdhariDetailModal = ({ isOpen, customerData, udhariType, onClose, onPaymen
                         <div>
                           <p className="text-sm font-medium text-slate-600">Total Paid</p>
                           <p className="text-2xl font-bold text-blue-600">
-                            {formatCurrency(selectedTransaction.totalPaid || 0)}
+                            {formatCurrency(selectedTransaction.originalAmount-selectedTransaction.outstandingAmount || 0)}
                           </p>
                         </div>
                       </div>
@@ -241,14 +241,14 @@ const UdhariDetailModal = ({ isOpen, customerData, udhariType, onClose, onPaymen
                       <div className="flex justify-between text-sm text-slate-600 mb-2">
                         <span>Payment Progress</span>
                         <span>
-                          {Math.round(((selectedTransaction.totalPaid || 0) / (selectedTransaction.originalAmount || selectedTransaction.amount || 1)) * 100)}%
+                          {selectedTransaction.completionPercentage}
                         </span>
                       </div>
                       <div className="w-full bg-slate-200 rounded-full h-3">
                         <div 
                           className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-500"
                           style={{ 
-                            width: `${Math.min(Math.round(((selectedTransaction.totalPaid || 0) / (selectedTransaction.originalAmount || selectedTransaction.amount || 1)) * 100), 100)}%` 
+                            width: `${selectedTransaction.completionPercentage}%` 
                           }}
                         ></div>
                       </div>

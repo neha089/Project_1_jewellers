@@ -43,8 +43,8 @@ const Loan = () => {
       setError(null);
 
       const [receivableResponse, payableResponse] = await Promise.all([
-        ApiService.getOutstandingToCollect(),
-        ApiService.getOutstandingToPay()
+        ApiService.getOutstandingToCollectLoan(),
+        ApiService.getOutstandingToPayLoan()
       ]);
 
       if (receivableResponse.success) {
