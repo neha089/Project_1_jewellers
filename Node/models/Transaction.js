@@ -8,10 +8,11 @@ const transactionSchema = new mongoose.Schema({
       "GOLD_LOAN_GIVEN", "GOLD_LOAN_PAYMENT", "GOLD_LOAN_CLOSURE",
       "GOLD_LOAN_INTEREST_RECEIVED", "GOLD_LOAN_ITEM_REMOVAL", 
       "GOLD_LOAN_ADDITION", "ITEM_RETURN",
+      "LOAN_INTEREST_RECEIVED",
       "LOAN_GIVEN", "LOAN_TAKEN", "LOAN_PAYMENT", "LOAN_CLOSURE",
-      "UDHARI_GIVEN", "UDHARI_RECEIVED", "UDHARI_TAKEN",
+      "UDHAR_GIVEN", "UDHAR_RECEIVED", "UDHAR_TAKEN",
       "GOLD_PURCHASE", "SILVER_PURCHASE", "GOLD_SALE", "SILVER_SALE",
-      "BUSINESS_EXPENSE", "OTHER_INCOME", "OTHER_EXPENSE"
+      "BUSINESS_EXPENSE", "OTHER_INCOME", "OTHER_EXPENSE","UDHAR_PAYMENT"
     ],
     required: true,
     index: true
@@ -31,7 +32,7 @@ const transactionSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ['GoldLoan', 'Loan', 'UdhariTransaction', 'GoldTransaction', 'SilverTransaction', 'BusinessExpense']
+    enum: ['GoldLoan', 'Loan', 'Udhar', 'GoldTransaction', 'SilverTransaction', 'BusinessExpense']
   },
   category: {
     type: String,
