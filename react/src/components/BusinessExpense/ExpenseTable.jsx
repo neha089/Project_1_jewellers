@@ -46,9 +46,7 @@ const ExpenseTable = ({ expenses, onEdit, onDelete, onStatusToggle, loading }) =
                             <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                                 Status & Payment
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                                Actions
-                            </th>
+                            
                         </tr>
                     </thead>
                     <tbody className="bg-white/50 divide-y divide-slate-100">
@@ -130,28 +128,7 @@ const ExpenseTable = ({ expenses, onEdit, onDelete, onStatusToggle, loading }) =
                                         )}
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => onStatusToggle(expense.id, expense.status === 'PAID' ? 'PENDING' : 'PAID')}
-                                            className={`p-2 ${
-                                                expense.status === 'PAID' 
-                                                ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' 
-                                                : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
-                                            } rounded-lg transition-colors`}
-                                            title={expense.status === 'PAID' ? 'Mark as Pending' : 'Mark as Paid'}
-                                        >
-                                            <CheckCircle2 className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => onDelete(expense.id)}
-                                            className="p-2 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Delete Expense"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </td>
+                                
                             </tr>
                         ))}
                     </tbody>
