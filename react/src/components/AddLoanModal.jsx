@@ -54,7 +54,7 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await ApiService.getCustomers();
+      const response = await ApiService.getAllCustomers();
       if (response.success && response.data?.customers) {
         setCustomers(response.data.customers);
         setFilteredCustomers(response.data.customers);
