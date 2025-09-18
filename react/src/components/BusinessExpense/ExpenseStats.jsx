@@ -1,6 +1,7 @@
 // components/BusinessExpense/ExpenseStats.js
 import React from 'react';
 import { DollarSign, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import { formatIndianAmount } from './utils';
 
 const ExpenseStats = ({ summary }) => {
     return (
@@ -16,11 +17,11 @@ const ExpenseStats = ({ summary }) => {
                 </div>
                 <div className="space-y-1">
                     <p className="text-2xl font-bold text-slate-900">
-                        ₹{summary.totalGrossAmount?.toLocaleString('en-IN') || '0'}
+                        {formatIndianAmount(summary.totalGrossAmount)}
                     </p>
                     <p className="text-sm text-slate-600">
-                        Net: ₹{summary.totalNetAmount?.toLocaleString('en-IN') || '0'} • 
-                        Tax: ₹{summary.totalTaxAmount?.toLocaleString('en-IN') || '0'}
+                        Net: {formatIndianAmount(summary.totalNetAmount)} • 
+                        Tax: {formatIndianAmount(summary.totalTaxAmount)}
                     </p>
                 </div>
             </div>
@@ -36,7 +37,7 @@ const ExpenseStats = ({ summary }) => {
                 </div>
                 <div className="space-y-1">
                     <p className="text-2xl font-bold text-emerald-600">
-                        ₹{summary.totalPaidAmount?.toLocaleString('en-IN') || '0'}
+                        {formatIndianAmount(summary.totalPaidAmount)}
                     </p>
                     <p className="text-sm text-slate-600">
                         {summary.paidExpenses || 0} transactions completed
@@ -55,7 +56,7 @@ const ExpenseStats = ({ summary }) => {
                 </div>
                 <div className="space-y-1">
                     <p className="text-2xl font-bold text-amber-600">
-                        ₹{summary.totalPendingAmount?.toLocaleString('en-IN') || '0'}
+                        {formatIndianAmount(summary.totalPendingAmount)}
                     </p>
                     <p className="text-sm text-slate-600">
                         {summary.pendingExpenses || 0} transactions awaiting
@@ -74,7 +75,7 @@ const ExpenseStats = ({ summary }) => {
                 </div>
                 <div className="space-y-1">
                     <p className="text-2xl font-bold text-purple-600">
-                        ₹{(summary.thisMonth?.totalAmount ?? 0)?.toLocaleString('en-IN')}
+                        {formatIndianAmount(summary.thisMonth?.totalAmount ?? 0)}
                     </p>
                     <p className="text-sm text-slate-600">
                         {(summary.thisMonth?.totalExpenses ?? 0)} transactions
