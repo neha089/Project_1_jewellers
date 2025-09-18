@@ -1,6 +1,7 @@
 // components/BusinessExpense/CategoryBreakdown.js
 import React from 'react';
 import { getCategoryIcon } from './constants';
+import { formatIndianAmount } from './utils';
 
 const CategoryBreakdown = ({ categoryExpenses, expenses, totalAmount }) => {
     return (
@@ -27,7 +28,7 @@ const CategoryBreakdown = ({ categoryExpenses, expenses, totalAmount }) => {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="font-bold text-slate-900">₹{amount?.toLocaleString('en-IN')}</div>
+                                    <div className="font-bold text-slate-900">{formatIndianAmount(amount)}</div>
                                     <div className="text-xs text-slate-500">
                                         {percentage}%
                                     </div>
