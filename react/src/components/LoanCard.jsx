@@ -1,6 +1,7 @@
-import { Eye, CreditCard, Phone, Percent, Calendar, ChevronRight, FileText } from 'lucide-react';
+import React from 'react';
+import { Eye, CreditCard, Phone, User, Calendar, ChevronRight } from 'lucide-react';
 
-const LoanCard = ({ loan, type, onView, onPrincipalPayment, onInterestPayment }) => {
+const UdhariCard = ({ udhari, type, onView, onPayment }) => {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -29,28 +30,45 @@ const LoanCard = ({ loan, type, onView, onPrincipalPayment, onInterestPayment })
     return `${Math.ceil(diffDays / 365)} years ago`;
   };
 
-  const customer = loan.customer || {};
-  const totalOutstanding = loan.totalOutstanding || 0;
-  const interestDue = loan.interestDue || 0;
-  const interestRate = loan.transactions?.[0]?.interestRate || loan.interestRate || 0;
-  const transactionCount = loan.transactions?.length || 1;
-  const latestDate = loan.transactions?.[0]?.takenDate || loan.takenDate;
+  const getLatestTransactionDate = () => {
+    if (!udhari.transactions || udhari.transactions.length === 0) {
+      return null;
+    }
+    
+    // Find the most recent transaction date
+    const dates = udhari.transactions
+      .map(txn => txn.takenDate || txn.date)
+      .filter(date => date)
+      .sort((a, b) => new Date(b) - new Date(a));
+    
+    return dates[0] || null;
+  };
+
+  const customer = udhari.customer || {};
+  const totalOutstanding = udhari.totalOutstanding || 0;
+  const transactionCount = udhari.transactions?.length || 0;
+  const latestDate = getLatestTransactionDate();
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-all group">
       <div className="flex items-center justify-between">
+        {/* Customer Info */}
         <div className="flex items-center gap-4 flex-1">
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-md ${
             type === 'receivable' 
               ? 'bg-gradient-to-br from-red-500 to-red-600' 
               : 'bg-gradient-to-br from-green-500 to-green-600'
           }`}>
-            <span className="text-white text-lg font-bold">{getInitials(customer.name)}</span>
+            <span className="text-white text-lg font-bold">
+              {getInitials(customer.name)}
+            </span>
           </div>
+          
           <div className="flex-1">
             <h3 className="font-bold text-lg text-slate-900 group-hover:text-blue-600 transition-colors">
               {customer.name || 'Unknown Customer'}
             </h3>
+            
             <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
               {customer.phone && (
                 <div className="flex items-center gap-1">
@@ -58,14 +76,12 @@ const LoanCard = ({ loan, type, onView, onPrincipalPayment, onInterestPayment })
                   <span>{customer.phone}</span>
                 </div>
               )}
+              
               <div className="flex items-center gap-1">
-                <Percent size={14} />
-                <span>{interestRate}% p.m.</span>
+                <User size={14} />
+                <span>{transactionCount} transaction{transactionCount !== 1 ? 's' : ''}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <FileText size={14} />
-                <span>{transactionCount} loan{transactionCount !== 1 ? 's' : ''}</span>
-              </div>
+              
               {latestDate && (
                 <div className="flex items-center gap-1">
                   <Calendar size={14} />
@@ -75,18 +91,22 @@ const LoanCard = ({ loan, type, onView, onPrincipalPayment, onInterestPayment })
             </div>
           </div>
         </div>
+
+        {/* Amount and Actions */}
         <div className="flex items-center gap-4">
+          {/* Outstanding Amount */}
           <div className="text-right">
-            <p className={`text-2xl font-bold ${type === 'receivable' ? 'text-red-600' : 'text-green-600'}`}>
+            <p className={`text-2xl font-bold ${
+              type === 'receivable' ? 'text-red-600' : 'text-green-600'
+            }`}>
               {formatCurrency(totalOutstanding)}
             </p>
             <p className="text-sm text-slate-500 font-medium">
               {type === 'receivable' ? 'TO COLLECT' : 'TO PAY'}
             </p>
-            <p className="text-sm text-purple-600 font-medium">
-              Interest Due: {formatCurrency(interestDue)}
-            </p>
           </div>
+
+          {/* Action Buttons */}
           <div className="flex items-center gap-2">
             <button
               onClick={onView}
@@ -95,35 +115,33 @@ const LoanCard = ({ loan, type, onView, onPrincipalPayment, onInterestPayment })
             >
               <Eye size={18} />
             </button>
+            
             <button
-              onClick={onPrincipalPayment}
+              onClick={onPayment}
               className={`p-3 text-white rounded-xl transition-colors ${
                 type === 'receivable' 
                   ? 'bg-red-500 hover:bg-red-600' 
                   : 'bg-green-500 hover:bg-green-600'
               }`}
-              title={type === 'receivable' ? 'Receive Principal Payment' : 'Make Principal Payment'}
+              title={type === 'receivable' ? 'Receive Payment' : 'Make Payment'}
             >
               <CreditCard size={18} />
             </button>
-            <button
-              onClick={onInterestPayment}
-              className="p-3 text-white bg-purple-500 hover:bg-purple-600 rounded-xl transition-colors"
-              title={type === 'receivable' ? 'Receive Interest Payment' : 'Make Interest Payment'}
-            >
-              <Percent size={18} />
-            </button>
+            
             <ChevronRight size={18} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
           </div>
         </div>
       </div>
-      
-      {loan.transactions && loan.transactions.length > 0 && loan.transactions[0] && (
+
+      {/* Transaction Summary */}
+      {udhari.transactions && udhari.transactions.length > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-100">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">{loan.transactions[0]?.note || 'No description'}</span>
+            <span className="text-slate-600">
+              Latest: {udhari.transactions[0]?.note || 'No description'}
+            </span>
             <span className="text-slate-500">
-              {formatCurrency((loan.transactions[0]?.principalPaise || 0) / 100)}
+              {formatCurrency(udhari.transactions[0]?.originalAmount || udhari.transactions[0]?.principalPaise / 100 || 0)}
             </span>
           </div>
         </div>
@@ -131,4 +149,5 @@ const LoanCard = ({ loan, type, onView, onPrincipalPayment, onInterestPayment })
     </div>
   );
 };
-export default LoanCard;
+
+export default UdhariCard;
