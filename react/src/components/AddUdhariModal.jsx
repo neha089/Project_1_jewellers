@@ -1,22 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Search, 
-  Plus, 
-  User,
-  Phone,
-  Mail,
-  Calendar,
-  DollarSign,
-  FileText,
-  AlertCircle,
-  Check,
-  Loader2
-} from 'lucide-react';
-import axios from 'axios';
+import { X, Search, Plus, User, Phone, Mail, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import ApiService from '../services/api.js';
 
-const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
-  const [step, setStep] = useState(1); // 1: Select Customer, 2: Transaction Details
+const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
+  const [step, setStep] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [customers, setCustomers] = useState([]);
   const [filteredCustomers, setFilteredCustomers] = useState([]);
@@ -26,9 +13,8 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Transaction form data
   const [formData, setFormData] = useState({
-    type: 'given', // 'given' or 'taken'
+    type: 'given',
     amount: '',
     note: '',
     returnDate: '',
@@ -36,7 +22,6 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
     paymentMethod: 'CASH'
   });
 
-  // New customer form data
   const [newCustomer, setNewCustomer] = useState({
     name: '',
     phone: '',
@@ -68,26 +53,14 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await axios.get('http://localhost:3000/api/customers', {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      console.log('Customers API Response:', response.data);
-      
-      if (response.data && response.data.success && response.data.data?.customers) {
-        setCustomers(response.data.data.customers);
-        setFilteredCustomers(response.data.data.customers);
-      } else if (response.data && Array.isArray(response.data)) {
-        // Handle case where API returns array directly
-        setCustomers(response.data);
-        setFilteredCustomers(response.data);
+      const response = await ApiService.getAllCustomers();
+      if (response.success && response.data?.customers) {
+        setCustomers(response.data.customers);
+        setFilteredCustomers(response.data.customers);
       }
     } catch (error) {
       console.error('Error loading customers:', error);
-      setError('Failed to load customers: ' + (error.response?.data?.message || error.message));
+      setError('Failed to load customers');
     } finally {
       setLoading(false);
     }
@@ -105,7 +78,6 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
       setSubmitting(true);
       setError(null);
       
-      // Validate required fields
       if (!newCustomer.name.trim()) {
         throw new Error('Customer name is required');
       }
@@ -117,42 +89,32 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
         address: newCustomer.address.trim() || ''
       };
       
-      console.log('Creating customer:', customerData);
+      const response = await ApiService.createCustomer(customerData);
       
-      const response = await axios.post('http://localhost:3000/api/customers', customerData, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      console.log('Create customer response:', response.data);
-      
-      if (response.data && response.data.success) {
-        const createdCustomer = response.data.data;
+      if (response.success) {
+        const createdCustomer = response.data;
         setCustomers(prev => [createdCustomer, ...prev]);
         setSelectedCustomer(createdCustomer);
         setShowCreateCustomer(false);
         setNewCustomer({ name: '', phone: '', email: '', address: '' });
         setStep(2);
       } else {
-        throw new Error(response.data?.message || 'Failed to create customer');
+        throw new Error(response.message || 'Failed to create customer');
       }
     } catch (error) {
       console.error('Error creating customer:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to create customer';
-      setError(errorMessage);
+      setError(error.message || 'Failed to create customer');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleSubmitTransaction = async (e) => {
+  const handleSubmitUdhar = async (e) => {
     e.preventDefault();
     try {
       setSubmitting(true);
       setError(null);
       
-      // Validate form data
       if (!selectedCustomer || !selectedCustomer._id) {
         throw new Error('Please select a customer');
       }
@@ -161,79 +123,31 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
         throw new Error('Please enter a valid amount');
       }
       
-      // Prepare transaction data for backend
-      const transactionData = {
+      const udharData = {
         customer: selectedCustomer._id,
-        principalPaise: Math.round(parseFloat(formData.amount) * 100), // Convert to paise
+        principalPaise: Math.round(parseFloat(formData.amount) * 100),
         note: formData.note.trim() || '',
         totalInstallments: parseInt(formData.totalInstallments) || 1,
-        returnDate: formData.returnDate || null,
+        dueDate: formData.returnDate || null,
         paymentMethod: formData.paymentMethod || 'CASH'
       };
       
-      console.log('=== CREATING UDHARI TRANSACTION ===');
-      console.log('Form Data:', formData);
-      console.log('Selected Customer:', selectedCustomer);
-      console.log('Transaction Data:', transactionData);
+      console.log('Creating udhar:', { formData, selectedCustomer, udharData });
       
-      // Validate transaction data
-      if (!transactionData.customer) {
-        throw new Error('Customer ID is missing');
-      }
+      const response = formData.type === 'given' 
+        ? await ApiService.giveUdhar(udharData)
+        : await ApiService.takeUdhar(udharData);
       
-      if (!transactionData.principalPaise || isNaN(transactionData.principalPaise) || transactionData.principalPaise <= 0) {
-        throw new Error('Valid amount is required');
-      }
-      
-      // Determine API endpoint based on transaction type
-      const apiEndpoint = formData.type === 'given' 
-        ? '/api/udhari/give' 
-        : '/api/udhari/take';
-      
-      console.log(`Making ${formData.type} udhari request to:`, apiEndpoint);
-      
-      // Make API call
-      const response = await axios.post(`http://localhost:3000${apiEndpoint}`, transactionData, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      console.log('✅ Udhari Transaction Response:', response.data);
-      
-      if (response.data && response.data.success) {
-        console.log('Udhari transaction created successfully!');
-        onSuccess(); // Refresh the main page
-        onClose(); // Close modal
-        resetForm(); // Reset form for next use
+      if (response.success) {
+        onSuccess();
+        onClose();
+        resetForm();
       } else {
-        const errorMessage = response.data?.error || response.data?.message || 'Failed to create udhari transaction';
-        console.error('Transaction failed:', errorMessage);
-        setError(errorMessage);
+        throw new Error(response.error || response.message || 'Failed to create udhar');
       }
-      
     } catch (error) {
-      console.error('❌ Transaction error:', error);
-      
-      // Handle different types of errors
-      let errorMessage = 'Failed to create udhari transaction';
-      
-      if (error.response) {
-        // Server responded with error status
-        const serverError = error.response.data;
-        errorMessage = serverError?.error || serverError?.message || `Server error: ${error.response.status}`;
-        console.error('Server Error:', serverError);
-      } else if (error.request) {
-        // Request was made but no response received
-        errorMessage = 'No response from server. Please check your connection.';
-        console.error('Network Error:', error.request);
-      } else {
-        // Something else happened
-        errorMessage = error.message || 'Unknown error occurred';
-        console.error('Error:', error.message);
-      }
-      
-      setError(errorMessage);
+      console.error('Udhar error:', error);
+      setError(error.message || 'Failed to create udhar');
     } finally {
       setSubmitting(false);
     }
@@ -274,23 +188,18 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <h2 className="text-2xl font-bold text-slate-900">
-            {step === 1 ? 'Select Customer' : 'Add Udhari Transaction'}
+            {step === 1 ? 'Select Customer' : 'Add Udhar'}
           </h2>
           <button
-            onClick={() => {
-              onClose();
-              resetForm();
-            }}
+            onClick={() => { onClose(); resetForm(); }}
             className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
           >
             <X size={20} className="text-slate-600" />
           </button>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="mx-6 mt-4 flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
             <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
@@ -298,12 +207,10 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
           </div>
         )}
 
-        {/* Step 1: Customer Selection */}
         {step === 1 && (
           <div className="p-6">
             {!showCreateCustomer ? (
               <>
-                {/* Search Bar */}
                 <div className="relative mb-6">
                   <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
                   <input
@@ -315,7 +222,6 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                   />
                 </div>
 
-                {/* Create Customer Button */}
                 <button
                   onClick={() => setShowCreateCustomer(true)}
                   className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors mb-6"
@@ -324,11 +230,10 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                   <span className="font-medium">Add New Customer</span>
                 </button>
 
-                {/* Customer List */}
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {loading ? (
                     <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                      <Loader2 className="animate-spin h-8 w-8 text-blue-600 mx-auto" />
                       <p className="text-slate-500 mt-2">Loading customers...</p>
                     </div>
                   ) : filteredCustomers.length > 0 ? (
@@ -343,7 +248,6 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                             {getInitials(customer.name)}
                           </span>
                         </div>
-                        
                         <div className="flex-1">
                           <h3 className="font-semibold text-slate-900">{customer.name}</h3>
                           <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
@@ -373,14 +277,10 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                 </div>
               </>
             ) : (
-              /* Create Customer Form */
               <form onSubmit={handleCreateCustomer} className="space-y-4">
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">Create New Customer</h3>
-                
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Customer Name *
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Customer Name *</label>
                   <input
                     type="text"
                     required
@@ -390,11 +290,8 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                     placeholder="Enter customer name"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Phone Number
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Phone Number</label>
                   <input
                     type="tel"
                     className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -403,11 +300,8 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                     placeholder="Enter phone number"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Email
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
                   <input
                     type="email"
                     className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -416,11 +310,8 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                     placeholder="Enter email address"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Address
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Address</label>
                   <textarea
                     className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows="3"
@@ -429,14 +320,10 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                     placeholder="Enter address"
                   />
                 </div>
-
                 <div className="flex gap-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowCreateCustomer(false);
-                      setError(null);
-                    }}
+                    onClick={() => { setShowCreateCustomer(false); setError(null); }}
                     className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
                     disabled={submitting}
                   >
@@ -452,9 +339,7 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                         <Loader2 size={16} className="animate-spin" />
                         Creating...
                       </div>
-                    ) : (
-                      'Create Customer'
-                    )}
+                    ) : 'Create Customer'}
                   </button>
                 </div>
               </form>
@@ -462,37 +347,27 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
           </div>
         )}
 
-        {/* Step 2: Transaction Details */}
         {step === 2 && selectedCustomer && (
           <div className="p-6">
-            {/* Selected Customer Info */}
             <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl mb-6">
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                <span className="text-white text-sm font-bold">
-                  {getInitials(selectedCustomer.name)}
-                </span>
+                <span className="text-white text-sm font-bold">{getInitials(selectedCustomer.name)}</span>
               </div>
               <div>
                 <h3 className="font-semibold text-slate-900">{selectedCustomer.name}</h3>
                 <p className="text-sm text-slate-500">{selectedCustomer.phone}</p>
               </div>
               <button
-                onClick={() => {
-                  setStep(1);
-                  setError(null);
-                }}
+                onClick={() => { setStep(1); setError(null); }}
                 className="ml-auto text-blue-600 hover:bg-white hover:bg-opacity-50 p-2 rounded-lg transition-colors"
               >
                 Change
               </button>
             </div>
 
-            <form onSubmit={handleSubmitTransaction} className="space-y-6">
-              {/* Transaction Type */}
+            <form onSubmit={handleSubmitUdhar} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-3">
-                  Transaction Type *
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-3">Udhar Type *</label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -504,14 +379,11 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                     }`}
                   >
                     <div className="text-center">
-                      <DollarSign size={24} className={`mx-auto mb-2 ${
-                        formData.type === 'given' ? 'text-red-500' : 'text-slate-400'
-                      }`} />
-                      <p className="font-semibold">Give Udhari</p>
+                      <DollarSign size={24} className={`mx-auto mb-2 ${formData.type === 'given' ? 'text-red-500' : 'text-slate-400'}`} />
+                      <p className="font-semibold">Give Udhar</p>
                       <p className="text-sm text-slate-500">Lend money to customer</p>
                     </div>
                   </button>
-                  
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, type: 'taken' }))}
@@ -522,21 +394,16 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                     }`}
                   >
                     <div className="text-center">
-                      <DollarSign size={24} className={`mx-auto mb-2 ${
-                        formData.type === 'taken' ? 'text-green-500' : 'text-slate-400'
-                      }`} />
-                      <p className="font-semibold">Take Udhari</p>
+                      <DollarSign size={24} className={`mx-auto mb-2 ${formData.type === 'taken' ? 'text-green-500' : 'text-slate-400'}`} />
+                      <p className="font-semibold">Take Udhar</p>
                       <p className="text-sm text-slate-500">Borrow money from customer</p>
                     </div>
                   </button>
                 </div>
               </div>
 
-              {/* Amount */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Amount *
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Principal Amount *</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">₹</span>
                   <input
@@ -551,17 +418,12 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                   />
                 </div>
                 {formData.amount && (
-                  <p className="text-sm text-slate-500 mt-1">
-                    Amount: {formatCurrency(parseFloat(formData.amount) || 0)}
-                  </p>
+                  <p className="text-sm text-slate-500 mt-1">Amount: {formatCurrency(parseFloat(formData.amount) || 0)}</p>
                 )}
               </div>
 
-              {/* Payment Method */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Payment Method
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
                 <select
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.paymentMethod}
@@ -579,25 +441,19 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                 </select>
               </div>
 
-              {/* Note */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Note / Description
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Note / Description</label>
                 <textarea
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows="3"
                   value={formData.note}
                   onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                  placeholder="Enter transaction details..."
+                  placeholder="Enter udhar details..."
                 />
               </div>
 
-              {/* Return Date */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Expected Return Date (Optional)
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Expected Return Date (Optional)</label>
                 <input
                   type="date"
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -607,11 +463,8 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                 />
               </div>
 
-              {/* Total Installments */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Total Installments
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Total Installments</label>
                 <input
                   type="number"
                   min="1"
@@ -620,19 +473,13 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                   value={formData.totalInstallments}
                   onChange={(e) => setFormData(prev => ({ ...prev, totalInstallments: e.target.value }))}
                 />
-                <p className="text-sm text-slate-500 mt-1">
-                  Number of payments expected for this transaction
-                </p>
+                <p className="text-sm text-slate-500 mt-1">Number of payments expected for this udhar</p>
               </div>
 
-              {/* Submit Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    setStep(1);
-                    setError(null);
-                  }}
+                  onClick={() => { setStep(1); setError(null); }}
                   className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
                   disabled={submitting}
                 >
@@ -652,9 +499,7 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
                       <Loader2 size={18} className="animate-spin" />
                       Creating...
                     </div>
-                  ) : (
-                    formData.type === 'given' ? 'Give Udhari' : 'Take Udhari'
-                  )}
+                  ) : formData.type === 'given' ? 'Give Udhar' : 'Take Udhar'}
                 </button>
               </div>
             </form>
@@ -664,5 +509,4 @@ const AddUdhariModal = ({ isOpen, onClose, onSuccess }) => {
     </div>
   );
 };
-
-export default AddUdhariModal;
+export default AddUdharModal;
