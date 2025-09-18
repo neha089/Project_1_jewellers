@@ -1,4 +1,4 @@
-import Udhar from '../models/Udhar.js';
+import Loan from '../models/Loan.js';
 import Transaction from '../models/Transaction.js';
 import mongoose from 'mongoose';
 
@@ -14,15 +14,16 @@ const getCustomerName = async (customerId) => {
   }
 };
 
-// Give Udhar (Lend money to someone)
-export const giveUdhar = async (req, res) => {
+// Give Loan (Lend money to someone)
+export const giveLoan = async (req, res) => {
   try {
-    console.log('=== GIVE UDHAR ===');
+    console.log('=== GIVE LOAN ===');
     console.log('Request body:', req.body);
 
     const { 
       customer, 
       principalPaise, 
+      interestRateMonthlyPct, 
       note, 
       totalInstallments = 1, 
       dueDate, 
@@ -30,29 +31,30 @@ export const giveUdhar = async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!customer || !principalPaise) {
+    if (!customer || !principalPaise || !interestRateMonthlyPct) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Customer and principal amount are required' 
+        error: 'Customer, principal amount, and interest rate are required' 
       });
     }
 
-    if (principalPaise <= 0) {
+    if (principalPaise <= 0 || interestRateMonthlyPct < 0) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Principal amount must be greater than zero' 
+        error: 'Principal amount must be greater than zero and interest rate cannot be negative' 
       });
     }
 
-    const udhar = new Udhar({
+    const loan = new Loan({
       customer,
-      udharType: 'GIVEN',
+      loanType: 'GIVEN',
       principalPaise,
       direction: -1, // outgoing - you are giving money
-      sourceType: 'UDHAR',
+      sourceType: 'LOAN',
       note,
       outstandingPrincipal: principalPaise,
       totalInstallments,
+      interestRateMonthlyPct,
       dueDate: dueDate ? new Date(dueDate) : null,
       takenDate: new Date(),
       paymentHistory: [],
@@ -61,24 +63,28 @@ export const giveUdhar = async (req, res) => {
       isActive: true
     });
 
-    const savedUdhar = await udhar.save();
+    const savedLoan = await loan.save();
+    
+    // Update next interest due date
+    await savedLoan.updateNextInterestDueDate();
 
-    // Create transaction record for the udhar disbursement
+    // Create transaction record for the loan disbursement
     const customerName = await getCustomerName(customer);
     const transaction = new Transaction({
-      type: 'UDHAR_GIVEN',
+      type: 'LOAN_GIVEN',
       customer,
       amount: principalPaise / 100, // Store in rupees
       direction: -1, // outgoing
-      description: `Udhar given to ${customerName} - ${note || 'No note'}`,
-      relatedDoc: savedUdhar._id,
-      relatedModel: 'Udhar',
+      description: `Loan given to ${customerName} - ${note || 'No note'}`,
+      relatedDoc: savedLoan._id,
+      relatedModel: 'Loan',
       category: 'EXPENSE',
       date: new Date(),
       metadata: {
         paymentType: 'DISBURSEMENT',
         paymentMethod,
-        originalUdharAmount: principalPaise / 100,
+        originalLoanAmount: principalPaise / 100,
+        interestRate: interestRateMonthlyPct,
         totalInstallments
       }
     });
@@ -88,29 +94,30 @@ export const giveUdhar = async (req, res) => {
 
     res.status(201).json({ 
       success: true, 
-      message: 'Udhar given successfully',
+      message: 'Loan given successfully',
       data: {
-        ...savedUdhar.toObject(),
+        ...savedLoan.toObject(),
         principalRupees: principalPaise / 100,
         outstandingRupees: principalPaise / 100,
         transactionId: savedTransaction._id
       }
     });
   } catch (error) {
-    console.error('Error in giveUdhar:', error);
+    console.error('Error in giveLoan:', error);
     res.status(400).json({ success: false, error: error.message });
   }
 };
 
-// Take Udhar (Borrow money from someone)
-export const takeUdhar = async (req, res) => {
+// Take Loan (Borrow money from someone)
+export const takeLoan = async (req, res) => {
   try {
-    console.log('=== TAKE UDHAR ===');
+    console.log('=== TAKE LOAN ===');
     console.log('Request body:', req.body);
 
     const { 
       customer, 
       principalPaise, 
+      interestRateMonthlyPct, 
       note, 
       totalInstallments = 1, 
       dueDate, 
@@ -118,29 +125,30 @@ export const takeUdhar = async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!customer || !principalPaise) {
+    if (!customer || !principalPaise || !interestRateMonthlyPct) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Customer and principal amount are required' 
+        error: 'Customer, principal amount, and interest rate are required' 
       });
     }
 
-    if (principalPaise <= 0) {
+    if (principalPaise <= 0 || interestRateMonthlyPct < 0) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Principal amount must be greater than zero' 
+        error: 'Principal amount must be greater than zero and interest rate cannot be negative' 
       });
     }
 
-    const udhar = new Udhar({
+    const loan = new Loan({
       customer,
-      udharType: 'TAKEN',
+      loanType: 'TAKEN',
       principalPaise,
       direction: 1, // incoming - you are receiving money
-      sourceType: 'UDHAR',
+      sourceType: 'LOAN',
       note,
       outstandingPrincipal: principalPaise,
       totalInstallments,
+      interestRateMonthlyPct,
       dueDate: dueDate ? new Date(dueDate) : null,
       takenDate: new Date(),
       paymentHistory: [],
@@ -149,24 +157,28 @@ export const takeUdhar = async (req, res) => {
       isActive: true
     });
 
-    const savedUdhar = await udhar.save();
+    const savedLoan = await loan.save();
+    
+    // Update next interest due date
+    await savedLoan.updateNextInterestDueDate();
 
-    // Create transaction record for udhar received
+    // Create transaction record for loan received
     const customerName = await getCustomerName(customer);
     const transaction = new Transaction({
-      type: 'UDHAR_TAKEN',
+      type: 'LOAN_TAKEN',
       customer,
       amount: principalPaise / 100, // Store in rupees
       direction: 1, // incoming
-      description: `Udhar taken from ${customerName} - ${note || 'No note'}`,
-      relatedDoc: savedUdhar._id,
-      relatedModel: 'Udhar',
+      description: `Loan taken from ${customerName} - ${note || 'No note'}`,
+      relatedDoc: savedLoan._id,
+      relatedModel: 'Loan',
       category: 'INCOME',
       date: new Date(),
       metadata: {
         paymentType: 'DISBURSEMENT',
         paymentMethod,
-        originalUdharAmount: principalPaise / 100,
+        originalLoanAmount: principalPaise / 100,
+        interestRate: interestRateMonthlyPct,
         totalInstallments
       }
     });
@@ -176,31 +188,32 @@ export const takeUdhar = async (req, res) => {
 
     res.status(201).json({ 
       success: true, 
-      message: 'Udhar taken successfully',
+      message: 'Loan taken successfully',
       data: {
-        ...savedUdhar.toObject(),
+        ...savedLoan.toObject(),
         principalRupees: principalPaise / 100,
         outstandingRupees: principalPaise / 100,
         transactionId: savedTransaction._id
       }
     });
   } catch (error) {
-    console.error('Error in takeUdhar:', error);
+    console.error('Error in takeLoan:', error);
     res.status(400).json({ success: false, error: error.message });
   }
 };
 
-// Receive Udhar Payment (Principal only)
-export const receiveUdharPayment = async (req, res) => {
+// Receive Loan Payment (Principal + Interest) - Updated to use payment history
+export const receiveLoanPayment = async (req, res) => {
   try {
-    console.log('=== RECEIVE UDHAR PAYMENT ===');
+    console.log('=== RECEIVE LOAN PAYMENT ===');
     console.log('Request body:', req.body);
 
     const { 
-      udharId,
+      loanId,
       principalPaise = 0, 
+      interestPaise = 0, 
       note, 
-      installmentNumber,
+      installmentNumber, 
       paymentDate,
       paymentMethod = 'CASH',
       reference = '',
@@ -208,139 +221,201 @@ export const receiveUdharPayment = async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!udharId || principalPaise <= 0) {
+    if (!loanId || (principalPaise <= 0 && interestPaise <= 0)) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Udhar ID and principal amount are required' 
+        error: 'Loan ID and at least one payment amount are required' 
       });
     }
 
-    // Find the udhar
-    const udhar = await Udhar.findById(udharId).populate('customer', 'name phone email');
-    if (!udhar) {
+    // Find the loan
+    const loan = await Loan.findById(loanId).populate('customer', 'name phone email');
+    if (!loan) {
       return res.status(404).json({
         success: false,
-        error: 'Udhar not found'
+        error: 'Loan not found'
       });
     }
 
-    if (udhar.udharType !== 'GIVEN') {
+    if (loan.loanType !== 'GIVEN') {
       return res.status(400).json({
         success: false,
-        error: 'Can only receive payment for udhar that was given'
+        error: 'Can only receive payment for loans that were given'
       });
     }
 
-    if (udhar.status === 'CLOSED') {
+    if (loan.status === 'CLOSED') {
       return res.status(400).json({
         success: false,
-        error: 'This udhar has already been fully paid'
+        error: 'This loan has already been fully paid'
       });
     }
 
-    // Validate amount
-    if (principalPaise > udhar.outstandingPrincipal) {
+    // Validate amounts
+    if (principalPaise > 0 && principalPaise > loan.outstandingPrincipal) {
       return res.status(400).json({
         success: false,
-        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(udhar.outstandingPrincipal/100).toFixed(2)}`
+        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(loan.outstandingPrincipal/100).toFixed(2)}`
+      });
+    }
+
+    const expectedInterest = (loan.outstandingPrincipal * loan.interestRateMonthlyPct) / 100;
+    if (interestPaise > 0 && interestPaise > expectedInterest) {
+      return res.status(400).json({
+        success: false,
+        error: `Interest payment ₹${(interestPaise/100).toFixed(2)} exceeds expected ₹${(expectedInterest/100).toFixed(2)}`
       });
     }
 
     const transactionDate = paymentDate ? new Date(paymentDate) : new Date();
-    const customerName = await getCustomerName(udhar.customer._id);
+    const customerName = await getCustomerName(loan.customer._id);
 
     // Add payment to history
     const paymentEntry = {
       principalAmount: principalPaise,
+      interestAmount: interestPaise,
       date: transactionDate,
-      installmentNumber: installmentNumber || (udhar.paymentHistory.length + 1),
+      installmentNumber: installmentNumber || (loan.paymentHistory.length + 1),
       note: note || '',
       paymentMethod,
       paymentReference: reference,
       bankTransactionId: transactionId
     };
 
-    udhar.paymentHistory.push(paymentEntry);
+    loan.paymentHistory.push(paymentEntry);
 
-    // Update udhar amounts
-    udhar.outstandingPrincipal = Math.max(0, udhar.outstandingPrincipal - principalPaise);
-    udhar.lastPaymentDate = transactionDate;
-    udhar.paidInstallments = udhar.paymentHistory.length;
+    // Update loan amounts
+    if (principalPaise > 0) {
+      loan.outstandingPrincipal = Math.max(0, loan.outstandingPrincipal - principalPaise);
+      loan.totalPrincipalPaid += principalPaise;
+      loan.lastPrincipalPaymentDate = transactionDate;
+    }
 
-    // Update udhar status
-    const isFullyPaid = udhar.outstandingPrincipal <= 0;
-    udhar.status = isFullyPaid ? 'CLOSED' : 'PARTIALLY_PAID';
-    udhar.isActive = !isFullyPaid;
+    if (interestPaise > 0) {
+      loan.totalInterestPaid += interestPaise;
+      loan.lastInterestPaymentDate = transactionDate;
+    }
 
-    const updatedUdhar = await udhar.save();
+    // Update loan status
+    const isFullyPaid = loan.outstandingPrincipal <= 0;
+    loan.status = isFullyPaid ? 'CLOSED' : 'PARTIALLY_PAID';
+    loan.isActive = !isFullyPaid;
+    loan.paidInstallments = loan.paymentHistory.length;
 
-    // Create transaction record
-    const transaction = new Transaction({
-      type: isFullyPaid ? 'UDHAR_CLOSURE' : 'UDHAR_PAYMENT',
-      customer: udhar.customer._id,
-      amount: principalPaise / 100,
-      direction: 1, // incoming
-      description: `Principal payment from ${customerName} - ${note || 'Payment received'}`,
-      relatedDoc: udhar._id,
-      relatedModel: 'Udhar',
-      category: 'INCOME',
-      date: transactionDate,
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        paymentMethod,
-        paymentReference: reference,
-        bankTransactionId: transactionId,
-        installmentNumber: installmentNumber || udhar.paymentHistory.length,
-        remainingAmount: udhar.outstandingPrincipal / 100,
-        isFullPayment: isFullyPaid
-      }
-    });
+    // Update next interest due date
+    if (loan.outstandingPrincipal > 0) {
+      await loan.updateNextInterestDueDate();
+    } else {
+      loan.nextInterestDueDate = null;
+    }
 
-    const savedTransaction = await transaction.save();
+    const updatedLoan = await loan.save();
 
-    const totalPaidPrincipal = udhar.principalPaise - udhar.outstandingPrincipal;
-    const paymentPercentage = Math.round((totalPaidPrincipal / udhar.principalPaise) * 100);
+    // Create transaction records
+    const transactions = [];
+
+    if (principalPaise > 0) {
+      transactions.push({
+        type: isFullyPaid ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
+        customer: loan.customer._id,
+        amount: principalPaise / 100,
+        direction: 1, // incoming
+        description: `Principal payment from ${customerName} - ${note || 'Payment received'}`,
+        relatedDoc: loan._id,
+        relatedModel: 'Loan',
+        category: 'INCOME',
+        date: transactionDate,
+        metadata: {
+          paymentType: 'PRINCIPAL',
+          paymentMethod,
+          paymentReference: reference,
+          bankTransactionId: transactionId,
+          installmentNumber: installmentNumber || loan.paymentHistory.length,
+          remainingAmount: loan.outstandingPrincipal / 100,
+          isFullPayment: isFullyPaid
+        }
+      });
+    }
+
+    if (interestPaise > 0) {
+      const currentMonth = transactionDate.toISOString().substring(0, 7);
+      transactions.push({
+        type: 'LOAN_INTEREST_RECEIVED',
+        customer: loan.customer._id,
+        amount: interestPaise / 100,
+        direction: 1, // incoming
+        description: `Interest payment from ${customerName} for ${currentMonth}`,
+        relatedDoc: loan._id,
+        relatedModel: 'Loan',
+        category: 'INCOME',
+        date: transactionDate,
+        metadata: {
+          paymentType: 'INTEREST',
+          paymentMethod,
+          paymentReference: reference,
+          bankTransactionId: transactionId,
+          forMonth: currentMonth,
+          interestRate: loan.interestRateMonthlyPct
+        }
+      });
+    }
+
+    // Save all transactions
+    const savedTransactions = [];
+    for (const txnData of transactions) {
+      const transaction = new Transaction(txnData);
+      const saved = await transaction.save();
+      savedTransactions.push(saved);
+    }
+
+    const totalPaidPrincipal = loan.principalPaise - loan.outstandingPrincipal;
+    const paymentPercentage = Math.round((totalPaidPrincipal / loan.principalPaise) * 100);
 
     res.status(200).json({
       success: true,
-      message: isFullyPaid ? 'Udhar fully paid and settled!' : 'Payment received successfully',
+      message: isFullyPaid ? 'Loan fully paid and settled!' : 'Payment received successfully',
       data: {
         payment: {
           principalAmount: principalPaise / 100,
+          interestAmount: interestPaise / 100,
+          totalAmount: (principalPaise + interestPaise) / 100,
           date: transactionDate,
-          installmentNumber: installmentNumber || udhar.paymentHistory.length,
+          installmentNumber: installmentNumber || loan.paymentHistory.length,
           note: note || ''
         },
-        udharSummary: {
-          originalAmount: udhar.principalPaise / 100,
+        loanSummary: {
+          originalAmount: loan.principalPaise / 100,
           totalPrincipalPaid: totalPaidPrincipal / 100,
-          remainingOutstanding: udhar.outstandingPrincipal / 100,
+          totalInterestPaid: loan.totalInterestPaid / 100,
+          remainingOutstanding: loan.outstandingPrincipal / 100,
           paymentPercentage,
           isFullyPaid,
-          totalInstallments: udhar.totalInstallments,
-          paidInstallments: udhar.paymentHistory.length
+          totalInstallments: loan.totalInstallments,
+          paidInstallments: loan.paymentHistory.length,
+          nextInterestDueDate: loan.nextInterestDueDate
         },
-        transactionId: savedTransaction._id
+        transactionIds: savedTransactions.map(t => t._id)
       }
     });
   } catch (error) {
-    console.error('Error in receiveUdharPayment:', error);
+    console.error('Error in receiveLoanPayment:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message || 'Failed to process udhar payment'
+      error: error.message || 'Failed to process loan payment'
     });
   }
 };
 
-// Make Udhar Payment (When you return money you borrowed)
-export const makeUdharPayment = async (req, res) => {
+// Make Loan Payment (When you return money you borrowed) - Updated to use payment history
+export const makeLoanPayment = async (req, res) => {
   try {
-    console.log('=== MAKE UDHAR PAYMENT ===');
+    console.log('=== MAKE LOAN PAYMENT ===');
     console.log('Request body:', req.body);
 
     const { 
-      udharId,
+      loanId,
       principalPaise = 0, 
+      interestPaise = 0, 
       note, 
       installmentNumber,
       paymentDate,
@@ -350,133 +425,186 @@ export const makeUdharPayment = async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!udharId || principalPaise <= 0) {
+    if (!loanId || (principalPaise <= 0 && interestPaise <= 0)) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Udhar ID and principal amount are required' 
+        error: 'Loan ID and at least one payment amount are required' 
       });
     }
 
-    // Find the udhar
-    const udhar = await Udhar.findById(udharId).populate('customer', 'name phone email');
-    if (!udhar) {
+    // Find the loan
+    const loan = await Loan.findById(loanId).populate('customer', 'name phone email');
+    if (!loan) {
       return res.status(404).json({
         success: false,
-        error: 'Udhar not found'
+        error: 'Loan not found'
       });
     }
 
-    if (udhar.udharType !== 'TAKEN') {
+    if (loan.loanType !== 'TAKEN') {
       return res.status(400).json({
         success: false,
-        error: 'Can only make payment for udhar that was taken'
+        error: 'Can only make payment for loans that were taken'
       });
     }
 
-    if (udhar.status === 'CLOSED') {
+    if (principalPaise > loan.outstandingPrincipal) {
       return res.status(400).json({
         success: false,
-        error: 'This udhar has already been fully paid'
+        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(loan.outstandingPrincipal/100).toFixed(2)}`
       });
     }
 
-    // Validate amount
-    if (principalPaise > udhar.outstandingPrincipal) {
+    const expectedInterest = (loan.outstandingPrincipal * loan.interestRateMonthlyPct) / 100;
+    if (interestPaise > 0 && interestPaise > expectedInterest) {
       return res.status(400).json({
         success: false,
-        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(udhar.outstandingPrincipal/100).toFixed(2)}`
+        error: `Interest payment ₹${(interestPaise/100).toFixed(2)} exceeds expected ₹${(expectedInterest/100).toFixed(2)}`
       });
     }
 
     const transactionDate = paymentDate ? new Date(paymentDate) : new Date();
-    const customerName = await getCustomerName(udhar.customer._id);
+    const customerName = await getCustomerName(loan.customer._id);
 
     // Add payment to history
     const paymentEntry = {
       principalAmount: principalPaise,
+      interestAmount: interestPaise,
       date: transactionDate,
-      installmentNumber: installmentNumber || (udhar.paymentHistory.length + 1),
+      installmentNumber: installmentNumber || (loan.paymentHistory.length + 1),
       note: note || '',
       paymentMethod,
       paymentReference: reference,
       bankTransactionId: transactionId
     };
 
-    udhar.paymentHistory.push(paymentEntry);
+    loan.paymentHistory.push(paymentEntry);
 
-    // Update udhar amounts
-    udhar.outstandingPrincipal = Math.max(0, udhar.outstandingPrincipal - principalPaise);
-    udhar.lastPaymentDate = transactionDate;
-    udhar.paidInstallments = udhar.paymentHistory.length;
+    // Update loan amounts
+    if (principalPaise > 0) {
+      loan.outstandingPrincipal = Math.max(0, loan.outstandingPrincipal - principalPaise);
+      loan.totalPrincipalPaid += principalPaise;
+      loan.lastPrincipalPaymentDate = transactionDate;
+    }
 
-    // Update udhar status
-    const isFullyPaid = udhar.outstandingPrincipal <= 0;
-    udhar.status = isFullyPaid ? 'CLOSED' : 'PARTIALLY_PAID';
-    udhar.isActive = !isFullyPaid;
+    if (interestPaise > 0) {
+      loan.totalInterestPaid += interestPaise;
+      loan.lastInterestPaymentDate = transactionDate;
+    }
 
-    const updatedUdhar = await udhar.save();
+    // Update loan status
+    const isFullyPaid = loan.outstandingPrincipal <= 0;
+    loan.status = isFullyPaid ? 'CLOSED' : 'PARTIALLY_PAID';
+    loan.isActive = !isFullyPaid;
+    loan.paidInstallments = loan.paymentHistory.length;
 
-    // Create transaction record
-    const transaction = new Transaction({
-      type: isFullyPaid ? 'UDHAR_CLOSURE' : 'UDHAR_PAYMENT',
-      customer: udhar.customer._id,
-      amount: principalPaise / 100,
-      direction: -1, // outgoing
-      description: `Principal payment to ${customerName} - ${note || 'Payment made'}`,
-      relatedDoc: udhar._id,
-      relatedModel: 'Udhar',
-      category: 'EXPENSE',
-      date: transactionDate,
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        paymentMethod,
-        paymentReference: reference,
-        bankTransactionId: transactionId,
-        installmentNumber: installmentNumber || udhar.paymentHistory.length,
-        remainingAmount: udhar.outstandingPrincipal / 100,
-        isFullPayment: isFullyPaid
-      }
-    });
+    // Update next interest due date
+    if (loan.outstandingPrincipal > 0) {
+      await loan.updateNextInterestDueDate();
+    } else {
+      loan.nextInterestDueDate = null;
+    }
 
-    const savedTransaction = await transaction.save();
+    const updatedLoan = await loan.save();
 
-    const totalPaidPrincipal = udhar.principalPaise - udhar.outstandingPrincipal;
-    const paymentPercentage = Math.round((totalPaidPrincipal / udhar.principalPaise) * 100);
+    // Create transaction records
+    const transactions = [];
+
+    if (principalPaise > 0) {
+      transactions.push({
+        type: isFullyPaid ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
+        customer: loan.customer._id,
+        amount: principalPaise / 100,
+        direction: -1, // outgoing
+        description: `Principal payment to ${customerName} - ${note || 'Payment made'}`,
+        relatedDoc: loan._id,
+        relatedModel: 'Loan',
+        category: 'EXPENSE',
+        date: transactionDate,
+        metadata: {
+          paymentType: 'PRINCIPAL',
+          paymentMethod,
+          paymentReference: reference,
+          bankTransactionId: transactionId,
+          installmentNumber: installmentNumber || loan.paymentHistory.length,
+          remainingAmount: loan.outstandingPrincipal / 100,
+          isFullPayment: isFullyPaid
+        }
+      });
+    }
+
+    if (interestPaise > 0) {
+      const currentMonth = transactionDate.toISOString().substring(0, 7);
+      transactions.push({
+        type: 'INTEREST_PAID',
+        customer: loan.customer._id,
+        amount: interestPaise / 100,
+        direction: -1, // outgoing
+        description: `Interest payment to ${customerName} for ${currentMonth}`,
+        relatedDoc: loan._id,
+        relatedModel: 'Loan',
+        category: 'EXPENSE',
+        date: transactionDate,
+        metadata: {
+          paymentType: 'INTEREST',
+          paymentMethod,
+          paymentReference: reference,
+          bankTransactionId: transactionId,
+          forMonth: currentMonth,
+          interestRate: loan.interestRateMonthlyPct
+        }
+      });
+    }
+
+    // Save all transactions
+    const savedTransactions = [];
+    for (const txnData of transactions) {
+      const transaction = new Transaction(txnData);
+      const saved = await transaction.save();
+      savedTransactions.push(saved);
+    }
+
+    const totalPaidPrincipal = loan.principalPaise - loan.outstandingPrincipal;
+    const paymentPercentage = Math.round((totalPaidPrincipal / loan.principalPaise) * 100);
 
     res.status(200).json({ 
       success: true, 
-      message: isFullyPaid ? 'Udhar fully paid!' : 'Payment made successfully',
+      message: isFullyPaid ? 'Loan fully paid!' : 'Payment made successfully',
       data: {
         payment: {
           principalAmount: principalPaise / 100,
+          interestAmount: interestPaise / 100,
+          totalAmount: (principalPaise + interestPaise) / 100,
           date: transactionDate,
-          installmentNumber: installmentNumber || udhar.paymentHistory.length,
+          installmentNumber: installmentNumber || loan.paymentHistory.length,
           note: note || ''
         },
-        udharSummary: {
-          originalAmount: udhar.principalPaise / 100,
+        loanSummary: {
+          originalAmount: loan.principalPaise / 100,
           totalPrincipalPaid: totalPaidPrincipal / 100,
-          remainingOutstanding: udhar.outstandingPrincipal / 100,
+          totalInterestPaid: loan.totalInterestPaid / 100,
+          remainingOutstanding: loan.outstandingPrincipal / 100,
           paymentPercentage,
           isFullyPaid,
-          totalInstallments: udhar.totalInstallments,
-          paidInstallments: udhar.paymentHistory.length
+          totalInstallments: loan.totalInstallments,
+          paidInstallments: loan.paymentHistory.length,
+          nextInterestDueDate: loan.nextInterestDueDate
         },
-        transactionId: savedTransaction._id
+        transactionIds: savedTransactions.map(t => t._id)
       }
     });
   } catch (error) {
-    console.error('Error in makeUdharPayment:', error);
+    console.error('Error in makeLoanPayment:', error);
     res.status(400).json({ success: false, error: error.message });
   }
 };
 
-// Get Customer Udhar Summary
-export const getCustomerUdharSummary = async (req, res) => {
+// Get Customer Loan Summary
+export const getCustomerLoanSummary = async (req, res) => {
   try {
     const { customerId } = req.params;
 
-    const udhars = await Udhar.find({ customer: customerId, sourceType: 'UDHAR' })
+    const loans = await Loan.find({ customer: customerId, sourceType: 'LOAN' })
       .populate('customer', 'name phone email')
       .sort({ takenDate: -1 });
 
@@ -484,19 +612,22 @@ export const getCustomerUdharSummary = async (req, res) => {
     let totalTaken = 0;
     let outstandingToCollect = 0;
     let outstandingToPay = 0;
+    let totalInterestPaid = 0;
 
-    const givenUdhars = [];
-    const takenUdhars = [];
+    const givenLoans = [];
+    const takenLoans = [];
 
-    udhars.forEach(udhar => {
-      if (udhar.udharType === 'GIVEN') {
-        totalGiven += udhar.principalPaise;
-        outstandingToCollect += udhar.outstandingPrincipal;
-        givenUdhars.push(udhar);
-      } else if (udhar.udharType === 'TAKEN') {
-        totalTaken += udhar.principalPaise;
-        outstandingToPay += udhar.outstandingPrincipal;
-        takenUdhars.push(udhar);
+    loans.forEach(loan => {
+      if (loan.loanType === 'GIVEN') {
+        totalGiven += loan.principalPaise;
+        outstandingToCollect += loan.outstandingPrincipal;
+        totalInterestPaid += loan.totalInterestPaid;
+        givenLoans.push(loan);
+      } else if (loan.loanType === 'TAKEN') {
+        totalTaken += loan.principalPaise;
+        outstandingToPay += loan.outstandingPrincipal;
+        totalInterestPaid += loan.totalInterestPaid;
+        takenLoans.push(loan);
       }
     });
 
@@ -504,20 +635,21 @@ export const getCustomerUdharSummary = async (req, res) => {
 
     const relatedTransactions = await Transaction.find({
       customer: customerId,
-      type: { $in: ['UDHAR_GIVEN', 'UDHAR_TAKEN', 'UDHAR_PAYMENT', 'UDHAR_CLOSURE'] }
+      type: { $in: ['LOAN_GIVEN', 'LOAN_TAKEN', 'LOAN_PAYMENT', 'LOAN_CLOSURE', 'LOAN_INTEREST_RECEIVED', 'INTEREST_PAID'] }
     }).sort({ date: -1 });
 
     const summary = {
-      customer: udhars[0]?.customer,
+      customer: loans[0]?.customer,
       totalGiven: totalGiven / 100,
       totalTaken: totalTaken / 100,
       outstandingToCollect: outstandingToCollect / 100,
       outstandingToPay: outstandingToPay / 100,
+      totalInterestPaid: totalInterestPaid / 100,
       netAmount: netAmount / 100,
-      udhars: {
-        given: givenUdhars,
-        taken: takenUdhars,
-        all: udhars
+      loans: {
+        given: givenLoans,
+        taken: takenLoans,
+        all: loans
       },
       transactionHistory: relatedTransactions
     };
@@ -527,29 +659,56 @@ export const getCustomerUdharSummary = async (req, res) => {
       data: summary
     });
   } catch (error) {
-    console.error('Error in getCustomerUdharSummary:', error);
+    console.error('Error in getCustomerLoanSummary:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// Get Payment History for a Specific Udhar
+// Get Payment History for a Specific Loan
 export const getPaymentHistory = async (req, res) => {
   try {
-    const { udharId } = req.params;
+    const { loanId } = req.params;
 
-    const originalUdhar = await Udhar.findById(udharId)
+    const originalLoan = await Loan.findById(loanId)
       .populate('customer', 'name phone email');
 
-    if (!originalUdhar) {
+    if (!originalLoan) {
       return res.status(404).json({
         success: false,
-        message: 'Udhar transaction not found'
+        message: 'Loan transaction not found'
       });
     }
 
+    // Get all repayment transactions
+    const repayments = await Loan.find({
+      sourceRef: loanId,
+      loanType: 'REPAYMENT'
+    }).sort({ takenDate: 1 });
+
+    // Get related Transaction records
+    const relatedTransactions = await Transaction.find({
+      $or: [
+        { relatedDoc: loanId },
+        { relatedDoc: { $in: repayments.map(r => r._id) } }
+      ]
+    }).sort({ date: 1 });
+
+    // Calculate running balance
+    let runningBalance = originalLoan.principalPaise;
+    const paymentHistory = repayments.map(payment => {
+      runningBalance -= payment.principalPaise;
+      return {
+        ...payment.toObject(),
+        principalAmount: payment.principalPaise / 100,
+        runningBalance: runningBalance / 100,
+        date: payment.takenDate
+      };
+    });
+
     // Format payment history
-    const formattedPaymentHistory = (originalUdhar.paymentHistory || []).map(payment => ({
+    const formattedPaymentHistory = (originalLoan.paymentHistory || []).map(payment => ({
       principalAmount: payment.principalAmount / 100,
+      interestAmount: payment.interestAmount / 100,
       date: payment.date,
       installmentNumber: payment.installmentNumber,
       note: payment.note,
@@ -558,27 +717,24 @@ export const getPaymentHistory = async (req, res) => {
       bankTransactionId: payment.bankTransactionId
     }));
 
-    // Get related Transaction records
-    const relatedTransactions = await Transaction.find({
-      relatedDoc: udharId
-    }).sort({ date: 1 });
-
     res.json({
       success: true,
       data: {
-        originalUdhar: {
-          ...originalUdhar.toObject(),
-          originalAmount: originalUdhar.principalPaise / 100,
-          outstandingBalance: originalUdhar.outstandingPrincipal / 100
+        originalLoan: {
+          ...originalLoan.toObject(),
+          originalAmount: originalLoan.principalPaise / 100,
+          outstandingBalance: originalLoan.outstandingPrincipal / 100
         },
         paymentHistory: formattedPaymentHistory,
+        repaymentTransactions: paymentHistory,
         relatedTransactions,
         summary: {
-          originalAmount: originalUdhar.principalPaise / 100,
-          totalPrincipalPaid: (originalUdhar.principalPaise - originalUdhar.outstandingPrincipal) / 100,
-          outstandingBalance: originalUdhar.outstandingPrincipal / 100,
+          originalAmount: originalLoan.principalPaise / 100,
+          totalPrincipalPaid: (originalLoan.principalPaise - originalLoan.outstandingPrincipal) / 100,
+          totalInterestPaid: originalLoan.totalInterestPaid / 100,
+          outstandingBalance: originalLoan.outstandingPrincipal / 100,
           paymentCount: formattedPaymentHistory.length,
-          isCompleted: originalUdhar.status === 'CLOSED'
+          isCompleted: originalLoan.status === 'CLOSED'
         }
       }
     });
@@ -591,8 +747,8 @@ export const getPaymentHistory = async (req, res) => {
 // Get Outstanding Amounts to Collect
 export const getOutstandingToCollect = async (req, res) => {
   try {
-    const outstandingUdhars = await Udhar.find({
-      udharType: 'GIVEN',
+    const outstandingLoans = await Loan.find({
+      loanType: 'GIVEN',
       status: { $ne: 'CLOSED' },
       outstandingPrincipal: { $gt: 0 }
     })
@@ -603,28 +759,32 @@ export const getOutstandingToCollect = async (req, res) => {
     const customerWise = {};
     let totalToCollect = 0;
 
-    outstandingUdhars.forEach(udhar => {
-      const customerId = udhar.customer._id.toString();
+    outstandingLoans.forEach(loan => {
+      const customerId = loan.customer._id.toString();
       if (!customerWise[customerId]) {
         customerWise[customerId] = {
-          customer: udhar.customer,
-          udhars: [],
-          totalOutstanding: 0
+          customer: loan.customer,
+          loans: [],
+          totalOutstanding: 0,
+          totalInterestPaid: 0
         };
       }
-      customerWise[customerId].udhars.push({
-        ...udhar.toObject(),
-        originalAmount: udhar.principalPaise / 100,
-        outstandingAmount: udhar.outstandingPrincipal / 100
+      customerWise[customerId].loans.push({
+        ...loan.toObject(),
+        originalAmount: loan.principalPaise / 100,
+        outstandingAmount: loan.outstandingPrincipal / 100,
+        interestRate: loan.interestRateMonthlyPct
       });
-      customerWise[customerId].totalOutstanding += udhar.outstandingPrincipal;
-      totalToCollect += udhar.outstandingPrincipal;
+      customerWise[customerId].totalOutstanding += loan.outstandingPrincipal;
+      customerWise[customerId].totalInterestPaid += loan.totalInterestPaid;
+      totalToCollect += loan.outstandingPrincipal;
     });
 
     // Format customer-wise data
     const formattedCustomerWise = Object.values(customerWise).map(item => ({
       ...item,
-      totalOutstanding: item.totalOutstanding / 100
+      totalOutstanding: item.totalOutstanding / 100,
+      totalInterestPaid: item.totalInterestPaid / 100
     }));
 
     res.json({
@@ -632,7 +792,7 @@ export const getOutstandingToCollect = async (req, res) => {
       data: {
         totalToCollect: totalToCollect / 100,
         customerCount: formattedCustomerWise.length,
-        udharCount: outstandingUdhars.length,
+        loanCount: outstandingLoans.length,
         customerWise: formattedCustomerWise
       }
     });
@@ -645,8 +805,8 @@ export const getOutstandingToCollect = async (req, res) => {
 // Get Outstanding Amounts to Pay
 export const getOutstandingToPay = async (req, res) => {
   try {
-    const outstandingUdhars = await Udhar.find({
-      udharType: 'TAKEN',
+    const outstandingLoans = await Loan.find({
+      loanType: 'TAKEN',
       status: { $ne: 'CLOSED' },
       outstandingPrincipal: { $gt: 0 }
     })
@@ -657,28 +817,32 @@ export const getOutstandingToPay = async (req, res) => {
     const customerWise = {};
     let totalToPay = 0;
 
-    outstandingUdhars.forEach(udhar => {
-      const customerId = udhar.customer._id.toString();
+    outstandingLoans.forEach(loan => {
+      const customerId = loan.customer._id.toString();
       if (!customerWise[customerId]) {
         customerWise[customerId] = {
-          customer: udhar.customer,
-          udhars: [],
-          totalOutstanding: 0
+          customer: loan.customer,
+          loans: [],
+          totalOutstanding: 0,
+          totalInterestPaid: 0
         };
       }
-      customerWise[customerId].udhars.push({
-        ...udhar.toObject(),
-        originalAmount: udhar.principalPaise / 100,
-        outstandingAmount: udhar.outstandingPrincipal / 100
+      customerWise[customerId].loans.push({
+        ...loan.toObject(),
+        originalAmount: loan.principalPaise / 100,
+        outstandingAmount: loan.outstandingPrincipal / 100,
+        interestRate: loan.interestRateMonthlyPct
       });
-      customerWise[customerId].totalOutstanding += udhar.outstandingPrincipal;
-      totalToPay += udhar.outstandingPrincipal;
+      customerWise[customerId].totalOutstanding += loan.outstandingPrincipal;
+      customerWise[customerId].totalInterestPaid += loan.totalInterestPaid;
+      totalToPay += loan.outstandingPrincipal;
     });
 
     // Format customer-wise data
     const formattedCustomerWise = Object.values(customerWise).map(item => ({
       ...item,
-      totalOutstanding: item.totalOutstanding / 100
+      totalOutstanding: item.totalOutstanding / 100,
+      totalInterestPaid: item.totalInterestPaid / 100
     }));
 
     res.json({
@@ -686,7 +850,7 @@ export const getOutstandingToPay = async (req, res) => {
       data: {
         totalToPay: totalToPay / 100,
         customerCount: formattedCustomerWise.length,
-        udharCount: outstandingUdhars.length,
+        loanCount: outstandingLoans.length,
         customerWise: formattedCustomerWise
       }
     });
@@ -696,16 +860,17 @@ export const getOutstandingToPay = async (req, res) => {
   }
 };
 
-// Get Overall Udhar Summary
-export const getOverallUdharSummary = async (req, res) => {
+// Get Overall Loan Summary
+export const getOverallLoanSummary = async (req, res) => {
   try {
-    const summary = await Udhar.aggregate([
+    const summary = await Loan.aggregate([
       {
-        $match: { sourceType: 'UDHAR' },
+        $match: { sourceType: 'LOAN' },
         $group: {
-          _id: '$udharType',
+          _id: '$loanType',
           totalAmount: { $sum: '$principalPaise' },
           totalOutstanding: { $sum: '$outstandingPrincipal' },
+          totalInterestPaid: { $sum: '$totalInterestPaid' },
           count: { $sum: 1 },
           completedCount: {
             $sum: { $cond: [{ $eq: ['$status', 'CLOSED'] }, 1, 0] }
@@ -715,8 +880,8 @@ export const getOverallUdharSummary = async (req, res) => {
     ]);
 
     const formattedSummary = {
-      given: { totalAmount: 0, totalOutstanding: 0, count: 0, completedCount: 0 },
-      taken: { totalAmount: 0, totalOutstanding: 0, count: 0, completedCount: 0 }
+      given: { totalAmount: 0, totalOutstanding: 0, totalInterestPaid: 0, count: 0, completedCount: 0 },
+      taken: { totalAmount: 0, totalOutstanding: 0, totalInterestPaid: 0, count: 0, completedCount: 0 }
     };
 
     summary.forEach(item => {
@@ -724,6 +889,7 @@ export const getOverallUdharSummary = async (req, res) => {
         formattedSummary.given = {
           totalAmount: item.totalAmount / 100,
           totalOutstanding: item.totalOutstanding / 100,
+          totalInterestPaid: item.totalInterestPaid / 100,
           count: item.count,
           completedCount: item.completedCount
         };
@@ -731,6 +897,7 @@ export const getOverallUdharSummary = async (req, res) => {
         formattedSummary.taken = {
           totalAmount: item.totalAmount / 100,
           totalOutstanding: item.totalOutstanding / 100,
+          totalInterestPaid: item.totalInterestPaid / 100,
           count: item.count,
           completedCount: item.completedCount
         };
@@ -745,44 +912,51 @@ export const getOverallUdharSummary = async (req, res) => {
         ...formattedSummary,
         totalToCollect: formattedSummary.given.totalOutstanding,
         totalToPay: formattedSummary.taken.totalOutstanding,
+        totalInterestPaid: (formattedSummary.given.totalInterestPaid + formattedSummary.taken.totalInterestPaid),
         netOutstanding: netOutstanding,
-        totalUdhars: formattedSummary.given.count + formattedSummary.taken.count
+        totalLoans: formattedSummary.given.count + formattedSummary.taken.count
       }
     });
   } catch (error) {
-    console.error('Error in getOverallUdharSummary:', error);
+    console.error('Error in getOverallLoanSummary:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// Get Udhar Reminders (Overdue Payments)
-export const getUdharReminders = async (req, res) => {
+// Get Loan Reminders (Overdue Payments)
+export const getLoanReminders = async (req, res) => {
   try {
     const { days = 0 } = req.query;
     const checkDate = new Date();
     checkDate.setDate(checkDate.getDate() + parseInt(days));
 
-    const overdueUdhars = await Udhar.find({
+    const overdueLoans = await Loan.find({
       status: { $in: ['ACTIVE', 'PARTIALLY_PAID'] },
       isActive: true,
-      dueDate: { $lte: checkDate }
+      $or: [
+        { nextInterestDueDate: { $lte: checkDate } },
+        { nextInterestDueDate: null, monthsElapsed: { $gte: 1 } }
+      ]
     }).populate('customer', 'name phone email');
 
-    const reminders = overdueUdhars.map(udhar => {
-      const daysOverdue = Math.ceil((new Date() - udhar.dueDate) / (1000 * 60 * 60 * 24));
-      const status = daysOverdue > 60 ? 'CRITICAL' : 'OVERDUE';
+    const reminders = overdueLoans.map(loan => {
+      const paymentStatus = loan.getInterestPaymentStatus();
+      const currentMonthInterest = (loan.outstandingPrincipal * loan.interestRateMonthlyPct) / 100;
 
       return {
-        udharId: udhar._id,
-        customer: udhar.customer,
-        udharType: udhar.udharType,
-        principalAmount: udhar.principalPaise / 100,
-        outstandingPrincipal: udhar.outstandingPrincipal / 100,
-        daysOverdue,
-        status,
-        dueDate: udhar.dueDate,
-        lastPaymentDate: udhar.lastPaymentDate,
-        reminderMessage: `Dear ${udhar.customer.name}, your udhar of ₹${(udhar.outstandingPrincipal / 100).toFixed(2)} is ${status.toLowerCase()} since ${udhar.dueDate.toISOString().split('T')[0]}.`
+        loanId: loan._id,
+        customer: loan.customer,
+        loanType: loan.loanType,
+        principalAmount: loan.principalPaise / 100,
+        outstandingPrincipal: loan.outstandingPrincipal / 100,
+        interestRate: loan.interestRateMonthlyPct,
+        monthsOverdue: paymentStatus.overdueMonths,
+        pendingInterestAmount: paymentStatus.pendingAmount / 100,
+        currentMonthInterest: currentMonthInterest / 100,
+        nextDueDate: paymentStatus.nextDueDate,
+        status: paymentStatus.status,
+        lastInterestPayment: loan.lastInterestPaymentDate,
+        reminderMessage: `Dear ${loan.customer.name}, your loan interest of ₹${(currentMonthInterest / 100).toFixed(2)} is ${paymentStatus.isOverdue ? 'overdue' : 'due'}. Outstanding principal: ₹${(loan.outstandingPrincipal / 100).toFixed(2)}`
       };
     });
 
@@ -793,22 +967,80 @@ export const getUdharReminders = async (req, res) => {
         totalReminders: reminders.length,
         criticalReminders: reminders.filter(r => r.status === 'CRITICAL').length,
         overdueReminders: reminders.filter(r => r.status === 'OVERDUE').length,
-        totalPendingAmount: reminders.reduce((sum, r) => sum + r.outstandingPrincipal, 0)
+        totalPendingInterest: reminders.reduce((sum, r) => sum + r.pendingInterestAmount, 0)
       }
     });
   } catch (error) {
-    console.error('Error in getUdharReminders:', error);
+    console.error('Error in getLoanReminders:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Update Interest Rate
+export const updateInterestRate = async (req, res) => {
+  try {
+    const { interestRateMonthlyPct, note } = req.body;
+    const loanId = req.params.id;
+
+    if (!interestRateMonthlyPct || interestRateMonthlyPct < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid interest rate is required'
+      });
+    }
+
+    const loan = await Loan.findById(loanId).populate('customer', 'name phone');
+
+    if (!loan) {
+      return res.status(404).json({
+        success: false,
+        error: 'Loan not found'
+      });
+    }
+
+    const oldRate = loan.interestRateMonthlyPct;
+    loan.interestRateMonthlyPct = interestRateMonthlyPct;
+    loan.adminNotes = note || `Interest rate updated from ${oldRate}% to ${interestRateMonthlyPct}%`;
+
+    await loan.save();
+
+    // Create transaction record for rate change
+    const customerName = await getCustomerName(loan.customer._id);
+    const transaction = new Transaction({
+      type: 'LOAN_RATE_UPDATE',
+      customer: loan.customer._id,
+      amount: 0,
+      direction: 0,
+      description: `Interest rate updated from ${oldRate}% to ${interestRateMonthlyPct}% for ${customerName}`,
+      relatedDoc: loan._id,
+      relatedModel: 'Loan',
+      category: 'UPDATE',
+      metadata: {
+        oldRate: oldRate,
+        newRate: interestRateMonthlyPct,
+        updatedBy: 'Admin'
+      }
+    });
+    await transaction.save();
+
+    res.json({
+      success: true,
+      data: loan,
+      message: `Interest rate updated from ${oldRate}% to ${interestRateMonthlyPct}% successfully`
+    });
+  } catch (error) {
+    console.error('Error in updateInterestRate:', error);
+    res.status(400).json({ success: false, error: error.message });
   }
 };
 
 // Mark Reminder as Sent
 export const markReminderSent = async (req, res) => {
   try {
-    const udharId = req.params.id;
+    const loanId = req.params.id;
 
-    const udhar = await Udhar.findByIdAndUpdate(
-      udharId,
+    const loan = await Loan.findByIdAndUpdate(
+      loanId,
       {
         reminderSent: true,
         lastReminderDate: new Date()
@@ -816,16 +1048,16 @@ export const markReminderSent = async (req, res) => {
       { new: true }
     );
 
-    if (!udhar) {
+    if (!loan) {
       return res.status(404).json({
         success: false,
-        error: 'Udhar not found'
+        error: 'Loan not found'
       });
     }
 
     res.json({
       success: true,
-      data: udhar,
+      data: loan,
       message: 'Reminder marked as sent'
     });
   } catch (error) {
