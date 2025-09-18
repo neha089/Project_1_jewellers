@@ -112,18 +112,27 @@ class ApiService {
   }
 
   // Udhari APIs - Updated to match backend exactly
-  async giveUdhari(data) {
+  async giveUdhar(data) {
     return this.post('/api/udhari/give', data);
   }
+  async giveLoan(data) {
+    return this.post('/api/loans/give', data);
+  }
 
-  async takeUdhari(data) {
+  async takeUdhar(data) {
     return this.post('/api/udhari/take', data);
+  }
+  async takeLoan(data) {
+    return this.post('/api/loans/take', data);
+  }
+  async receiveLoanPayment(data){
+    return this.post('/api/loans/receive-payment',data);
   }
 
   // Fixed payment APIs to match backend parameters
 // Fixed receiveUdhariPayment method in api.js
 // REPLACE your existing receiveUdhariPayment method with this:
-async receiveUdhariPayment(paymentData) {
+async receiveUdharPayment(paymentData) {
   console.log('=== ApiService.receiveUdhariPayment ===');
   console.log('Received data:', paymentData);
   
@@ -190,57 +199,32 @@ async receiveUdhariPayment(paymentData) {
 
 // Also fix the makeUdhariPayment method for consistency
 async makeUdhariPayment(data) {
-  console.log('=== ApiService.makeUdhariPayment ===');
-  console.log('Received data:', data);
-  
-  // Validate required fields
-  if (!data.customer) {
-    throw new Error('Customer ID is required');
-  }
-  
-  if (!data.udhariId) {
-    throw new Error('Udhari ID is required');
-  }
-  
-  if (!data.amountPaise || isNaN(data.amountPaise) || data.amountPaise <= 0) {
-    throw new Error('Valid payment amount is required');
-  }
-  
-  const paymentData = {
-    customer: String(data.customer),
-    principalPaise: parseInt(data.amountPaise), // Backend expects principalPaise
-    sourceRef: String(data.udhariId), // Backend expects sourceRef
-    note: data.note || undefined,
-    installmentNumber: data.installmentNumber || 1,
-    paymentDate: data.paymentDate || new Date().toISOString().split('T')[0],
-    paymentMethod: data.paymentMethod || 'CASH',
-    reference: data.reference || '',
-    transactionId: data.transactionId || ''
-  };
-  
-  console.log('Final payment data:', paymentData);
-  
-  try {
-    const response = await this.post('/api/udhari/make-payment', paymentData);
-    console.log('✅ Payment response:', response);
-    return response;
-  } catch (error) {
-    console.error('❌ Payment failed:', error);
-    throw error;
-  }
+  return this.post('/api/udhari/make-payment', data);
 }
   async getCustomerUdhariSummary(customerId) {
     return this.get(`/api/udhari/customer/${customerId}`);
   }
+  async getCustomerLoanSummary(customerId) {
+    return this.get(`/api/udhari/customer/${customerId}`);
+  }
 
-  async getOutstandingToCollect() {
+  async getOutstandingToCollectUdhari() {
     return this.get('/api/udhari/outstanding/collect');
   }
 
+  async getOutstandingToPayUdhari() {
+    return this.get('/api/udhari/outstanding/pay');
+  }
   async getOutstandingToPay() {
     return this.get('/api/udhari/outstanding/pay');
   }
+  async getOutstandingToCollectLoan() {
+    return this.get('/api/loans/outstanding/collect');
+  }
 
+  async getOutstandingToPayLoan() {
+    return this.get('/api/loans/outstanding/pay');
+  }
   async getOverallUdhariSummary() {
     return this.get('/api/udhari/summary');
   }
@@ -540,13 +524,7 @@ async makeUdhariPayment(data) {
   }
 
   async receiveUdhariPayment(paymentData) {
-    return this.post("/api/udhari/receive-payment", {
-      customer: paymentData.customerId,
-      principalPaise: Math.round(parseFloat(paymentData.amount) * 100),
-      sourceRef: paymentData.sourceRef,
-      note: paymentData.description,
-      installmentNumber: parseInt(paymentData.installmentNumber || 1),
-    });
+    return this.post("/api/udhari/receive-payment", paymentData);
   }
 
 
