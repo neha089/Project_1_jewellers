@@ -408,31 +408,30 @@ async makeUdhariPayment(data) {
   //   });
   // }
    // Interest Payment method - this is the key one for your issue
-  async addInterestPayment(loanId, paymentData) {
-    try {      
-    const result = await this.request(`/api/gold-loans/${loanId}/interest-payment`, {        
-        method: 'POST',
-        body: JSON.stringify(paymentData),
-      });
+async addInterestPayment(loanId, paymentData) {
+  try {
+    console.log('Adding interest payment for loan:', loanId, 'with data:', paymentData);
+    
+    const result = await this.post(`/api/gold-loans/${loanId}/interest-payment`, paymentData);
 
-      console.log('Interest payment result:', result);
-      return result;
+    console.log('Interest payment result:', result);
+    return result;
 
-    } catch (error) {
-      console.error('Interest payment API error:', error);
-      
-      // Provide specific error messages for common issues
-      if (error.status === 404) {
-        throw new Error('Interest payment endpoint not found. Please verify the route is configured correctly.');
-      } else if (error.status === 400) {
-        throw new Error(error.message || 'Invalid payment data provided.');
-      } else if (error.status === 500) {
-        throw new Error('Server error while processing payment. Please contact support.');
-      }
-      
-      throw error;
+  } catch (error) {
+    console.error('Interest payment API error:', error);
+    
+    if (error.message.includes('404')) {
+      throw new Error('Interest payment endpoint not found. Please verify the route is configured correctly.');
+    } else if (error.message.includes('400')) {
+      throw new Error(error.message || 'Invalid payment data provided.');
+    } else if (error.message.includes('500')) {
+      throw new Error('Server error while processing payment. Please contact support.');
     }
+    
+    throw error;
   }
+}
+
 
 // Get interest payment history for a specific loan
 async getInterestPayments(loanId, filters = {}) {
