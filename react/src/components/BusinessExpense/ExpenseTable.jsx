@@ -1,9 +1,10 @@
 // components/BusinessExpense/ExpenseTable.js
 import React from 'react';
-import { Search, Edit2, Trash2, Eye, MoreVertical } from 'lucide-react';
+import { Search, Edit2, Trash2, Eye, MoreVertical, CheckCircle2 } from 'lucide-react';
 import { getCategoryIcon, getStatusBadgeColor } from './constants';
+import { formatIndianAmount } from './utils';
 
-const ExpenseTable = ({ expenses, onEdit, onDelete, loading }) => {
+const ExpenseTable = ({ expenses, onEdit, onDelete, onStatusToggle, loading }) => {
     if (loading) {
         return (
             <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-sm border border-white/50 p-6">
@@ -105,14 +106,14 @@ const ExpenseTable = ({ expenses, onEdit, onDelete, loading }) => {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="space-y-1">
                                         <div className="text-base font-bold text-slate-900">
-                                            ₹{expense.amount?.toLocaleString('en-IN')}
+                                            {formatIndianAmount(expense.amount)}
                                         </div>
                                         <div className="text-xs text-slate-500">
-                                            Net: ₹{(expense.netAmount || expense.amount)?.toLocaleString('en-IN')}
+                                            Net: {formatIndianAmount(expense.netAmount || expense.amount)}
                                         </div>
                                         {expense.taxAmount > 0 && (
                                             <div className="text-xs text-slate-500">
-                                                Tax: ₹{expense.taxAmount?.toLocaleString('en-IN')}
+                                                Tax: {formatIndianAmount(expense.taxAmount)}
                                             </div>
                                         )}
                                     </div>
@@ -132,11 +133,15 @@ const ExpenseTable = ({ expenses, onEdit, onDelete, loading }) => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                     <div className="flex items-center gap-2">
                                         <button
-                                            onClick={() => onEdit(expense)}
-                                            className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            title="Edit Expense"
+                                            onClick={() => onStatusToggle(expense.id, expense.status === 'PAID' ? 'PENDING' : 'PAID')}
+                                            className={`p-2 ${
+                                                expense.status === 'PAID' 
+                                                ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' 
+                                                : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                                            } rounded-lg transition-colors`}
+                                            title={expense.status === 'PAID' ? 'Mark as Pending' : 'Mark as Paid'}
                                         >
-                                            <Edit2 className="h-4 w-4" />
+                                            <CheckCircle2 className="h-4 w-4" />
                                         </button>
                                         <button
                                             onClick={() => onDelete(expense.id)}
@@ -144,20 +149,6 @@ const ExpenseTable = ({ expenses, onEdit, onDelete, loading }) => {
                                             title="Delete Expense"
                                         >
                                             <Trash2 className="h-4 w-4" />
-                                        </button>
-                                        {expense.receipt && (
-                                            <button
-                                                className="p-2 text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                title="View Receipt"
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                            </button>
-                                        )}
-                                        <button
-                                            className="p-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                                            title="More Options"
-                                        >
-                                            <MoreVertical className="h-4 w-4" />
                                         </button>
                                     </div>
                                 </td>
