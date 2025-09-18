@@ -1,534 +1,6 @@
-import UdhariTransaction from '../models/UdhariTransaction.js';
+import Udhar from '../models/Udhar.js';
 import Transaction from '../models/Transaction.js';
 import mongoose from 'mongoose';
-
-// Give Udhari (Lend money to someone)
-export const giveUdhari = async (req, res) => {
-  try {
-    console.log('=== GIVE UDHARI ===');
-    console.log('Request body:', req.body);
-    
-    const { customer, principalPaise, note, totalInstallments = 1, returnDate, paymentMethod = 'CASH' } = req.body;
-    
-    // Validation
-    if (!customer || !principalPaise) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Customer and principal amount are required' 
-      });
-    }
-    
-    if (principalPaise <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Principal amount must be greater than zero' 
-      });
-    }
-   
-    const udhariTxn = new UdhariTransaction({
-      customer,
-      kind: 'GIVEN',
-      principalPaise,
-      direction: 1, // outgoing - you are giving money
-      sourceType: 'UDHARI',
-      note,
-      outstandingBalance: principalPaise, // Initially full amount is outstanding
-      totalInstallments,
-      returnDate,
-      takenDate: new Date(),
-      paymentHistory: [],
-      paymentMethod
-    });
-   
-    const savedUdhari = await udhariTxn.save();
-    console.log('Udhari transaction saved:', savedUdhari._id);
-
-    // Create transaction record
-    const customerName = await getCustomerName(customer);
-    const transaction = new Transaction({
-      type: 'UDHARI_GIVEN',
-      customer,
-      amount: principalPaise / 100, // Store in rupees
-      direction: 1, // outgoing
-      description: `Udhari given to ${customerName} - ${note || 'No note'}`,
-      relatedDoc: savedUdhari._id,
-      relatedModel: 'UdhariTransaction',
-      category: 'EXPENSE',
-      date: new Date(),
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        paymentMethod: paymentMethod,
-        originalUdhariAmount: principalPaise / 100,
-        totalInstallments,
-        transactionSubType: 'UDHARI_DISBURSEMENT'
-      }
-    });
-    
-    const savedTransaction = await transaction.save();
-    console.log('Transaction record saved:', savedTransaction._id);
-
-    res.status(201).json({ 
-      success: true, 
-      message: 'Udhari given successfully',
-      data: {
-        ...savedUdhari.toObject(),
-        principalRupees: principalPaise / 100,
-        outstandingRupees: principalPaise / 100,
-        transactionId: savedTransaction._id
-      }
-    });
-  } catch (error) {
-    console.error('Error in giveUdhari:', error);
-    res.status(400).json({ success: false, error: error.message });
-  }
-};
-
-// Take Udhari (Borrow money from someone)
-export const takeUdhari = async (req, res) => {
-  try {
-    console.log('=== TAKE UDHARI ===');
-    console.log('Request body:', req.body);
-    
-    const { customer, principalPaise, note, totalInstallments = 1, returnDate, paymentMethod = 'CASH' } = req.body;
-    
-    // Validation
-    if (!customer || !principalPaise) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Customer and principal amount are required' 
-      });
-    }
-    
-    if (principalPaise <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Principal amount must be greater than zero' 
-      });
-    }
-   
-    const udhariTxn = new UdhariTransaction({
-      customer,
-      kind: 'TAKEN',
-      principalPaise,
-      direction: -1, // incoming - you are receiving money
-      sourceType: 'UDHARI',
-      note,
-      outstandingBalance: principalPaise, // You owe this amount
-      totalInstallments,
-      returnDate,
-      takenDate: new Date(),
-      paymentHistory: [],
-      paymentMethod
-    });
-   
-    const savedUdhari = await udhariTxn.save();
-    console.log('Udhari transaction saved:', savedUdhari._id);
-
-    // Create transaction record
-    const customerName = await getCustomerName(customer);
-    const transaction = new Transaction({
-      type: 'UDHARI_TAKEN',
-      customer,
-      amount: principalPaise / 100, // Store in rupees
-      direction: -1, // incoming
-      description: `Udhari taken from ${customerName} - ${note || 'No note'}`,
-      relatedDoc: savedUdhari._id,
-      relatedModel: 'UdhariTransaction',
-      category: 'INCOME',
-      date: new Date(),
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        paymentMethod: paymentMethod,
-        originalUdhariAmount: principalPaise / 100,
-        totalInstallments,
-        transactionSubType: 'UDHARI_RECEIVED'
-      }
-    });
-    
-    const savedTransaction = await transaction.save();
-    console.log('Transaction record saved:', savedTransaction._id);
-
-    res.status(201).json({ 
-      success: true, 
-      message: 'Udhari taken successfully',
-      data: {
-        ...savedUdhari.toObject(),
-        principalRupees: principalPaise / 100,
-        outstandingRupees: principalPaise / 100,
-        transactionId: savedTransaction._id
-      }
-    });
-  } catch (error) {
-    console.error('Error in takeUdhari:', error);
-    res.status(400).json({ success: false, error: error.message });
-  }
-};
-
-// Receive Udhari Payment (When someone pays back money you lent them)
-export const receiveUdhariPayment = async (req, res) => {
-  try {
-    console.log('=== RECEIVE UDHARI PAYMENT ===');
-    console.log('Request body:', req.body);
-    
-    const { 
-      customer, 
-      principalPaise, 
-      sourceRef, 
-      note, 
-      installmentNumber, 
-      paymentDate,
-      paymentMethod = 'CASH',
-      reference = '',
-      transactionId = ''
-    } = req.body;
-
-    // Input validation
-    if (!customer || !principalPaise || !sourceRef) {
-      console.log('Validation failed:', { customer: !!customer, principalPaise: !!principalPaise, sourceRef: !!sourceRef });
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Customer, amount, and source transaction are required' 
-      });
-    }
-
-    if (principalPaise <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Payment amount must be greater than zero' 
-      });
-    }
-
-    console.log('Looking for udhari transaction:', sourceRef);
-
-    // Find the original udhari transaction
-    const originalUdhari = await UdhariTransaction.findById(sourceRef);
-    if (!originalUdhari) {
-      console.log('Original udhari not found:', sourceRef);
-      return res.status(404).json({
-        success: false,
-        error: 'Original Udhari transaction not found'
-      });
-    }
-
-    console.log('Found original udhari:', {
-      id: originalUdhari._id,
-      kind: originalUdhari.kind,
-      outstandingBalance: originalUdhari.outstandingBalance,
-      isCompleted: originalUdhari.isCompleted
-    });
-
-    // Validate transaction type
-    if (originalUdhari.kind !== 'GIVEN') {
-      return res.status(400).json({
-        success: false,
-        error: 'Can only receive payment for udhari that was given'
-      });
-    }
-
-    // Check if already completed
-    if (originalUdhari.isCompleted) {
-      return res.status(400).json({
-        success: false,
-        error: 'This udhari has already been fully paid'
-      });
-    }
-
-    // Validate payment amount
-    if (principalPaise > originalUdhari.outstandingBalance) {
-      return res.status(400).json({
-        success: false,
-        error: `Payment amount ₹${(principalPaise/100).toFixed(2)} exceeds outstanding balance ₹${(originalUdhari.outstandingBalance/100).toFixed(2)}`
-      });
-    }
-
-    // Use provided payment date or current date
-    const transactionDate = paymentDate ? new Date(paymentDate) : new Date();
-    const customerName = await getCustomerName(customer);
-
-    // Step 1: Create repayment transaction first
-    const repaymentTxn = new UdhariTransaction({
-      customer,
-      kind: 'REPAYMENT',
-      principalPaise,
-      direction: -1, // incoming money
-      sourceType: 'UDHARI',
-      sourceRef,
-      note: note || `Payment received - Installment #${installmentNumber || 1}`,
-      installmentNumber: installmentNumber || 1,
-      takenDate: transactionDate,
-      isCompleted: true, // repayment transactions are always completed
-      paymentMethod: paymentMethod,
-      paymentReference: reference,
-      transactionId: transactionId
-    });
-    
-    const savedRepayment = await repaymentTxn.save();
-    console.log('Repayment transaction saved:', savedRepayment._id);
-
-    // Step 2: Update original udhari outstanding balance
-    const newOutstanding = originalUdhari.outstandingBalance - principalPaise;
-    const isFullyPaid = newOutstanding <= 0;
-    
-    // Initialize payment history if it doesn't exist
-    if (!originalUdhari.paymentHistory) {
-      originalUdhari.paymentHistory = [];
-    }
-
-    // Add to payment history
-    const paymentHistoryEntry = {
-      amount: principalPaise,
-      date: transactionDate,
-      installmentNumber: installmentNumber || 1,
-      transactionId: savedRepayment._id,
-      note: note || '',
-      paymentMethod: paymentMethod,
-      paymentReference: reference,
-      bankTransactionId: transactionId
-    };
-
-    originalUdhari.paymentHistory.push(paymentHistoryEntry);
-
-    // Update original transaction
-    originalUdhari.outstandingBalance = Math.max(0, newOutstanding);
-    originalUdhari.isCompleted = isFullyPaid;
-    originalUdhari.lastPaymentDate = transactionDate;
-    originalUdhari.paidInstallments = originalUdhari.paymentHistory.length;
-
-    const updatedOriginal = await originalUdhari.save();
-    console.log('Original udhari updated:', updatedOriginal._id);
-
-    // Step 3: Create main accounting transaction record
-    const transaction = new Transaction({
-      type: 'UDHARI_RECEIVED',
-      customer,
-      amount: principalPaise / 100, // Store in rupees
-      direction: -1, // incoming
-      description: `Udhari payment received from ${customerName} - Installment #${installmentNumber || 1}${note ? ` - ${note}` : ''}`,
-      relatedDoc: savedRepayment._id,
-      relatedModel: 'UdhariTransaction',
-      category: 'INCOME',
-      date: transactionDate,
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        paymentMethod: paymentMethod,
-        paymentReference: reference,
-        bankTransactionId: transactionId,
-        installmentNumber: installmentNumber || 1,
-        originalUdhariAmount: originalUdhari.principalPaise / 100,
-        remainingAmount: Math.max(0, newOutstanding) / 100,
-        isPartialPayment: !isFullyPaid,
-        paymentPercentage: Math.round(((originalUdhari.principalPaise - Math.max(0, newOutstanding)) / originalUdhari.principalPaise) * 100),
-        sourceUdhariId: sourceRef,
-        transactionSubType: isFullyPaid ? 'UDHARI_FULL_PAYMENT' : 'UDHARI_PARTIAL_PAYMENT'
-      }
-    });
-    
-    const savedTransaction = await transaction.save();
-    console.log('Accounting transaction saved:', savedTransaction._id);
-
-    // Calculate summary for response
-    const totalPaid = originalUdhari.principalPaise - Math.max(0, newOutstanding);
-    const paymentPercentage = Math.round((totalPaid / originalUdhari.principalPaise) * 100);
-
-    // Success response
-    const response = {
-      success: true,
-      message: isFullyPaid ? 'Udhari fully paid and settled!' : 'Partial payment received successfully',
-      data: {
-        payment: {
-          id: savedRepayment._id,
-          amount: principalPaise / 100,
-          installmentNumber: installmentNumber || 1,
-          date: savedRepayment.takenDate,
-          note: savedRepayment.note,
-          paymentMethod: paymentMethod,
-          paymentReference: reference,
-          transactionId: transactionId
-        },
-        udhariSummary: {
-          originalAmount: originalUdhari.principalPaise / 100,
-          totalPaid: totalPaid / 100,
-          remainingOutstanding: Math.max(0, newOutstanding) / 100,
-          paymentPercentage,
-          isFullyPaid,
-          totalInstallments: originalUdhari.totalInstallments || 1,
-          paidInstallments: originalUdhari.paymentHistory.length,
-          paymentHistory: originalUdhari.paymentHistory.map(p => ({
-            amount: p.amount / 100,
-            date: p.date,
-            installmentNumber: p.installmentNumber,
-            note: p.note,
-            paymentMethod: p.paymentMethod,
-            paymentReference: p.paymentReference,
-            bankTransactionId: p.bankTransactionId
-          }))
-        },
-        mainTransactionId: savedTransaction._id
-      }
-    };
-
-    console.log('Payment processed successfully');
-    res.status(201).json(response);
-
-  } catch (error) {
-    console.error('Error in receiveUdhariPayment:', error);
-    
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Failed to process udhari payment',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-};
-
-// Make Udhari Payment (When you return money you borrowed from someone)
-export const makeUdhariPayment = async (req, res) => {
-  try {
-    console.log('=== MAKE UDHARI PAYMENT ===');
-    console.log('Request body:', req.body);
-    
-    const { 
-      customer, 
-      principalPaise, 
-      sourceRef, 
-      note, 
-      installmentNumber,
-      paymentDate,
-      paymentMethod = 'CASH',
-      reference = '',
-      transactionId = ''
-    } = req.body;
-
-    // Input validation
-    if (!customer || !principalPaise || !sourceRef) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Customer, amount, and source transaction are required' 
-      });
-    }
-
-    // Find the original udhari transaction
-    const originalUdhari = await UdhariTransaction.findById(sourceRef);
-    if (!originalUdhari) {
-      return res.status(404).json({
-        success: false,
-        error: 'Original Udhari transaction not found'
-      });
-    }
-
-    if (originalUdhari.kind !== 'TAKEN') {
-      return res.status(400).json({
-        success: false,
-        error: 'Can only make payment for udhari that was taken'
-      });
-    }
-
-    if (principalPaise > originalUdhari.outstandingBalance) {
-      return res.status(400).json({
-        success: false,
-        error: `Payment amount (₹${principalPaise/100}) cannot exceed outstanding balance (₹${originalUdhari.outstandingBalance/100})`
-      });
-    }
-
-    const transactionDate = paymentDate ? new Date(paymentDate) : new Date();
-    const customerName = await getCustomerName(customer);
-
-    // Create repayment transaction
-    const repaymentTxn = new UdhariTransaction({
-      customer,
-      kind: 'REPAYMENT',
-      principalPaise,
-      direction: 1, // outgoing - you are paying money back
-      sourceType: 'UDHARI',
-      sourceRef,
-      note: note || `Payment made - Installment #${installmentNumber || 1}`,
-      installmentNumber: installmentNumber || 1,
-      takenDate: transactionDate,
-      isCompleted: true,
-      paymentMethod: paymentMethod,
-      paymentReference: reference,
-      transactionId: transactionId
-    });
-   
-    const savedRepayment = await repaymentTxn.save();
-    console.log('Repayment transaction saved:', savedRepayment._id);
-
-    // Update original udhari outstanding balance
-    const newOutstanding = originalUdhari.outstandingBalance - principalPaise;
-    const isFullyPaid = newOutstanding <= 0;
-
-    // Initialize payment history if it doesn't exist
-    if (!originalUdhari.paymentHistory) {
-      originalUdhari.paymentHistory = [];
-    }
-
-    // Add to payment history
-    const paymentHistoryEntry = {
-      amount: principalPaise,
-      date: transactionDate,
-      installmentNumber: installmentNumber || 1,
-      transactionId: savedRepayment._id,
-      note: note || '',
-      paymentMethod: paymentMethod,
-      paymentReference: reference,
-      bankTransactionId: transactionId
-    };
-
-    originalUdhari.paymentHistory.push(paymentHistoryEntry);
-    originalUdhari.outstandingBalance = Math.max(0, newOutstanding);
-    originalUdhari.isCompleted = isFullyPaid;
-    originalUdhari.lastPaymentDate = transactionDate;
-    originalUdhari.paidInstallments = originalUdhari.paymentHistory.length;
-
-    const updatedOriginal = await originalUdhari.save();
-    console.log('Original udhari updated:', updatedOriginal._id);
-
-    // Create transaction record
-    const transaction = new Transaction({
-      type: 'UDHARI_PAID',
-      customer,
-      amount: principalPaise / 100, // Store in rupees
-      direction: 1, // outgoing
-      description: `Udhari payment made to ${customerName} - Installment #${installmentNumber || 1}${note ? ` - ${note}` : ''}`,
-      relatedDoc: savedRepayment._id,
-      relatedModel: 'UdhariTransaction',
-      category: 'EXPENSE',
-      date: transactionDate,
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        paymentMethod: paymentMethod,
-        paymentReference: reference,
-        bankTransactionId: transactionId,
-        installmentNumber: installmentNumber || 1,
-        originalUdhariAmount: originalUdhari.principalPaise / 100,
-        remainingAmount: Math.max(0, newOutstanding) / 100,
-        isPartialPayment: !isFullyPaid,
-        sourceUdhariId: sourceRef,
-        transactionSubType: isFullyPaid ? 'UDHARI_FULL_REPAYMENT' : 'UDHARI_PARTIAL_REPAYMENT'
-      }
-    });
-    
-    const savedTransaction = await transaction.save();
-    console.log('Transaction record saved:', savedTransaction._id);
-
-    res.status(201).json({ 
-      success: true, 
-      message: isFullyPaid ? 'Udhari fully paid!' : 'Partial payment made successfully',
-      data: {
-        payment: {
-          ...savedRepayment.toObject(),
-          principalRupees: principalPaise / 100
-        },
-        remainingOutstanding: Math.max(0, newOutstanding) / 100,
-        isFullyPaid,
-        transactionId: savedTransaction._id
-      }
-    });
-  } catch (error) {
-    console.error('Error in makeUdhariPayment:', error);
-    res.status(400).json({ success: false, error: error.message });
-  }
-};
 
 // Helper function to get customer name
 const getCustomerName = async (customerId) => {
@@ -542,145 +14,571 @@ const getCustomerName = async (customerId) => {
   }
 };
 
-export const getCustomerUdhariSummary = async (req, res) => {
+// Give Udhar (Lend money to someone)
+export const giveUdhar = async (req, res) => {
+  try {
+    console.log('=== GIVE UDHAR ===');
+    console.log('Request body:', req.body);
+
+    const { 
+      customer, 
+      principalPaise, 
+      note, 
+      totalInstallments = 1, 
+      dueDate, 
+      paymentMethod = 'CASH' 
+    } = req.body;
+
+    // Validation
+    if (!customer || !principalPaise) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Customer and principal amount are required' 
+      });
+    }
+
+    if (principalPaise <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Principal amount must be greater than zero' 
+      });
+    }
+
+    const udhar = new Udhar({
+      customer,
+      udharType: 'GIVEN',
+      principalPaise,
+      direction: -1, // outgoing - you are giving money
+      sourceType: 'UDHAR',
+      note,
+      outstandingPrincipal: principalPaise,
+      totalInstallments,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      takenDate: new Date(),
+      paymentHistory: [],
+      paymentMethod,
+      status: 'ACTIVE',
+      isActive: true
+    });
+
+    const savedUdhar = await udhar.save();
+
+    // Create transaction record for the udhar disbursement
+    const customerName = await getCustomerName(customer);
+    const transaction = new Transaction({
+      type: 'UDHAR_GIVEN',
+      customer,
+      amount: principalPaise / 100, // Store in rupees
+      direction: -1, // outgoing
+      description: `Udhar given to ${customerName} - ${note || 'No note'}`,
+      relatedDoc: savedUdhar._id,
+      relatedModel: 'Udhar',
+      category: 'EXPENSE',
+      date: new Date(),
+      metadata: {
+        paymentType: 'DISBURSEMENT',
+        paymentMethod,
+        originalUdharAmount: principalPaise / 100,
+        totalInstallments
+      }
+    });
+
+    const savedTransaction = await transaction.save();
+    console.log('Transaction record saved:', savedTransaction._id);
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Udhar given successfully',
+      data: {
+        ...savedUdhar.toObject(),
+        principalRupees: principalPaise / 100,
+        outstandingRupees: principalPaise / 100,
+        transactionId: savedTransaction._id
+      }
+    });
+  } catch (error) {
+    console.error('Error in giveUdhar:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// Take Udhar (Borrow money from someone)
+export const takeUdhar = async (req, res) => {
+  try {
+    console.log('=== TAKE UDHAR ===');
+    console.log('Request body:', req.body);
+
+    const { 
+      customer, 
+      principalPaise, 
+      note, 
+      totalInstallments = 1, 
+      dueDate, 
+      paymentMethod = 'CASH' 
+    } = req.body;
+
+    // Validation
+    if (!customer || !principalPaise) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Customer and principal amount are required' 
+      });
+    }
+
+    if (principalPaise <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Principal amount must be greater than zero' 
+      });
+    }
+
+    const udhar = new Udhar({
+      customer,
+      udharType: 'TAKEN',
+      principalPaise,
+      direction: 1, // incoming - you are receiving money
+      sourceType: 'UDHAR',
+      note,
+      outstandingPrincipal: principalPaise,
+      totalInstallments,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      takenDate: new Date(),
+      paymentHistory: [],
+      paymentMethod,
+      status: 'ACTIVE',
+      isActive: true
+    });
+
+    const savedUdhar = await udhar.save();
+
+    // Create transaction record for udhar received
+    const customerName = await getCustomerName(customer);
+    const transaction = new Transaction({
+      type: 'UDHAR_TAKEN',
+      customer,
+      amount: principalPaise / 100, // Store in rupees
+      direction: 1, // incoming
+      description: `Udhar taken from ${customerName} - ${note || 'No note'}`,
+      relatedDoc: savedUdhar._id,
+      relatedModel: 'Udhar',
+      category: 'INCOME',
+      date: new Date(),
+      metadata: {
+        paymentType: 'DISBURSEMENT',
+        paymentMethod,
+        originalUdharAmount: principalPaise / 100,
+        totalInstallments
+      }
+    });
+
+    const savedTransaction = await transaction.save();
+    console.log('Transaction record saved:', savedTransaction._id);
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Udhar taken successfully',
+      data: {
+        ...savedUdhar.toObject(),
+        principalRupees: principalPaise / 100,
+        outstandingRupees: principalPaise / 100,
+        transactionId: savedTransaction._id
+      }
+    });
+  } catch (error) {
+    console.error('Error in takeUdhar:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// Receive Udhar Payment (Principal only)
+export const receiveUdharPayment = async (req, res) => {
+  try {
+    console.log('=== RECEIVE UDHAR PAYMENT ===');
+    console.log('Request body:', req.body);
+
+    const { 
+      udharId,
+      principalPaise = 0, 
+      note, 
+      installmentNumber,
+      paymentDate,
+      paymentMethod = 'CASH',
+      reference = '',
+      transactionId = ''
+    } = req.body;
+
+    // Validation
+    if (!udharId || principalPaise <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Udhar ID and principal amount are required' 
+      });
+    }
+
+    // Find the udhar
+    const udhar = await Udhar.findById(udharId).populate('customer', 'name phone email');
+    if (!udhar) {
+      return res.status(404).json({
+        success: false,
+        error: 'Udhar not found'
+      });
+    }
+
+    if (udhar.udharType !== 'GIVEN') {
+      return res.status(400).json({
+        success: false,
+        error: 'Can only receive payment for udhar that was given'
+      });
+    }
+
+    if (udhar.status === 'CLOSED') {
+      return res.status(400).json({
+        success: false,
+        error: 'This udhar has already been fully paid'
+      });
+    }
+
+    // Validate amount
+    if (principalPaise > udhar.outstandingPrincipal) {
+      return res.status(400).json({
+        success: false,
+        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(udhar.outstandingPrincipal/100).toFixed(2)}`
+      });
+    }
+
+    const transactionDate = paymentDate ? new Date(paymentDate) : new Date();
+    const customerName = await getCustomerName(udhar.customer._id);
+
+    // Add payment to history
+    const paymentEntry = {
+      principalAmount: principalPaise,
+      date: transactionDate,
+      installmentNumber: installmentNumber || (udhar.paymentHistory.length + 1),
+      note: note || '',
+      paymentMethod,
+      paymentReference: reference,
+      bankTransactionId: transactionId
+    };
+
+    udhar.paymentHistory.push(paymentEntry);
+
+    // Update udhar amounts
+    udhar.outstandingPrincipal = Math.max(0, udhar.outstandingPrincipal - principalPaise);
+    udhar.lastPaymentDate = transactionDate;
+    udhar.paidInstallments = udhar.paymentHistory.length;
+
+    // Update udhar status
+    const isFullyPaid = udhar.outstandingPrincipal <= 0;
+    udhar.status = isFullyPaid ? 'CLOSED' : 'PARTIALLY_PAID';
+    udhar.isActive = !isFullyPaid;
+
+    const updatedUdhar = await udhar.save();
+
+    // Create transaction record
+    const transaction = new Transaction({
+      type: isFullyPaid ? 'UDHAR_CLOSURE' : 'UDHAR_PAYMENT',
+      customer: udhar.customer._id,
+      amount: principalPaise / 100,
+      direction: 1, // incoming
+      description: `Principal payment from ${customerName} - ${note || 'Payment received'}`,
+      relatedDoc: udhar._id,
+      relatedModel: 'Udhar',
+      category: 'INCOME',
+      date: transactionDate,
+      metadata: {
+        paymentType: 'PRINCIPAL',
+        paymentMethod,
+        paymentReference: reference,
+        bankTransactionId: transactionId,
+        installmentNumber: installmentNumber || udhar.paymentHistory.length,
+        remainingAmount: udhar.outstandingPrincipal / 100,
+        isFullPayment: isFullyPaid
+      }
+    });
+
+    const savedTransaction = await transaction.save();
+
+    const totalPaidPrincipal = udhar.principalPaise - udhar.outstandingPrincipal;
+    const paymentPercentage = Math.round((totalPaidPrincipal / udhar.principalPaise) * 100);
+
+    res.status(200).json({
+      success: true,
+      message: isFullyPaid ? 'Udhar fully paid and settled!' : 'Payment received successfully',
+      data: {
+        payment: {
+          principalAmount: principalPaise / 100,
+          date: transactionDate,
+          installmentNumber: installmentNumber || udhar.paymentHistory.length,
+          note: note || ''
+        },
+        udharSummary: {
+          originalAmount: udhar.principalPaise / 100,
+          totalPrincipalPaid: totalPaidPrincipal / 100,
+          remainingOutstanding: udhar.outstandingPrincipal / 100,
+          paymentPercentage,
+          isFullyPaid,
+          totalInstallments: udhar.totalInstallments,
+          paidInstallments: udhar.paymentHistory.length
+        },
+        transactionId: savedTransaction._id
+      }
+    });
+  } catch (error) {
+    console.error('Error in receiveUdharPayment:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to process udhar payment'
+    });
+  }
+};
+
+// Make Udhar Payment (When you return money you borrowed)
+export const makeUdharPayment = async (req, res) => {
+  try {
+    console.log('=== MAKE UDHAR PAYMENT ===');
+    console.log('Request body:', req.body);
+
+    const { 
+      udharId,
+      principalPaise = 0, 
+      note, 
+      installmentNumber,
+      paymentDate,
+      paymentMethod = 'CASH',
+      reference = '',
+      transactionId = ''
+    } = req.body;
+
+    // Validation
+    if (!udharId || principalPaise <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Udhar ID and principal amount are required' 
+      });
+    }
+
+    // Find the udhar
+    const udhar = await Udhar.findById(udharId).populate('customer', 'name phone email');
+    if (!udhar) {
+      return res.status(404).json({
+        success: false,
+        error: 'Udhar not found'
+      });
+    }
+
+    if (udhar.udharType !== 'TAKEN') {
+      return res.status(400).json({
+        success: false,
+        error: 'Can only make payment for udhar that was taken'
+      });
+    }
+
+    if (udhar.status === 'CLOSED') {
+      return res.status(400).json({
+        success: false,
+        error: 'This udhar has already been fully paid'
+      });
+    }
+
+    // Validate amount
+    if (principalPaise > udhar.outstandingPrincipal) {
+      return res.status(400).json({
+        success: false,
+        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(udhar.outstandingPrincipal/100).toFixed(2)}`
+      });
+    }
+
+    const transactionDate = paymentDate ? new Date(paymentDate) : new Date();
+    const customerName = await getCustomerName(udhar.customer._id);
+
+    // Add payment to history
+    const paymentEntry = {
+      principalAmount: principalPaise,
+      date: transactionDate,
+      installmentNumber: installmentNumber || (udhar.paymentHistory.length + 1),
+      note: note || '',
+      paymentMethod,
+      paymentReference: reference,
+      bankTransactionId: transactionId
+    };
+
+    udhar.paymentHistory.push(paymentEntry);
+
+    // Update udhar amounts
+    udhar.outstandingPrincipal = Math.max(0, udhar.outstandingPrincipal - principalPaise);
+    udhar.lastPaymentDate = transactionDate;
+    udhar.paidInstallments = udhar.paymentHistory.length;
+
+    // Update udhar status
+    const isFullyPaid = udhar.outstandingPrincipal <= 0;
+    udhar.status = isFullyPaid ? 'CLOSED' : 'PARTIALLY_PAID';
+    udhar.isActive = !isFullyPaid;
+
+    const updatedUdhar = await udhar.save();
+
+    // Create transaction record
+    const transaction = new Transaction({
+      type: isFullyPaid ? 'UDHAR_CLOSURE' : 'UDHAR_PAYMENT',
+      customer: udhar.customer._id,
+      amount: principalPaise / 100,
+      direction: -1, // outgoing
+      description: `Principal payment to ${customerName} - ${note || 'Payment made'}`,
+      relatedDoc: udhar._id,
+      relatedModel: 'Udhar',
+      category: 'EXPENSE',
+      date: transactionDate,
+      metadata: {
+        paymentType: 'PRINCIPAL',
+        paymentMethod,
+        paymentReference: reference,
+        bankTransactionId: transactionId,
+        installmentNumber: installmentNumber || udhar.paymentHistory.length,
+        remainingAmount: udhar.outstandingPrincipal / 100,
+        isFullPayment: isFullyPaid
+      }
+    });
+
+    const savedTransaction = await transaction.save();
+
+    const totalPaidPrincipal = udhar.principalPaise - udhar.outstandingPrincipal;
+    const paymentPercentage = Math.round((totalPaidPrincipal / udhar.principalPaise) * 100);
+
+    res.status(200).json({ 
+      success: true, 
+      message: isFullyPaid ? 'Udhar fully paid!' : 'Payment made successfully',
+      data: {
+        payment: {
+          principalAmount: principalPaise / 100,
+          date: transactionDate,
+          installmentNumber: installmentNumber || udhar.paymentHistory.length,
+          note: note || ''
+        },
+        udharSummary: {
+          originalAmount: udhar.principalPaise / 100,
+          totalPrincipalPaid: totalPaidPrincipal / 100,
+          remainingOutstanding: udhar.outstandingPrincipal / 100,
+          paymentPercentage,
+          isFullyPaid,
+          totalInstallments: udhar.totalInstallments,
+          paidInstallments: udhar.paymentHistory.length
+        },
+        transactionId: savedTransaction._id
+      }
+    });
+  } catch (error) {
+    console.error('Error in makeUdharPayment:', error);
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// Get Customer Udhar Summary
+export const getCustomerUdharSummary = async (req, res) => {
   try {
     const { customerId } = req.params;
 
-    // Fetch only 'UDHARI' transactions for the specific customer
-    const transactions = await UdhariTransaction.find({ customer: customerId, sourceType: 'UDHARI' })
+    const udhars = await Udhar.find({ customer: customerId, sourceType: 'UDHAR' })
       .populate('customer', 'name phone email')
-      .populate('sourceRef')
       .sort({ takenDate: -1 });
 
-    // Calculate summary
     let totalGiven = 0;
     let totalTaken = 0;
     let outstandingToCollect = 0;
     let outstandingToPay = 0;
 
-    const givenTransactions = [];
-    const takenTransactions = [];
-    const repaymentTransactions = [];
+    const givenUdhars = [];
+    const takenUdhars = [];
 
-    transactions.forEach(txn => {
-      if (txn.kind === 'GIVEN') {
-        totalGiven += txn.principalPaise;
-        outstandingToCollect += txn.outstandingBalance;
-        givenTransactions.push(txn);
-      } else if (txn.kind === 'TAKEN') {
-        totalTaken += txn.principalPaise;
-        outstandingToPay += txn.outstandingBalance;
-        takenTransactions.push(txn);
-      } else if (txn.kind === 'REPAYMENT') {
-        repaymentTransactions.push(txn);
+    udhars.forEach(udhar => {
+      if (udhar.udharType === 'GIVEN') {
+        totalGiven += udhar.principalPaise;
+        outstandingToCollect += udhar.outstandingPrincipal;
+        givenUdhars.push(udhar);
+      } else if (udhar.udharType === 'TAKEN') {
+        totalTaken += udhar.principalPaise;
+        outstandingToPay += udhar.outstandingPrincipal;
+        takenUdhars.push(udhar);
       }
     });
 
     const netAmount = outstandingToCollect - outstandingToPay;
 
-    // Get only 'UDHARI' related transaction history (strict filter)
     const relatedTransactions = await Transaction.find({
       customer: customerId,
-      type: { $in: ['UDHARI_GIVEN', 'UDHARI_TAKEN', 'UDHARI_RECEIVED', 'UDHARI_PAID'] }
+      type: { $in: ['UDHAR_GIVEN', 'UDHAR_TAKEN', 'UDHAR_PAYMENT', 'UDHAR_CLOSURE'] }
     }).sort({ date: -1 });
 
     const summary = {
-      customer: transactions[0]?.customer,
+      customer: udhars[0]?.customer,
       totalGiven: totalGiven / 100,
       totalTaken: totalTaken / 100,
       outstandingToCollect: outstandingToCollect / 100,
       outstandingToPay: outstandingToPay / 100,
       netAmount: netAmount / 100,
-      transactions: {
-        given: givenTransactions,
-        taken: takenTransactions,
-        repayments: repaymentTransactions,
-        all: transactions
+      udhars: {
+        given: givenUdhars,
+        taken: takenUdhars,
+        all: udhars
       },
       transactionHistory: relatedTransactions
     };
 
-    console.log('Customer udhari summary generated successfully');
     res.json({
       success: true,
       data: summary
     });
   } catch (error) {
-    console.error('Error in getCustomerUdhariSummary:', error);
+    console.error('Error in getCustomerUdharSummary:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// Get payment history for a specific udhari transaction
+// Get Payment History for a Specific Udhar
 export const getPaymentHistory = async (req, res) => {
   try {
-    const { udhariId } = req.params;
-    
-    const originalUdhari = await UdhariTransaction.findById(udhariId)
+    const { udharId } = req.params;
+
+    const originalUdhar = await Udhar.findById(udharId)
       .populate('customer', 'name phone email');
-    
-    if (!originalUdhari) {
+
+    if (!originalUdhar) {
       return res.status(404).json({
         success: false,
-        message: 'Udhari transaction not found'
+        message: 'Udhar transaction not found'
       });
     }
 
-    // Get all repayment transactions
-    const repayments = await UdhariTransaction.find({
-      sourceRef: udhariId,
-      kind: 'REPAYMENT'
-    }).sort({ takenDate: 1 });
-
-    // Get related Transaction records for complete history
-    const relatedTransactions = await Transaction.find({
-      $or: [
-        { relatedDoc: udhariId },
-        { relatedDoc: { $in: repayments.map(r => r._id) } }
-      ]
-    }).sort({ date: 1 });
-
-    // Calculate running balance
-    let runningBalance = originalUdhari.principalPaise;
-    const paymentHistory = repayments.map(payment => {
-      runningBalance -= payment.principalPaise;
-      return {
-        ...payment.toObject(),
-        paymentAmount: payment.principalPaise / 100,
-        runningBalance: runningBalance / 100,
-        date: payment.takenDate
-      };
-    });
-
-    // Format payment history from the original udhari's paymentHistory array
-    const formattedPaymentHistory = (originalUdhari.paymentHistory || []).map(payment => ({
-      amount: payment.amount / 100,
+    // Format payment history
+    const formattedPaymentHistory = (originalUdhar.paymentHistory || []).map(payment => ({
+      principalAmount: payment.principalAmount / 100,
       date: payment.date,
       installmentNumber: payment.installmentNumber,
       note: payment.note,
       paymentMethod: payment.paymentMethod,
       paymentReference: payment.paymentReference,
-      bankTransactionId: payment.bankTransactionId,
-      transactionId: payment.transactionId
+      bankTransactionId: payment.bankTransactionId
     }));
+
+    // Get related Transaction records
+    const relatedTransactions = await Transaction.find({
+      relatedDoc: udharId
+    }).sort({ date: 1 });
 
     res.json({
       success: true,
       data: {
-        originalUdhari: {
-          ...originalUdhari.toObject(),
-          originalAmount: originalUdhari.principalPaise / 100,
-          outstandingBalance: originalUdhari.outstandingBalance / 100
+        originalUdhar: {
+          ...originalUdhar.toObject(),
+          originalAmount: originalUdhar.principalPaise / 100,
+          outstandingBalance: originalUdhar.outstandingPrincipal / 100
         },
         paymentHistory: formattedPaymentHistory,
-        repaymentTransactions: paymentHistory,
-        relatedTransactions: relatedTransactions,
+        relatedTransactions,
         summary: {
-          originalAmount: originalUdhari.principalPaise / 100,
-          totalPaid: (originalUdhari.principalPaise - originalUdhari.outstandingBalance) / 100,
-          outstandingBalance: originalUdhari.outstandingBalance / 100,
+          originalAmount: originalUdhar.principalPaise / 100,
+          totalPrincipalPaid: (originalUdhar.principalPaise - originalUdhar.outstandingPrincipal) / 100,
+          outstandingBalance: originalUdhar.outstandingPrincipal / 100,
           paymentCount: formattedPaymentHistory.length,
-          isCompleted: originalUdhari.isCompleted
+          isCompleted: originalUdhar.status === 'CLOSED'
         }
       }
     });
@@ -690,37 +588,37 @@ export const getPaymentHistory = async (req, res) => {
   }
 };
 
-// Get all outstanding amounts (money you need to collect)
+// Get Outstanding Amounts to Collect
 export const getOutstandingToCollect = async (req, res) => {
   try {
-    const outstandingUdhari = await UdhariTransaction.find({
-      kind: 'GIVEN',
-      isCompleted: false,
-      outstandingBalance: { $gt: 0 }
+    const outstandingUdhars = await Udhar.find({
+      udharType: 'GIVEN',
+      status: { $ne: 'CLOSED' },
+      outstandingPrincipal: { $gt: 0 }
     })
-    .populate('customer', 'name phone email address')
-    .sort({ takenDate: -1 });
+      .populate('customer', 'name phone email address')
+      .sort({ takenDate: -1 });
 
     // Group by customer
     const customerWise = {};
     let totalToCollect = 0;
 
-    outstandingUdhari.forEach(txn => {
-      const customerId = txn.customer._id.toString();
+    outstandingUdhars.forEach(udhar => {
+      const customerId = udhar.customer._id.toString();
       if (!customerWise[customerId]) {
         customerWise[customerId] = {
-          customer: txn.customer,
-          transactions: [],
+          customer: udhar.customer,
+          udhars: [],
           totalOutstanding: 0
         };
       }
-      customerWise[customerId].transactions.push({
-        ...txn.toObject(),
-        originalAmount: txn.principalPaise / 100,
-        outstandingAmount: txn.outstandingBalance / 100
+      customerWise[customerId].udhars.push({
+        ...udhar.toObject(),
+        originalAmount: udhar.principalPaise / 100,
+        outstandingAmount: udhar.outstandingPrincipal / 100
       });
-      customerWise[customerId].totalOutstanding += txn.outstandingBalance;
-      totalToCollect += txn.outstandingBalance;
+      customerWise[customerId].totalOutstanding += udhar.outstandingPrincipal;
+      totalToCollect += udhar.outstandingPrincipal;
     });
 
     // Format customer-wise data
@@ -734,7 +632,7 @@ export const getOutstandingToCollect = async (req, res) => {
       data: {
         totalToCollect: totalToCollect / 100,
         customerCount: formattedCustomerWise.length,
-        transactionCount: outstandingUdhari.length,
+        udharCount: outstandingUdhars.length,
         customerWise: formattedCustomerWise
       }
     });
@@ -744,37 +642,37 @@ export const getOutstandingToCollect = async (req, res) => {
   }
 };
 
-// Get all outstanding amounts (money you need to pay back)
+// Get Outstanding Amounts to Pay
 export const getOutstandingToPay = async (req, res) => {
   try {
-    const outstandingUdhari = await UdhariTransaction.find({
-      kind: 'TAKEN',
-      isCompleted: false,
-      outstandingBalance: { $gt: 0 }
+    const outstandingUdhars = await Udhar.find({
+      udharType: 'TAKEN',
+      status: { $ne: 'CLOSED' },
+      outstandingPrincipal: { $gt: 0 }
     })
-    .populate('customer', 'name phone email address')
-    .sort({ takenDate: -1 });
+      .populate('customer', 'name phone email address')
+      .sort({ takenDate: -1 });
 
     // Group by customer
     const customerWise = {};
     let totalToPay = 0;
 
-    outstandingUdhari.forEach(txn => {
-      const customerId = txn.customer._id.toString();
+    outstandingUdhars.forEach(udhar => {
+      const customerId = udhar.customer._id.toString();
       if (!customerWise[customerId]) {
         customerWise[customerId] = {
-          customer: txn.customer,
-          transactions: [],
+          customer: udhar.customer,
+          udhars: [],
           totalOutstanding: 0
         };
       }
-      customerWise[customerId].transactions.push({
-        ...txn.toObject(),
-        originalAmount: txn.principalPaise / 100,
-        outstandingAmount: txn.outstandingBalance / 100
+      customerWise[customerId].udhars.push({
+        ...udhar.toObject(),
+        originalAmount: udhar.principalPaise / 100,
+        outstandingAmount: udhar.outstandingPrincipal / 100
       });
-      customerWise[customerId].totalOutstanding += txn.outstandingBalance;
-      totalToPay += txn.outstandingBalance;
+      customerWise[customerId].totalOutstanding += udhar.outstandingPrincipal;
+      totalToPay += udhar.outstandingPrincipal;
     });
 
     // Format customer-wise data
@@ -788,7 +686,7 @@ export const getOutstandingToPay = async (req, res) => {
       data: {
         totalToPay: totalToPay / 100,
         customerCount: formattedCustomerWise.length,
-        transactionCount: outstandingUdhari.length,
+        udharCount: outstandingUdhars.length,
         customerWise: formattedCustomerWise
       }
     });
@@ -798,18 +696,19 @@ export const getOutstandingToPay = async (req, res) => {
   }
 };
 
-// Get overall udhari summary
-export const getOverallUdhariSummary = async (req, res) => {
+// Get Overall Udhar Summary
+export const getOverallUdharSummary = async (req, res) => {
   try {
-    const summary = await UdhariTransaction.aggregate([
+    const summary = await Udhar.aggregate([
       {
+        $match: { sourceType: 'UDHAR' },
         $group: {
-          _id: '$kind',
+          _id: '$udharType',
           totalAmount: { $sum: '$principalPaise' },
-          totalOutstanding: { $sum: '$outstandingBalance' },
+          totalOutstanding: { $sum: '$outstandingPrincipal' },
           count: { $sum: 1 },
           completedCount: {
-            $sum: { $cond: ['$isCompleted', 1, 0] }
+            $sum: { $cond: [{ $eq: ['$status', 'CLOSED'] }, 1, 0] }
           }
         }
       }
@@ -847,11 +746,90 @@ export const getOverallUdhariSummary = async (req, res) => {
         totalToCollect: formattedSummary.given.totalOutstanding,
         totalToPay: formattedSummary.taken.totalOutstanding,
         netOutstanding: netOutstanding,
-        totalTransactions: formattedSummary.given.count + formattedSummary.taken.count
+        totalUdhars: formattedSummary.given.count + formattedSummary.taken.count
       }
     });
   } catch (error) {
-    console.error('Error in getOverallUdhariSummary:', error);
+    console.error('Error in getOverallUdharSummary:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Get Udhar Reminders (Overdue Payments)
+export const getUdharReminders = async (req, res) => {
+  try {
+    const { days = 0 } = req.query;
+    const checkDate = new Date();
+    checkDate.setDate(checkDate.getDate() + parseInt(days));
+
+    const overdueUdhars = await Udhar.find({
+      status: { $in: ['ACTIVE', 'PARTIALLY_PAID'] },
+      isActive: true,
+      dueDate: { $lte: checkDate }
+    }).populate('customer', 'name phone email');
+
+    const reminders = overdueUdhars.map(udhar => {
+      const daysOverdue = Math.ceil((new Date() - udhar.dueDate) / (1000 * 60 * 60 * 24));
+      const status = daysOverdue > 60 ? 'CRITICAL' : 'OVERDUE';
+
+      return {
+        udharId: udhar._id,
+        customer: udhar.customer,
+        udharType: udhar.udharType,
+        principalAmount: udhar.principalPaise / 100,
+        outstandingPrincipal: udhar.outstandingPrincipal / 100,
+        daysOverdue,
+        status,
+        dueDate: udhar.dueDate,
+        lastPaymentDate: udhar.lastPaymentDate,
+        reminderMessage: `Dear ${udhar.customer.name}, your udhar of ₹${(udhar.outstandingPrincipal / 100).toFixed(2)} is ${status.toLowerCase()} since ${udhar.dueDate.toISOString().split('T')[0]}.`
+      };
+    });
+
+    res.json({
+      success: true,
+      data: reminders,
+      summary: {
+        totalReminders: reminders.length,
+        criticalReminders: reminders.filter(r => r.status === 'CRITICAL').length,
+        overdueReminders: reminders.filter(r => r.status === 'OVERDUE').length,
+        totalPendingAmount: reminders.reduce((sum, r) => sum + r.outstandingPrincipal, 0)
+      }
+    });
+  } catch (error) {
+    console.error('Error in getUdharReminders:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Mark Reminder as Sent
+export const markReminderSent = async (req, res) => {
+  try {
+    const udharId = req.params.id;
+
+    const udhar = await Udhar.findByIdAndUpdate(
+      udharId,
+      {
+        reminderSent: true,
+        lastReminderDate: new Date()
+      },
+      { new: true }
+    );
+
+    if (!udhar) {
+      return res.status(404).json({
+        success: false,
+        error: 'Udhar not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: udhar,
+      message: 'Reminder marked as sent'
+    });
+  } catch (error) {
+    console.error('Error in markReminderSent:', error);
+    res.status(400).json({ success: false, error: error.message });
   }
 };
