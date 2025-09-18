@@ -3,16 +3,16 @@ import { Search, Filter, SortAsc, Grid3X3, List, ChevronDown } from 'lucide-reac
 
 const GoldLoanSearchFilterBar = ({ 
   searchTerm, 
-  setSearchTerm, 
+  onSearchChange, 
   statusFilter, 
-  setStatusFilter, 
+  onStatusFilterChange, 
   goldTypeFilter,
   setGoldTypeFilter,
   sortBy, 
-  setSortBy,
+  onSortChange,
   viewMode,
   setViewMode 
-}) => {
+})=> {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
       {/* Header */}
@@ -43,12 +43,12 @@ const GoldLoanSearchFilterBar = ({
                 type="text"
                 placeholder="Search by loan ID, customer name, phone..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => onSearchChange(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => onSearchChange('')}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors text-lg"
                 >
                   ×
@@ -67,13 +67,13 @@ const GoldLoanSearchFilterBar = ({
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={16} />
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => onStatusFilterChange(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
               >
                 <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="overdue">Overdue</option>
-                <option value="closed">Closed</option>
+                <option value="ACTIVE">Active</option>
+                <option value="OVERDUE">Overdue</option>
+                <option value="CLOSED">Closed</option>
               </select>
             </div>
           </div>
@@ -91,10 +91,10 @@ const GoldLoanSearchFilterBar = ({
                 className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
               >
                 <option value="all">All Gold</option>
-                <option value="24K">24K Gold</option>
-                <option value="22K">22K Gold</option>
-                <option value="18K">18K Gold</option>
-                <option value="14K">14K Gold</option>
+                <option value="24">24K Gold</option>
+                <option value="22">22K Gold</option>
+                <option value="18">18K Gold</option>
+                <option value="14">14K Gold</option>
               </select>
             </div>
           </div>
@@ -109,14 +109,14 @@ const GoldLoanSearchFilterBar = ({
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={16} />
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => onSortChange(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
               >
                 <option value="loanId">Sort by Loan ID</option>
                 <option value="customer">Customer Name</option>
-                <option value="amount">Loan Amount</option>
+                <option value="loanamount">Loan Amount</option>
                 <option value="dueDate">Due Date</option>
-                <option value="createdDate">Created Date</option>
+                <option value="createdAt">Created Date</option>
                 <option value="weight">Gold Weight</option>
               </select>
             </div>

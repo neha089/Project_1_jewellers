@@ -4,7 +4,10 @@ import * as goldLoanController from '../controllers/goldLoanController.js';
 import * as reportController from '../controllers/reportController.js';
 
 const router = express.Router();
-
+const authenticateToken = (req, res, next) => {
+  // For now, just pass through - implement proper auth later
+  next();
+};
 
 router.get('/analytics/dashboard', goldLoanController.getDashboardStats);
 router.get('/analytics/business', reportController.getBusinessAnalytics);
@@ -26,13 +29,35 @@ router.get('/:id', goldLoanController.getGoldLoanById);
 // LOAN SPECIFIC OPERATIONS
 router.get('/:id/timeline', reportController.getLoanTimeline);
 
-// ENHANCED PAYMENT OPERATIONS
+// // ENHANCED PAYMENT OPERATIONS
+// router.post('/:id/interest-payment', goldLoanController.addInterestPayment);
+
+// // NEW ENHANCED ENDPOINTS FOR YOUR REQUIREMENTS
+
+// // ENHANCED REPAYMENT OPERATIONS
+//router.post('/:id/process-repayment', goldLoanController.processItemRepayment);
+
+// ENHANCED PAYMENT OPERATIONS - SEPARATE MODELS
+// Interest payment operations
 router.post('/:id/interest-payment', goldLoanController.addInterestPayment);
+router.get('/:id/interest-payments', goldLoanController.getInterestPayments);
 
-// NEW ENHANCED ENDPOINTS FOR YOUR REQUIREMENTS
+// Repayment operations
+router.post('/:id/repayment', goldLoanController.processItemRepayment);
+router.get('/:id/repayments', goldLoanController.getRepayments);
+router.get('/:id/repayment-stats', goldLoanController.getRepaymentStats);
+router.get('/gold-price/current', goldLoanController.getCurrentGoldPrice);
 
-// ENHANCED REPAYMENT OPERATIONS
-router.post('/:id/process-repayment', goldLoanController.processItemRepayment);
+
+
+// Optional: Validate repayment before processing
+router.post('/:id/validate-repayment', authenticateToken, goldLoanController.validateRepayment);
+
+// Additional repayment routes (if needed)
+router.get('/repayments/search', authenticateToken, goldLoanController.searchAllRepayments);
+router.get('/repayments/:repaymentId', authenticateToken, goldLoanController.getRepaymentDetails);
+router.get('/repayments/:repaymentId/receipt', authenticateToken, goldLoanController.getRepaymentReceipt);
+router.put('/repayments/:repaymentId/cancel', authenticateToken, goldLoanController.cancelRepayment);
 
 // ITEM MANAGEMENT
 
