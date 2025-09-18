@@ -2,7 +2,7 @@ import Customer from '../models/Customer.js';
 import GoldLoan from '../models/GoldLoan.js';
 import Loan from '../models/Loan.js';
 import Transaction from '../models/Transaction.js';
-import UdhariTransaction from '../models/UdhariTransaction.js';
+import Udhar from '../models/Udhar.js';
 import MetalSale from '../models/MetalSale.js';
 import GoldPurchase from '../models/GoldPurchase.js';
 
@@ -119,7 +119,7 @@ export const getDashboardStats = async (req, res) => {
       { $group: { _id: null, total: { $sum: '$outstanding' } } }
     ]);
 
-    const outstandingUdhari = await UdhariTransaction.aggregate([
+    const outstandingUdhari = await Udhar.aggregate([
       { $match: { kind: 'GIVEN', isCompleted: false, sourceType: 'UDHARI' } },
       { $group: { _id: null, total: { $sum: '$outstandingBalance' } } }
     ]);
