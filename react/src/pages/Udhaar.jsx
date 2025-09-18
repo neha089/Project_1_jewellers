@@ -8,127 +8,116 @@ import {
   RefreshCw,
   Loader2,
   AlertCircle,
-  Filter
+  Building
 } from 'lucide-react';
 import ApiService from '../services/api.js';
 import AddUdhariModal from '../components/AddUdhariModal';
 import UdhariCard from '../components/UdhariCard';
 import UdhariDetailModal from '../components/UdhariDetailModal';
-import UPaymentModal from '../components/UPaymentModal';
+import UdhariPaymentModal from '../components/UdhariPaymentModal';
 
 const Udhaar = () => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [showAddUdhariModal, setShowAddUdhariModal] = useState(false);
+  const [selectedCustomerData, setSelectedCustomerData] = useState(null);
+  const [selectedUdhari, setSelectedUdhari] = useState(null);
+  const [udhariType, setUdhariType] = useState(''); // 'receivable' or 'payable'
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
   const [receivableUdharis, setReceivableUdharis] = useState([]);
   const [payableUdharis, setPayableUdharis] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [businessSummary, setBusinessSummary] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedUdhari, setSelectedUdhari] = useState(null);
 
   useEffect(() => {
-    loadAllData();
+    loadUdharis();
   }, []);
 
-  const loadAllData = async () => {
+  const loadUdharis = async () => {
     try {
       setLoading(true);
       setError(null);
-      await Promise.all([loadUdhariData(), loadBusinessSummary()]);
+
+      const [receivableResponse, payableResponse] = await Promise.all([
+        ApiService.getOutstandingToCollectUdhari(),
+        ApiService.getOutstandingToPayUdhari()
+      ]);
+
+      console.log('Receivable Response:', receivableResponse);
+      console.log('Payable Response:', payableResponse);
+      
+      if (receivableResponse.success) {
+        console.log('Raw receivable data:', receivableResponse.data.customerWise[0].udhars); //showinhg me udhar related to that customer
+        const receivableData = receivableResponse.data.customerWise.map(item => ({
+          customer: item.customer,
+          totalOutstanding: item.totalOutstanding,
+          // Map udhars to transactions for consistency
+          transactions: item.udhars || [],
+          type: 'receivable',
+          transactionCount: (item.udhars || item.transactions || []).length
+        }));
+        setReceivableUdharis(receivableData);
+        console.log('Processed receivable data:', receivableData);
+      }
+
+      if (payableResponse.success) {
+        const payableData = payableResponse.data.customerWise.map(item => ({
+          customer: item.customer,
+          totalOutstanding: item.totalOutstanding,
+          // Map udhars to transactions for consistency
+          transactions: item.udhars || item.transactions || [],
+          type: 'payable',
+          transactionCount: (item.udhars || item.transactions || []).length
+        }));
+        setPayableUdharis(payableData);
+        console.log('Processed payable data:', payableData);
+      }
     } catch (error) {
-      console.error('Error loading data:', error);
-      setError(error.message || 'Failed to load data');
+      console.error('Error loading udharis:', error);
+      setError('Failed to load udhari data');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadUdhariData = async () => {
-    try {
-      const [collectResponse, payResponse] = await Promise.all([
-        ApiService.getOutstandingToCollect(),
-        ApiService.getOutstandingToPay()
-      ]);
-
-      if (collectResponse.success && collectResponse.data) {
-        setReceivableUdharis(collectResponse.data.customerWise || []);
-      }
-
-      if (payResponse.success && payResponse.data) {
-        setPayableUdharis(payResponse.data.customerWise || []);
-      }
-    } catch (error) {
-      console.error('Error loading udhari data:', error);
-      throw error;
-    }
+  const handleAddUdhariSuccess = () => {
+    loadUdharis();
   };
 
-  const loadBusinessSummary = async () => {
-    try {
-      const summaryResponse = await ApiService.getOverallUdhariSummary();
-      if (summaryResponse && summaryResponse.success && summaryResponse.data) {
-        setBusinessSummary({
-          totalToCollect: summaryResponse.data.totalToCollect || 0,
-          totalToPay: summaryResponse.data.totalToPay || 0,
-          totalTransactions: summaryResponse.data.totalTransactions || 0
-        });
-      } else {
-        setBusinessSummary({
-          totalToCollect: 0,
-          totalToPay: 0,
-          totalTransactions: 0
-        });
-      }
-    } catch (error) {
-      console.error('Error loading business summary:', error);
-      setBusinessSummary({
-        totalToCollect: 0,
-        totalToPay: 0,
-        totalTransactions: 0
-      });
-    }
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await loadAllData();
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleViewUdhari = (udhari, type) => {
-    setSelectedUdhari({ ...udhari, type });
+  // Handle customer data selection
+  const handleViewUdhari = (customerUdhariData) => {
+    console.log('Viewing udhari for customer:', customerUdhariData);
+    setSelectedCustomerData(customerUdhariData);
+    setUdhariType(customerUdhariData.type);
     setShowDetailModal(true);
   };
 
-  const handlePayment = (udhari, type) => {
-    setSelectedUdhari({ ...udhari, type });
+  // Handle individual transaction payment from detail modal
+  const handlePayment = (transaction) => {
+    console.log('Processing payment for transaction:', transaction);
+    setSelectedUdhari(transaction);
+    setShowDetailModal(false);
     setShowPaymentModal(true);
   };
 
-  const handleModalClose = () => {
-    setShowAddModal(false);
-    setShowDetailModal(false);
+  // Direct payment for customers with single transaction
+  const handleDirectPayment = (customerUdhariData) => {
+    console.log('Direct payment for customer:', customerUdhariData);
+    if (customerUdhariData.transactions && customerUdhariData.transactions.length === 1) {
+      setSelectedUdhari(customerUdhariData.transactions[0]);
+      setShowPaymentModal(true);
+    } else {
+      handleViewUdhari(customerUdhariData);
+    }
+  };
+
+  const handlePaymentSuccess = () => {
+    loadUdharis();
     setShowPaymentModal(false);
-    setSelectedUdhari(null);
-  };
-
-  const handleUdhariAdded = () => {
-    handleModalClose();
-    loadAllData(); // Refresh data after adding new udhari
-  };
-
-  const handlePaymentComplete = () => {
-    handleModalClose();
-    loadAllData(); // Refresh data after payment
+    setShowDetailModal(false);
   };
 
   const formatCurrency = (amount) => {
@@ -139,260 +128,289 @@ const Udhaar = () => {
     }).format(amount);
   };
 
-  const getFilteredData = () => {
-    let filteredReceivable = receivableUdharis;
-    let filteredPayable = payableUdharis;
-
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filteredReceivable = receivableUdharis.filter(udhari =>
-        udhari.customer?.name?.toLowerCase().includes(searchLower) ||
-        udhari.customer?.phone?.includes(searchTerm)
-      );
-      filteredPayable = payableUdharis.filter(udhari =>
-        udhari.customer?.name?.toLowerCase().includes(searchLower) ||
-        udhari.customer?.phone?.includes(searchTerm)
-      );
-    }
-
-    return { filteredReceivable, filteredPayable };
+  const filterUdharis = (udharis) => {
+    if (!searchTerm) return udharis;
+    return udharis.filter(udhari =>
+      udhari.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      udhari.customer?.phone?.includes(searchTerm)
+    );
   };
 
-  const { filteredReceivable, filteredPayable } = getFilteredData();
+  const filteredReceivableUdharis = filterUdharis(receivableUdharis);
+  const filteredPayableUdharis = filterUdharis(payableUdharis);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 size={48} className="text-blue-600 animate-spin mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Udhari Data</h3>
-          <p className="text-slate-600">Fetching outstanding amounts...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Error Loading Data</h3>
-          <p className="text-slate-600 mb-6">{error}</p>
-          <button
-            onClick={loadAllData}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const totalToCollect = receivableUdharis.reduce((sum, udhari) => sum + udhari.totalOutstanding, 0);
+  const totalToPay = payableUdharis.reduce((sum, udhari) => sum + udhari.totalOutstanding, 0);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Udhari Management</h1>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="p-2 text-slate-600 hover:bg-white hover:text-slate-900 rounded-xl transition-colors border border-slate-200"
-              title="Refresh Data"
-            >
-              <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium transition-colors shadow-md"
-            >
-              <Plus size={18} />
-              Add Udhari
-            </button>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Udhari Management</h1>
+            <p className="text-slate-600">Manage credit transactions and track payments</p>
           </div>
+          <button
+            onClick={() => setShowAddUdhariModal(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium shadow-lg"
+          >
+            <Plus size={20} />
+            Add Udhari
+          </button>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white p-6 rounded-2xl shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                <TrendingUp size={20} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                <TrendingUp size={20} className="text-red-600" />
               </div>
-              <span className="text-sm font-medium opacity-90">TO COLLECT</span>
-            </div>
-            <p className="text-3xl font-bold mb-2">{formatCurrency(businessSummary.totalToCollect || 0)}</p>
-            <p className="text-sm opacity-90">{receivableUdharis.length} customers owe you</p>
-          </div>
-          
-          <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                <TrendingDown size={20} />
+              <div>
+                <p className="text-sm font-medium text-slate-600">To Collect</p>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(totalToCollect)}</p>
               </div>
-              <span className="text-sm font-medium opacity-90">TO PAY</span>
             </div>
-            <p className="text-3xl font-bold mb-2">{formatCurrency(businessSummary.totalToPay || 0)}</p>
-            <p className="text-sm opacity-90">{payableUdharis.length} customers you owe</p>
+            <p className="text-sm text-slate-500">{filteredReceivableUdharis.length} customers</p>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-2xl shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                <DollarSign size={20} />
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <TrendingDown size={20} className="text-green-600" />
               </div>
-              <span className="text-sm font-medium opacity-90">NET POSITION</span>
+              <div>
+                <p className="text-sm font-medium text-slate-600">To Pay</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(totalToPay)}</p>
+              </div>
             </div>
-            <p className="text-3xl font-bold mb-2">
-              {formatCurrency(Math.abs((businessSummary.totalToCollect || 0) - (businessSummary.totalToPay || 0)))}
-            </p>
-            <p className="text-sm opacity-90">
-              {(businessSummary.totalToCollect || 0) > (businessSummary.totalToPay || 0) ? 'Net Receivable' : 'Net Payable'}
-            </p>
+            <p className="text-sm text-slate-500">{filteredPayableUdharis.length} customers</p>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <DollarSign size={20} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-600">Net Balance</p>
+                <p className={`text-2xl font-bold ${(totalToCollect - totalToPay) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(totalToCollect - totalToPay)}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-500">Overall position</p>
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative mb-6">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
-          <input
-            type="text"
-            placeholder="Search by customer name or phone..."
-            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        {/* Search and Filter */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex-1 relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
+            <input
+              type="text"
+              placeholder="Search by customer name or phone..."
+              className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={loadUdharis}
+            className="p-3 border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+            disabled={loading}
+          >
+            <RefreshCw size={20} className={`text-slate-600 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
-        {/* Filter Buttons */}
+        {/* Tabs */}
         <div className="flex gap-2 mb-6">
           <button
-            onClick={() => setFilterType('all')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              filterType === 'all' 
-                ? 'bg-slate-900 text-white shadow-md' 
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            onClick={() => setActiveTab('overview')}
+            className={`px-6 py-3 rounded-xl font-medium transition-colors ${
+              activeTab === 'overview'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
-            All ({filteredReceivable.length + filteredPayable.length})
+            Overview
           </button>
           <button
-            onClick={() => setFilterType('receivable')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              filterType === 'receivable' 
-                ? 'bg-red-500 text-white shadow-md' 
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            onClick={() => setActiveTab('receivable')}
+            className={`px-6 py-3 rounded-xl font-medium transition-colors ${
+              activeTab === 'receivable'
+                ? 'bg-red-600 text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
-            Receivable ({filteredReceivable.length})
+            To Collect ({filteredReceivableUdharis.length})
           </button>
           <button
-            onClick={() => setFilterType('payable')}
-            className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              filterType === 'payable' 
-                ? 'bg-green-500 text-white shadow-md' 
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            onClick={() => setActiveTab('payable')}
+            className={`px-6 py-3 rounded-xl font-medium transition-colors ${
+              activeTab === 'payable'
+                ? 'bg-green-600 text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
-            Payable ({filteredPayable.length})
+            To Pay ({filteredPayableUdharis.length})
           </button>
         </div>
 
-        {/* Udhari Lists */}
-        <div className="space-y-6">
-          {/* Receivable Section */}
-          {(filterType === 'all' || filterType === 'receivable') && filteredReceivable.length > 0 && (
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                Money to Collect ({filteredReceivable.length})
-              </h2>
-              <div className="space-y-3">
-                {filteredReceivable.map((udhari) => (
-                  <UdhariCard
-                    key={udhari.customer?._id}
-                    udhari={udhari}
-                    type="receivable"
-                    onView={() => handleViewUdhari(udhari, 'receivable')}
-                    onPayment={() => handlePayment(udhari, 'receivable')}
-                  />
-                ))}
-              </div>
+        {/* Content */}
+        <div className="space-y-4">
+          {loading ? (
+            <div className="text-center py-12">
+              <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto" />
+              <p className="text-slate-500 mt-4">Loading udharis...</p>
             </div>
-          )}
+          ) : error ? (
+            <div className="text-center py-12">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+              <p className="text-red-600 mt-4">{error}</p>
+              <button
+                onClick={loadUdharis}
+                className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  {filteredReceivableUdharis.length > 0 && (
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <div className="w-6 h-6 bg-red-100 rounded-lg flex items-center justify-center">
+                          <TrendingUp size={14} className="text-red-600" />
+                        </div>
+                        To Collect ({filteredReceivableUdharis.length})
+                      </h2>
+                      <div className="space-y-4">
+                        {filteredReceivableUdharis.map((customerData, index) => (
+                          <UdhariCard
+                            key={`receivable-${customerData.customer._id}-${index}`}
+                            udhari={customerData}
+                            type="receivable"
+                            onView={() => handleViewUdhari(customerData)}
+                            onPayment={() => handleDirectPayment(customerData)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-          {/* Payable Section */}
-          {(filterType === 'all' || filterType === 'payable') && filteredPayable.length > 0 && (
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                Money to Pay ({filteredPayable.length})
-              </h2>
-              <div className="space-y-3">
-                {filteredPayable.map((udhari) => (
-                  <UdhariCard
-                    key={udhari.customer?._id}
-                    udhari={udhari}
-                    type="payable"
-                    onView={() => handleViewUdhari(udhari, 'payable')}
-                    onPayment={() => handlePayment(udhari, 'payable')}
-                  />
-                ))}
-              </div>
-            </div>
+                  {filteredPayableUdharis.length > 0 && (
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <div className="w-6 h-6 bg-green-100 rounded-lg flex items-center justify-center">
+                          <TrendingDown size={14} className="text-green-600" />
+                        </div>
+                        To Pay ({filteredPayableUdharis.length})
+                      </h2>
+                      <div className="space-y-4">
+                        {filteredPayableUdharis.map((customerData, index) => (
+                          <UdhariCard
+                            key={`payable-${customerData.customer._id}-${index}`}
+                            udhari={customerData}
+                            type="payable"
+                            onView={() => handleViewUdhari(customerData)}
+                            onPayment={() => handleDirectPayment(customerData)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredReceivableUdharis.length === 0 && filteredPayableUdharis.length === 0 && (
+                    <div className="text-center py-12">
+                      <Building size={48} className="text-slate-300 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-slate-900 mb-2">No Udharis Found</h3>
+                      <p className="text-slate-500 mb-6">Start by adding your first udhari transaction</p>
+                      <button
+                        onClick={() => setShowAddUdhariModal(true)}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
+                      >
+                        <Plus size={18} className="inline mr-2" />
+                        Add Your First Udhari
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'receivable' && (
+                <div className="space-y-4">
+                  {filteredReceivableUdharis.length > 0 ? (
+                    filteredReceivableUdharis.map((customerData, index) => (
+                      <UdhariCard
+                        key={`receivable-${customerData.customer._id}-${index}`}
+                        udhari={customerData}
+                        type="receivable"
+                        onView={() => handleViewUdhari(customerData)}
+                        onPayment={() => handleDirectPayment(customerData)}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <TrendingUp size={48} className="text-slate-300 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-slate-900 mb-2">No Receivable Udharis</h3>
+                      <p className="text-slate-500">No udharis to collect from customers</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'payable' && (
+                <div className="space-y-4">
+                  {filteredPayableUdharis.length > 0 ? (
+                    filteredPayableUdharis.map((customerData, index) => (
+                      <UdhariCard
+                        key={`payable-${customerData.customer._id}-${index}`}
+                        udhari={customerData}
+                        type="payable"
+                        onView={() => handleViewUdhari(customerData)}
+                        onPayment={() => handleDirectPayment(customerData)}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-center py-12">
+                      <TrendingDown size={48} className="text-slate-300 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-slate-900 mb-2">No Payable Udharis</h3>
+                      <p className="text-slate-500">No udharis to pay to customers</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Empty State */}
-        {filteredReceivable.length === 0 && filteredPayable.length === 0 && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
-              <DollarSign size={24} className="text-slate-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">No Outstanding Amounts</h3>
-            <p className="text-slate-500 mb-6">Start by adding your first udhari transaction</p>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
-            >
-              Add Udhari
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Modals */}
-      {showAddModal && (
+        {/* Modals */}
         <AddUdhariModal
-          isOpen={showAddModal}
-          onClose={handleModalClose}
-          onSuccess={handleUdhariAdded}
+          isOpen={showAddUdhariModal}
+          onClose={() => setShowAddUdhariModal(false)}
+          onSuccess={handleAddUdhariSuccess}
         />
-      )}
 
-      {showDetailModal && selectedUdhari && (
         <UdhariDetailModal
           isOpen={showDetailModal}
-          udhari={selectedUdhari}
-          onClose={handleModalClose}
-          onPayment={() => {
-            setShowDetailModal(false);
-            setShowPaymentModal(true);
-          }}
+          customerData={selectedCustomerData}
+          udhariType={udhariType}
+          onClose={() => setShowDetailModal(false)}
+          onPayment={handlePayment}
         />
-      )}
 
-      {showPaymentModal && selectedUdhari && (
-        <UPaymentModal
+        <UdhariPaymentModal
           isOpen={showPaymentModal}
           udhari={selectedUdhari}
-          onClose={handleModalClose}
-          onSuccess={handlePaymentComplete}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={handlePaymentSuccess}
         />
-      )}
+      </div>
     </div>
   );
 };
