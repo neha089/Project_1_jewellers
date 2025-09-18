@@ -12,6 +12,7 @@ const axiosInstance = axios.create({
   },
 });
 
+
 // Add request interceptor for logging
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -110,7 +111,12 @@ class ApiService {
   async createCustomer(customerData) {
     return this.post('/api/customers', customerData);
   }
-
+  async createGoldTransaction(transactionData) {
+    return this.post("/api/gold/", transactionData);
+  }
+  async createSilverTransaction (transactionData) {
+    return this.post("/api/silver/", transactionData);
+  }
   // Udhari APIs - Updated to match backend exactly
   async giveUdhar(data) {
     return this.post('/api/udhari/give', data);
