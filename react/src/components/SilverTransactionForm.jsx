@@ -40,7 +40,6 @@ const SilverTransactionForm = ({
     paymentMode: 'CASH',
     notes: '',
     billNumber: '',
-    // New fields for update handling
     originalAdvanceAmount: 0,
     additionalPayment: 0,
     additionalPaymentMode: 'CASH'
@@ -98,7 +97,6 @@ const SilverTransactionForm = ({
       billNumber: transaction.invoiceNumber || ''
     });
 
-    // Set customer search and items (customer details are locked for editing)
     const personName = getPersonName(transaction);
     if (personName && personName !== 'N/A') {
       setCustomerSearchTerm(personName);
@@ -111,7 +109,6 @@ const SilverTransactionForm = ({
       });
     }
 
-    // Set items from transaction
     if (transaction.items && transaction.items.length > 0) {
       const transactionItems = transaction.items.map(item => ({
         id: item.id || Date.now() + Math.random(),
@@ -119,10 +116,10 @@ const SilverTransactionForm = ({
         description: item.description || '',
         purity: item.purity || '925',
         weight: item.weight ? item.weight.toString() : '',
-        ratePerGram: item.ratePerGram ? (item.ratePerGram / 100).toString() : '', // Convert from paise
-        makingCharges: item.makingCharges ? (item.makingCharges / 100).toString() : '0', // Convert from paise
+        ratePerGram: item.ratePerGram ? (item.ratePerGram / 100).toString() : '',
+        makingCharges: item.makingCharges ? (item.makingCharges / 100).toString() : '0',
         wastage: item.wastage ? item.wastage.toString() : '0',
-        taxAmount: item.taxAmount ? (item.taxAmount / 100).toString() : '0', // Convert from paise
+        taxAmount: item.taxAmount ? (item.taxAmount / 100).toString() : '0',
         photos: item.photos || [],
         hallmarkNumber: item.hallmarkNumber || '',
         certificateNumber: item.certificateNumber || ''
@@ -131,7 +128,6 @@ const SilverTransactionForm = ({
     }
   };
 
-  // Helper functions for getting person details
   const getPersonName = (transaction) => {
     if (transaction.transactionType === 'SELL' && transaction.customer) {
       return transaction.customer.name || 'N/A';
@@ -173,7 +169,6 @@ const SilverTransactionForm = ({
   };
 
   const handleCustomerSelect = (customer) => {
-    // Don't allow customer selection if editing
     if (isEditing) return;
     
     setSelectedCustomer(customer);
@@ -210,7 +205,6 @@ const SilverTransactionForm = ({
   };
 
   const handleCreateCustomer = () => {
-    // Don't allow customer creation if editing
     if (isEditing) return;
     
     setShowCreateCustomerForm(true);
@@ -257,7 +251,6 @@ const SilverTransactionForm = ({
     }
   };
 
-  // Calculate totals from items
   const calculateTotals = () => {
     if (items.length === 0) {
       return { totalWeight: 0, totalAmount: 0 };
@@ -284,215 +277,148 @@ const SilverTransactionForm = ({
     return { totalWeight, totalAmount };
   };
 
-  // Add this debug version of handleSubmit to your SilverTransactionForm component
-
-const handleSubmit = async (e) => {
-  // Prevent any default form submission behavior
-  if (e) {
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  console.log('=== SUBMIT HANDLER TRIGGERED ===');
-  console.log('isEditing:', isEditing);
-  console.log('editingTransaction:', editingTransaction);
-  console.log('formData:', formData);
-  console.log('items:', items);
-  console.log('loading:', loading);
-
-  try {
-    setLoading(true);
-    onError(null);
-
-    // Validate items
-    if (items.length === 0) {
-      console.error('Validation failed: No items');
-      onError('Please add at least one item');
-      return;
+  const handleSubmit = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
 
-    const hasValidItems = items.some(item => 
-      item.itemName && parseFloat(item.weight) > 0 && parseFloat(item.ratePerGram) > 0
-    );
-    
-    if (!hasValidItems) {
-      console.error('Validation failed: Invalid items');
-      onError('Please add at least one valid item with name, weight, and rate');
-      return;
-    }
+    try {
+      setLoading(true);
+      onError(null);
 
-    if (isEditing) {
-      console.log('=== HANDLING UPDATE ===');
-      
-      // Validate we have customer/supplier ID for editing
-      if (!formData.customerId && !formData.supplierId) {
-        console.error('Validation failed: No customer/supplier ID for editing');
-        onError('Missing customer/supplier information for update');
-        return;
-      }
-      
-      // Calculate the new total advance amount
-      const originalAdvance = parseFloat(formData.originalAdvanceAmount) || 0;
-      const additionalPayment = parseFloat(formData.additionalPayment) || 0;
-      const newTotalAdvance = originalAdvance + additionalPayment;
-      
-      console.log('Payment calculation:', {
-        originalAdvance,
-        additionalPayment,
-        newTotalAdvance
-      });
-      
-      const updateData = {
-        transactionType: formData.transactionType,
-        
-        // Customer/Supplier ID (never modify customer data in updates)
-        ...(formData.transactionType === 'SELL' && formData.customerId && { 
-          customer: formData.customerId 
-        }),
-        ...(formData.transactionType === 'BUY' && formData.supplierId && { 
-          supplier: formData.supplierId 
-        }),
-        
-        // Items with proper data types
-        items: items.map(item => ({
-          name: item.itemName,
-          itemName: item.itemName,
-          description: item.description || "",
-          weight: parseFloat(item.weight) || 0,
-          purity: item.purity || "925",
-          ratePerGram: parseFloat(item.ratePerGram) || 0,
-          makingCharges: parseFloat(item.makingCharges) || 0,
-          wastage: parseFloat(item.wastage) || 0,
-          taxAmount: parseFloat(item.taxAmount) || 0,
-          photos: item.photos || [],
-          hallmarkNumber: item.hallmarkNumber || '',
-          certificateNumber: item.certificateNumber || ''
-        })),
-        
-        // Payment information
-        advanceAmount: newTotalAdvance,
-        paymentMode: additionalPayment > 0 ? formData.additionalPaymentMode : formData.paymentMode,
-        
-        // Additional metadata
-        notes: formData.notes || "",
-        billNumber: formData.billNumber || "",
-        
-        // Additional payment tracking
-        additionalPayment: additionalPayment,
-        additionalPaymentMode: formData.additionalPaymentMode,
-        originalAdvanceAmount: originalAdvance
-      };
-
-      console.log('=== SENDING UPDATE DATA ===');
-      console.log('Transaction ID:', editingTransaction.id || editingTransaction._id);
-      console.log('Update payload:', JSON.stringify(updateData, null, 2));
-
-      // Make sure we have the correct transaction ID
-      const transactionId = editingTransaction.id || editingTransaction._id;
-      if (!transactionId) {
-        console.error('No transaction ID found');
-        onError('Transaction ID is missing');
+      if (items.length === 0) {
+        onError('Please add at least one item');
         return;
       }
 
-      console.log('Calling ApiService.updateSilverTransaction...');
-      const response = await ApiService.updateSilverTransaction(transactionId, updateData);
+      const hasValidItems = items.some(item => 
+        item.itemName && parseFloat(item.weight) > 0 && parseFloat(item.ratePerGram) > 0
+      );
       
-      console.log('=== UPDATE RESPONSE ===');
-      console.log('Response:', response);
-      
-      // Handle different response formats
-      if (response && (response.success !== false) && !response.error) {
-        console.log('✅ Update successful');
-        onSuccess();
-      } else {
-        const errorMessage = response?.message || response?.error || response?.data?.message || 'Failed to update transaction';
-        console.error('❌ Update failed:', errorMessage);
-        onError(errorMessage);
-      }
-    } else {
-      console.log('=== HANDLING CREATE ===');
-      
-      // Validate customer data for new transactions
-      const currentData = formData.transactionType === 'SELL' ? formData.customerData : formData.supplierData;
-      if (!currentData.name && !formData.customerId && !formData.supplierId) {
-        console.error('Validation failed: No customer data');
-        onError('Please select or enter customer/supplier details');
+      if (!hasValidItems) {
+        onError('Please add at least one valid item with name, weight, and rate');
         return;
       }
-      
-      const transactionData = {
-        transactionType: formData.transactionType,
-        items: items.map(item => ({
-          itemName: item.itemName,
-          description: item.description || '',
-          purity: item.purity,
-          weight: parseFloat(item.weight),
-          ratePerGram: parseFloat(item.ratePerGram),
-          makingCharges: parseFloat(item.makingCharges) || 0,
-          wastage: parseFloat(item.wastage) || 0,
-          taxAmount: parseFloat(item.taxAmount) || 0,
-          hallmarkNumber: item.hallmarkNumber || '',
-          certificateNumber: item.certificateNumber || '',
-          photos: item.photos || []
-        })),
-        advanceAmount: parseFloat(formData.advanceAmount) || 0,
-        paymentMode: formData.paymentMode,
-        notes: formData.notes,
-        billNumber: formData.billNumber,
-        fetchCurrentRates: true
-      };
 
-      // Add customer or supplier data
-      if (formData.transactionType === 'SELL') {
-        transactionData.customer = formData.customerId || formData.customerData;
+      if (isEditing) {
+        // Fixed: Ensure customer/supplier ID is properly passed
+        const originalAdvance = parseFloat(formData.originalAdvanceAmount) || 0;
+        const additionalPayment = parseFloat(formData.additionalPayment) || 0;
+        const newTotalAdvance = originalAdvance + additionalPayment;
+        
+        const updateData = {
+          transactionType: formData.transactionType,
+          
+          // Fixed: Properly pass customer/supplier reference
+          ...(formData.transactionType === 'SELL' && formData.customerId && { 
+            customerId: formData.customerId  // Changed from 'customer' to 'customerId'
+          }),
+          ...(formData.transactionType === 'BUY' && formData.supplierId && { 
+            supplierId: formData.supplierId  // Changed from 'supplier' to 'supplierId'
+          }),
+          
+          items: items.map(item => ({
+            name: item.itemName,
+            itemName: item.itemName,
+            description: item.description || "",
+            weight: parseFloat(item.weight) || 0,
+            purity: item.purity || "925",
+            ratePerGram: parseFloat(item.ratePerGram) || 0,
+            makingCharges: parseFloat(item.makingCharges) || 0,
+            wastage: parseFloat(item.wastage) || 0,
+            taxAmount: parseFloat(item.taxAmount) || 0,
+            photos: item.photos || [],
+            hallmarkNumber: item.hallmarkNumber || '',
+            certificateNumber: item.certificateNumber || ''
+          })),
+          
+          advanceAmount: newTotalAdvance,
+          paymentMode: additionalPayment > 0 ? formData.additionalPaymentMode : formData.paymentMode,
+          notes: formData.notes || "",
+          billNumber: formData.billNumber || "",
+          additionalPayment: additionalPayment,
+          additionalPaymentMode: formData.additionalPaymentMode,
+          originalAdvanceAmount: originalAdvance
+        };
+
+        const transactionId = editingTransaction.id || editingTransaction._id;
+        if (!transactionId) {
+          onError('Transaction ID is missing');
+          return;
+        }
+
+        const response = await ApiService.updateSilverTransaction(transactionId, updateData);
+        
+        if (response && (response.success !== false) && !response.error) {
+          onSuccess();
+        } else {
+          const errorMessage = response?.message || response?.error || response?.data?.message || 'Failed to update transaction';
+          onError(errorMessage);
+        }
       } else {
-        transactionData.supplier = formData.supplierId || formData.supplierData;
-      }
+        // Fixed: Ensure proper customer/supplier data structure
+        const currentData = formData.transactionType === 'SELL' ? formData.customerData : formData.supplierData;
+        if (!currentData.name && !formData.customerId && !formData.supplierId) {
+          onError('Please select or enter customer/supplier details');
+          return;
+        }
+        
+        const transactionData = {
+          transactionType: formData.transactionType,
+          items: items.map(item => ({
+            itemName: item.itemName,
+            description: item.description || '',
+            purity: item.purity,
+            weight: parseFloat(item.weight),
+            ratePerGram: parseFloat(item.ratePerGram),
+            makingCharges: parseFloat(item.makingCharges) || 0,
+            wastage: parseFloat(item.wastage) || 0,
+            taxAmount: parseFloat(item.taxAmount) || 0,
+            hallmarkNumber: item.hallmarkNumber || '',
+            certificateNumber: item.certificateNumber || '',
+            photos: item.photos || []
+          })),
+          advanceAmount: parseFloat(formData.advanceAmount) || 0,
+          paymentMode: formData.paymentMode,
+          notes: formData.notes,
+          billNumber: formData.billNumber,
+          fetchCurrentRates: true
+        };
 
-      console.log('=== SENDING CREATE DATA ===');
-      console.log('Create payload:', JSON.stringify(transactionData, null, 2));
+        // Fixed: Properly structure customer/supplier data
+        if (formData.transactionType === 'SELL') {
+          if (formData.customerId) {
+            transactionData.customerId = formData.customerId;
+          } else {
+            transactionData.customer = formData.customerData;
+          }
+        } else {
+          if (formData.supplierId) {
+            transactionData.supplierId = formData.supplierId;
+          } else {
+            transactionData.supplier = formData.supplierData;
+          }
+        }
 
-      const response = await ApiService.createSilverTransaction(transactionData);
-      
-      console.log('=== CREATE RESPONSE ===');
-      console.log('Response:', response);
-      
-      if (response && (response.success !== false) && !response.error) {
-        console.log('✅ Create successful');
-        onSuccess();
-      } else {
-        const errorMessage = response?.message || response?.error || response?.data?.message || 'Failed to create transaction';
-        console.error('❌ Create failed:', errorMessage);
-        onError(errorMessage);
+        const response = await ApiService.createSilverTransaction(transactionData);
+        
+        if (response && (response.success !== false) && !response.error) {
+          onSuccess();
+        } else {
+          const errorMessage = response?.message || response?.error || response?.data?.message || 'Failed to create transaction';
+          onError(errorMessage);
+        }
       }
+    } catch (error) {
+      const errorMessage = isEditing ? 'Failed to update transaction' : 'Failed to create transaction';
+      onError(`${errorMessage}: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('=== EXCEPTION IN SUBMIT ===');
-    console.error('Error object:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    
-    const errorMessage = isEditing ? 'Failed to update transaction' : 'Failed to create transaction';
-    onError(`${errorMessage}: ${error.message}`);
-  } finally {
-    console.log('=== SUBMIT HANDLER COMPLETE ===');
-    setLoading(false);
-  }
-};
+  };
 
-// Also add this debug function to test the button click
-const handleButtonClick = (e) => {
-  console.log('=== BUTTON CLICKED ===');
-  console.log('Event:', e);
-  console.log('Button disabled?', loading || items.length === 0);
-  console.log('Items length:', items.length);
-  console.log('Loading state:', loading);
-  
-  handleSubmit(e);
-};
   const handleTransactionTypeChange = (type) => {
-    // Don't allow transaction type change if editing
     if (isEditing) return;
     
     setFormData(prev => ({ ...prev, transactionType: type }));
@@ -561,7 +487,6 @@ const handleButtonClick = (e) => {
                   {isEditing && <Lock className="w-4 h-4 inline ml-2 text-gray-500" />}
                 </h3>
                 
-                {/* Customer Search - Disabled for editing */}
                 {!showCreateCustomerForm ? (
                   <div className="relative">
                     <CustomerSearch
@@ -595,7 +520,6 @@ const handleButtonClick = (e) => {
                   </div>
                 )}
 
-                {/* Customer/Supplier Form - Read-only for editing */}
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -709,7 +633,6 @@ const handleButtonClick = (e) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {isEditing ? (
                 <>
-                  {/* Additional Payment for Updates */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Additional Payment (₹)</label>
                     <input
@@ -752,7 +675,6 @@ const handleButtonClick = (e) => {
                 </>
               ) : (
                 <>
-                  {/* Original fields for new transactions */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount (₹)</label>
                     <input
@@ -849,31 +771,32 @@ const handleButtonClick = (e) => {
             </div>
 
             {/* Action Buttons */}
-           <div className="flex space-x-4 pt-4">
-  <button
-    type="button"
-    onClick={onClose}
-    disabled={loading}
-    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-  >
-    Cancel
-  </button>
-  <button
-    type="button"
-    onClick={handleButtonClick} // Use the debug version first
-    disabled={loading || items.length === 0}
-    className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center justify-center"
-  >
-    {loading ? (
-      <>
-        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-        {isEditing ? 'Updating...' : 'Saving...'}
-      </>
-    ) : (
-      isEditing ? 'Update Transaction' : 'Save Transaction'
-    )}
-  </button>
-</div>
+            <div className="flex space-x-4 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading || items.length === 0}
+                className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    {isEditing ? 'Updating...' : 'Saving...'}
+                  </>
+                ) : (
+                  isEditing ? 'Update Transaction' : 'Save Transaction'
+                )}
+              </button>
+            </div>
+
             {/* Update Instructions */}
             {isEditing && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -894,4 +817,4 @@ const handleButtonClick = (e) => {
   );
 };
 
-export default SilverTransactionForm;
+export default SilverTransactionForm; 
