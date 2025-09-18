@@ -6,7 +6,7 @@ const BASE_URL = "http://localhost:3000";
 // Create axios instance with default configuration
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000, // 30 seconds timeout
+  timeout: 60000, // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json',
   },
@@ -247,24 +247,248 @@ class ApiService {
     return this.request(`/api/transactions`);
   }
 
+  // async addInterestPayment(loanId, paymentData) {
+  //   return this.post(`/api/gold-loans/${loanId}/interest-payment`, {
+  //     interestAmount: parseFloat(paymentData.interestAmount),
+  //     photos: paymentData.photos || [],
+  //     notes: paymentData.notes || '',
+  //     forMonth: paymentData.forMonth
+  //   });
+  // }
+   // Interest Payment method - this is the key one for your issue
   async addInterestPayment(loanId, paymentData) {
-    return this.post(`/api/gold-loans/${loanId}/interest-payment`, {
-      interestAmount: parseFloat(paymentData.interestAmount),
-      photos: paymentData.photos || [],
-      notes: paymentData.notes || '',
-      forMonth: paymentData.forMonth
-    });
+    try {      
+    const result = await this.request(`/api/gold-loans/${loanId}/interest-payment`, {        
+        method: 'POST',
+        body: JSON.stringify(paymentData),
+      });
+
+      console.log('Interest payment result:', result);
+      return result;
+
+    } catch (error) {
+      console.error('Interest payment API error:', error);
+      
+      // Provide specific error messages for common issues
+      if (error.status === 404) {
+        throw new Error('Interest payment endpoint not found. Please verify the route is configured correctly.');
+      } else if (error.status === 400) {
+        throw new Error(error.message || 'Invalid payment data provided.');
+      } else if (error.status === 500) {
+        throw new Error('Server error while processing payment. Please contact support.');
+      }
+      
+      throw error;
+    }
   }
 
-  async processItemRepayment(loanId, repaymentData) {
-    return this.post(`/api/gold-loans/${loanId}/process-repayment`, {
-      repaymentAmount: parseFloat(repaymentData.repaymentAmount || 0),
-      selectedItemIds: repaymentData.selectedItemIds || [],
-      currentGoldPrice: parseFloat(repaymentData.currentGoldPrice || 0),
-      photos: repaymentData.photos || [],
-      notes: repaymentData.notes || ''
-    });
+// Get interest payment history for a specific loan
+async getInterestPayments(loanId, filters = {}) {
+  try {
+    const params = {};
+    if (filters.page) params.page = filters.page;
+    if (filters.limit) params.limit = filters.limit;
+    if (filters.fromDate) params.fromDate = filters.fromDate;
+    if (filters.toDate) params.toDate = filters.toDate;
+    if (filters.status) params.status = filters.status;
+
+    console.log('Fetching interest payments for loan:', loanId, 'with filters:', params);
+    
+    const result = await this.get(`/api/gold-loans/${loanId}/interest-payments`, params);
+    
+    console.log('Interest payment history result:', result);
+    return result;
+
+  } catch (error) {
+    console.error('Get interest payments API error:', error);
+    throw error;
   }
+}
+
+    async processItemRepayment(loanId, repaymentData) {
+    try {
+      console.log('Processing item repayment for loan:', loanId, 'with data:', repaymentData);
+      
+      // Define valid paymentType values based on Transaction schema
+      const validPaymentTypes = ['PRINCIPAL', 'INTEREST', 'COMBINED', 'DISBURSEMENT'];
+      
+      // Map repaymentType to metadata.paymentType
+      let paymentType = 'PRINCIPAL';
+      if (parseFloat(repaymentData.interestPaidWithRepayment || 0) > 0) {
+        paymentType = 'COMBINED';
+      } else if (['PARTIAL_PRINCIPAL', 'FULL_PRINCIPAL', 'ITEM_RETURN'].includes(repaymentData.repaymentType)) {
+        paymentType = 'PRINCIPAL';
+      }
+
+      if (!validPaymentTypes.includes(paymentType)) {
+        console.warn(`Invalid paymentType: ${paymentType}. Defaulting to PRINCIPAL.`);
+        paymentType = 'PRINCIPAL';
+      }
+
+      const payload = {
+        repaymentAmount: parseFloat(repaymentData.repaymentAmount || 0),
+        paymentMethod: repaymentData.paymentMethod || 'CASH',
+        repaymentDate: repaymentData.repaymentDate || new Date().toISOString(),
+        currentGoldPrice: parseFloat(repaymentData.currentGoldPrice || 0),
+        referenceNumber: repaymentData.referenceNumber || '',
+        chequeNumber: repaymentData.chequeNumber || '',
+        bankName: repaymentData.bankName || '',
+        chequeDate: repaymentData.chequeDate || null,
+        selectedItemIds: repaymentData.selectedItemIds || [],
+        photos: repaymentData.photos || [],
+        notes: repaymentData.notes || '',
+        recordedBy: repaymentData.recordedBy || 'Admin',
+        processingFee: parseFloat(repaymentData.processingFee || 0),
+        lateFee: parseFloat(repaymentData.lateFee || 0),
+        adjustmentAmount: parseFloat(repaymentData.adjustmentAmount || 0),
+        adjustmentReason: repaymentData.adjustmentReason || '',
+        interestPaidWithRepayment: parseFloat(repaymentData.interestPaidWithRepayment || 0),
+        interestPeriodCovered: repaymentData.interestPeriodCovered || '',
+        metadata: {
+          paymentType: paymentType,
+          goldPrice: parseFloat(repaymentData.currentGoldPrice) || undefined,
+          weightGrams: repaymentData.selectedItemIds?.length > 0 
+            ? repaymentData.selectedItemIds.reduce((sum, itemId) => {
+                const item = repaymentData.items?.find(i => i._id === itemId);
+                return sum + (item?.weightGram || 0);
+              }, 0)
+            : undefined,
+          itemCount: repaymentData.selectedItemIds?.length || undefined,
+          photos: repaymentData.photos || [],
+          notes: repaymentData.notes || '',
+          forMonth: repaymentData.interestPeriodCovered || undefined,
+        }
+      };
+
+      const response = await this.post(`/api/gold-loans/${loanId}/repayment`, payload);
+      
+      console.log('Item repayment response:', response);
+      return response;
+    } catch (error) {
+      console.error('Process item repayment error:', error);
+      throw error;
+    }
+  }
+  // Get all repayments for a loan
+  async getRepayments(loanId, params = {}) {
+    try {
+      const queryParams = new URLSearchParams({
+        page: params.page || 1,
+        limit: params.limit || 10,
+        ...(params.repaymentType && { repaymentType: params.repaymentType }),
+        ...(params.status && { status: params.status }),
+        ...(params.startDate && { startDate: params.startDate }),
+        ...(params.endDate && { endDate: params.endDate })
+      });
+
+      const response = await this.get(`/api/gold-loans/${loanId}/repayments?${queryParams}`);
+      return response;
+    } catch (error) {
+      console.error('Get repayments error:', error);
+      throw error;
+    }
+  }
+
+  // Get repayment statistics
+  async getRepaymentStats(loanId, timeframe = '1year') {
+    try {
+      const response = await this.get(`/api/gold-loans/${loanId}/repayment-stats?timeframe=${timeframe}`);
+      return response;
+    } catch (error) {
+      console.error('Get repayment stats error:', error);
+      throw error;
+    }
+  }
+
+  // Get single repayment details
+  async getRepaymentDetails(repaymentId) {
+    try {
+      const response = await this.get(`/api/repayments/${repaymentId}`);
+      return response;
+    } catch (error) {
+      console.error('Get repayment details error:', error);
+      throw error;
+    }
+  }
+
+  // Cancel/void a repayment (if needed)
+  async cancelRepayment(repaymentId, reason) {
+    try {
+      const response = await this.put(`/api/repayments/${repaymentId}/cancel`, {
+        reason
+      });
+      return response;
+    } catch (error) {
+      console.error('Cancel repayment error:', error);
+      throw error;
+    }
+  }
+
+  // Get repayment receipt/print data
+  async getRepaymentReceipt(repaymentId) {
+    try {
+      const response = await this.get(`/api/repayments/${repaymentId}/receipt`);
+      return response;
+    } catch (error) {
+      console.error('Get repayment receipt error:', error);
+      throw error;
+    }
+  }
+
+  // Search repayments across all loans
+  async searchRepayments(searchParams = {}) {
+    try {
+      const queryParams = new URLSearchParams({
+        page: searchParams.page || 1,
+        limit: searchParams.limit || 10,
+        ...(searchParams.customerName && { customerName: searchParams.customerName }),
+        ...(searchParams.receiptNumber && { receiptNumber: searchParams.receiptNumber }),
+        ...(searchParams.paymentMethod && { paymentMethod: searchParams.paymentMethod }),
+        ...(searchParams.repaymentType && { repaymentType: searchParams.repaymentType }),
+        ...(searchParams.startDate && { startDate: searchParams.startDate }),
+        ...(searchParams.endDate && { endDate: searchParams.endDate }),
+        ...(searchParams.minAmount && { minAmount: searchParams.minAmount }),
+        ...(searchParams.maxAmount && { maxAmount: searchParams.maxAmount })
+      });
+
+      const response = await this.get(`/api/repayments/search?${queryParams}`);
+      return response;
+    } catch (error) {
+      console.error('Search repayments error:', error);
+      throw error;
+    }
+  }
+
+  async getCurrentGoldPrice() {
+    try {
+      // Use the correct endpoint - it should be under /api/gold-loans/gold-price/current
+      const response = await this.get('/api/gold-loans/gold-price/current');
+      return response;
+    } catch (error) {
+      console.error('Get current gold price error:', error);
+      // Return fallback price if API fails
+      return {
+        success: true,
+        data: {
+          pricePerGram: 5000,
+          lastUpdated: new Date().toISOString(),
+          source: 'fallback'
+        }
+      };
+    }
+  }
+
+  // Validate repayment before submission
+  async validateRepayment(loanId, repaymentData) {
+    try {
+      const response = await this.post(`/api/gold-loans/${loanId}/validate-repayment`, repaymentData);
+      return response;
+    } catch (error) {
+      console.error('Validate repayment error:', error);
+      throw error;
+    }
+  }
+
 
   async closeGoldLoan(loanId, closureData = {}) {
     return this.put(`/api/gold-loans/${loanId}/close`, {
