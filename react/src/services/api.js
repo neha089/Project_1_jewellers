@@ -134,7 +134,14 @@ class ApiService {
   async receiveLoanPayment(data){
     return this.post('/api/loans/receive-payment',data);
   }
-
+  async makeLoanPayment(data){
+    console.log('=== ApiService.makeLoanPayment ===');
+    console.log('Received data:', data);
+    return this.post('/api/loans/make-payment',data);
+  }
+  async makeLoanInterestPayment(data){
+    return this.post('/api/loans/make-interest-payment',data);
+  }
   // Fixed payment APIs to match backend parameters
 // Fixed receiveUdhariPayment method in api.js
 // REPLACE your existing receiveUdhariPayment method with this:
@@ -470,15 +477,7 @@ async makeUdhariPayment(data) {
     });
   }
 
-  async makeLoanPayment(loanId, paymentData) {
-    return this.post(`/api/loans/${loanId}/payments`, {
-      principal: paymentData.principal || 0,  // Send as number, not paise
-      interest: paymentData.interest || 0,    // Send as number, not paise
-      photos: paymentData.photos || [],
-      notes: paymentData.notes || "",
-    });
-  }
-
+  
   async getLoanReminders(daysAhead = 0) {
     return this.get(`/api/loans/reminders`, { days: daysAhead });
   }

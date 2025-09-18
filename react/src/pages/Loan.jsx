@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Percent,
   Building
-
 } from 'lucide-react';
 import ApiService from '../services/api.js';
 import AddLoanModal from '../components/AddLoanModal';
@@ -18,6 +17,7 @@ import LoanCard from '../components/LoanCard';
 import LoanDetailModal from '../components/LoanDetailModal';
 import LoanPaymentModal from '../components/LoanPaymentModal';
 import InterestPaymentModal from '../components/InterestPaymentModal';
+
 const Loan = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddLoanModal, setShowAddLoanModal] = useState(false);
@@ -25,10 +25,8 @@ const Loan = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showInterestModal, setShowInterestModal] = useState(false);
-  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
   const [receivableLoans, setReceivableLoans] = useState([]);
   const [payableLoans, setPayableLoans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,7 +50,7 @@ const Loan = () => {
           customer: item.customer,
           totalOutstanding: item.totalOutstanding,
           interestDue: item.interestDue || 0,
-          transactions: item.loans || [],
+          loans: item.loans || [],
           type: 'receivable'
         }));
         setReceivableLoans(receivableData);
@@ -63,7 +61,7 @@ const Loan = () => {
           customer: item.customer,
           totalOutstanding: item.totalOutstanding,
           interestDue: item.interestDue || 0,
-          transactions: item.loans || [],
+          loans: item.loans || [],
           type: 'payable'
         }));
         setPayableLoans(payableData);
@@ -84,15 +82,24 @@ const Loan = () => {
     setSelectedLoan(loan);
     setShowDetailModal(true);
   };
-
-  const handlePrincipalPayment = (loan) => {
-    setSelectedLoan(loan);
-    setShowPaymentModal(true);
+const handlePrincipalPayment = (loan) => {
+    if (loan && loan._id) {
+      setSelectedLoan(loan);
+      setShowPaymentModal(true);
+    } else {
+      console.error('Invalid loan for principal payment:', loan);
+      setError('Cannot process payment: Invalid loan data');
+    }
   };
 
   const handleInterestPayment = (loan) => {
-    setSelectedLoan(loan);
-    setShowInterestModal(true);
+    if (loan && loan._id) {
+      setSelectedLoan(loan);
+      setShowInterestModal(true);
+    } else {
+      console.error('Invalid loan for interest payment:', loan);
+      setError('Cannot process payment: Invalid loan data');
+    }
   };
 
   const handlePaymentSuccess = () => {
@@ -123,12 +130,11 @@ const Loan = () => {
 
   const totalToCollect = receivableLoans.reduce((sum, loan) => sum + loan.totalOutstanding, 0);
   const totalToPay = payableLoans.reduce((sum, loan) => sum + loan.totalOutstanding, 0);
-  const totalInterestDue = [...receivableLoans, ...payableLoans].reduce((sum, loan) => sum + loan.interestDue, 0);
+  const totalInterestDue = [...receivableLoans, ...payableLoans].reduce((sum, loan) => sum + (loan.interestDue || 0), 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-slate-900 mb-2">Loan Management</h1>
@@ -143,7 +149,6 @@ const Loan = () => {
           </button>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-3 mb-3">
@@ -200,7 +205,6 @@ const Loan = () => {
           </div>
         </div>
 
-        {/* Search and Filter */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1 relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
@@ -221,7 +225,6 @@ const Loan = () => {
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6">
           <button
             onClick={() => setActiveTab('overview')}
@@ -255,7 +258,6 @@ const Loan = () => {
           </button>
         </div>
 
-        {/* Content */}
         <div className="space-y-4">
           {loading ? (
             <div className="text-center py-12">
@@ -292,8 +294,8 @@ const Loan = () => {
                             loan={loan}
                             type="receivable"
                             onView={() => handleViewLoan(loan)}
-                            onPrincipalPayment={() => handlePrincipalPayment(loan)}
-                            onInterestPayment={() => handleInterestPayment(loan)}
+                            onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                            onInterestPayment={() => handleInterestPayment(loan.loans[0])}
                           />
                         ))}
                       </div>
@@ -315,8 +317,8 @@ const Loan = () => {
                             loan={loan}
                             type="payable"
                             onView={() => handleViewLoan(loan)}
-                            onPrincipalPayment={() => handlePrincipalPayment(loan)}
-                            onInterestPayment={() => handleInterestPayment(loan)}
+                            onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                            onInterestPayment={() => handleInterestPayment(loan.loans[0])}
                           />
                         ))}
                       </div>
@@ -349,8 +351,8 @@ const Loan = () => {
                         loan={loan}
                         type="receivable"
                         onView={() => handleViewLoan(loan)}
-                        onPrincipalPayment={() => handlePrincipalPayment(loan)}
-                        onInterestPayment={() => handleInterestPayment(loan)}
+                        onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                        onInterestPayment={() => handleInterestPayment(loan.loans[0])}
                       />
                     ))
                   ) : (
@@ -372,8 +374,8 @@ const Loan = () => {
                         loan={loan}
                         type="payable"
                         onView={() => handleViewLoan(loan)}
-                        onPrincipalPayment={() => handlePrincipalPayment(loan)}
-                        onInterestPayment={() => handleInterestPayment(loan)}
+                        onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                        onInterestPayment={() => handleInterestPayment(loan.loans[0])}
                       />
                     ))
                   ) : (
@@ -389,7 +391,6 @@ const Loan = () => {
           )}
         </div>
 
-        {/* Modals */}
         <AddLoanModal
           isOpen={showAddLoanModal}
           onClose={() => setShowAddLoanModal(false)}
@@ -398,15 +399,16 @@ const Loan = () => {
 
         <LoanDetailModal
           isOpen={showDetailModal}
-          loan={selectedLoan}
+          loanData={selectedLoan}
+          loanType={selectedLoan?.type}
           onClose={() => setShowDetailModal(false)}
           onPrincipalPayment={() => {
             setShowDetailModal(false);
-            handlePrincipalPayment(selectedLoan);
+            handlePrincipalPayment(selectedLoan?.loans[0]);
           }}
           onInterestPayment={() => {
             setShowDetailModal(false);
-            handleInterestPayment(selectedLoan);
+            handleInterestPayment(selectedLoan?.loans[0]);
           }}
         />
 

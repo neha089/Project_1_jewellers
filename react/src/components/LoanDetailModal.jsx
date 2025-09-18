@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Percent, Phone, FileText, DollarSign, CheckCircle, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { X, CreditCard, Percent, Phone, FileText, DollarSign, CheckCircle, Clock } from 'lucide-react';
 
-const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalPayment, onInterestPayment }) => {
+const LoanDetailModal = ({ isOpen, loanData, loanType, onClose, onPrincipalPayment, onInterestPayment }) => {
   const [selectedLoan, setSelectedLoan] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && customerData && customerData.loans && customerData.loans.length > 0) {
-      // Select the first loan by default
-      setSelectedLoan(customerData.loans[0]);
+    if (isOpen && loanData && loanData.loans && loanData.loans.length > 0) {
+      setSelectedLoan(loanData.loans[0]);
     }
-  }, [isOpen, customerData]);
+  }, [isOpen, loanData]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 0
+      minimumFractionDigits: 0,
     }).format(amount);
   };
 
@@ -51,7 +49,7 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
 
   const getMonthlyInterest = (loan) => {
     if (!loan?.outstandingPrincipal || !loan?.interestRateMonthlyPct) return 0;
-    return (loan.outstandingPrincipal * loan.interestRateMonthlyPct) / 100;
+    return (loan.outstandingPrincipal * loan.interestRateMonthlyPct) / 100 / 100; // Convert paise to rupees
   };
 
   const handlePrincipalPayment = () => {
@@ -66,10 +64,10 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
     }
   };
 
-  if (!isOpen || !customerData) return null;
+  if (!isOpen || !loanData) return null;
 
-  const customer = customerData.customer || {};
-  const loans = customerData.loans || [];
+  const customer = loanData.customer || {};
+  const loans = loanData.loans || [];
   const isReceivable = loanType === 'receivable';
 
   return (
@@ -114,22 +112,21 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
           </div>
         ) : (
           <>
-            {/* Loan Selection Tabs */}
             {loans.length > 1 && (
               <div className="p-6 border-b border-slate-200 bg-slate-50">
                 <h3 className="text-sm font-medium text-slate-700 mb-3">Select Loan</h3>
                 <div className="flex gap-2 overflow-x-auto">
                   {loans.map((loan, index) => (
                     <button
-                      key={loan._id || loan.id}
+                      key={loan._id}
                       onClick={() => setSelectedLoan(loan)}
                       className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedLoan?._id === loan._id || selectedLoan?.id === loan.id
+                        selectedLoan?._id === loan._id
                           ? 'bg-blue-600 text-white'
                           : 'bg-white text-slate-600 hover:bg-slate-100'
                       }`}
                     >
-                      Loan #{index + 1} - {formatCurrency(loan.originalAmount || (loan.principalPaise / 100))}
+                      Loan #{index + 1} - {formatCurrency(loan.originalAmount)}
                       <span className="ml-2 text-xs opacity-75">
                         {formatDate(loan.takenDate)}
                       </span>
@@ -141,7 +138,6 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
 
             {selectedLoan && (
               <>
-                {/* Loan Summary Cards */}
                 <div className="p-6 bg-gradient-to-r from-slate-50 to-slate-100">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -156,7 +152,7 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
                           <p className={`text-2xl font-bold ${
                             isReceivable ? 'text-red-600' : 'text-green-600'
                           }`}>
-                            {formatCurrency(selectedLoan.outstandingAmount || (selectedLoan.outstandingPrincipal / 100))}
+                            {formatCurrency(selectedLoan.outstandingAmount)}
                           </p>
                         </div>
                       </div>
@@ -173,12 +169,12 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
                         <div>
                           <p className="text-sm font-medium text-slate-600">Monthly Interest</p>
                           <p className="text-2xl font-bold text-purple-600">
-                            {formatCurrency(getMonthlyInterest(selectedLoan) / 100)}
+                            {formatCurrency(getMonthlyInterest(selectedLoan))}
                           </p>
                         </div>
                       </div>
                       <p className="text-sm text-slate-500">
-                        {selectedLoan.interestRateMonthlyPct || selectedLoan.interestRate}% per month
+                        {selectedLoan.interestRateMonthlyPct}% per month
                       </p>
                     </div>
 
@@ -190,7 +186,7 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
                         <div>
                           <p className="text-sm font-medium text-slate-600">Total Paid</p>
                           <p className="text-2xl font-bold text-blue-600">
-                            {formatCurrency((selectedLoan.totalPrincipalPaid || 0) / 100)}
+                            {formatCurrency(selectedLoan.totalPrincipalPaid / 100)}
                           </p>
                         </div>
                       </div>
@@ -226,7 +222,6 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
                   </div>
                 </div>
 
-                {/* Loan Details */}
                 <div className="p-6">
                   <div className="bg-slate-50 rounded-2xl p-6 mb-6">
                     <h3 className="text-xl font-bold text-slate-900 mb-4">Loan Details</h3>
@@ -234,7 +229,7 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
                       <div>
                         <p className="text-sm text-slate-600 mb-1">Original Amount</p>
                         <p className="font-bold text-slate-900">
-                          {formatCurrency(selectedLoan.originalAmount || (selectedLoan.principalPaise / 100))}
+                          {formatCurrency(selectedLoan.originalAmount)}
                         </p>
                       </div>
                       <div>
@@ -269,29 +264,22 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
                       )}
                     </div>
 
-                    {/* Progress Bar */}
                     <div className="mt-6">
                       <div className="flex justify-between text-sm text-slate-600 mb-2">
                         <span>Payment Progress</span>
-                        <span>
-                          {selectedLoan.completionPercentage || Math.round(((selectedLoan.totalPrincipalPaid || 0) / (selectedLoan.principalPaise || selectedLoan.originalAmount * 100)) * 100)}%
-                        </span>
+                        <span>{selectedLoan.completionPercentage}%</span>
                       </div>
                       <div className="w-full bg-slate-200 rounded-full h-3">
                         <div 
                           className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-500"
-                          style={{ 
-                            width: `${Math.min(selectedLoan.completionPercentage || Math.round(((selectedLoan.totalPrincipalPaid || 0) / (selectedLoan.principalPaise || selectedLoan.originalAmount * 100)) * 100), 100)}%` 
-                          }}
+                          style={{ width: `${Math.min(selectedLoan.completionPercentage, 100)}%` }}
                         ></div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Payment History */}
                   <div>
                     <h3 className="text-xl font-bold text-slate-900 mb-6">Payment History</h3>
-                    
                     {selectedLoan.paymentHistory && selectedLoan.paymentHistory.length > 0 ? (
                       <div className="space-y-4">
                         {selectedLoan.paymentHistory.map((payment, index) => (
@@ -355,7 +343,6 @@ const LoanDetailModal = ({ isOpen, customerData, loanType, onClose, onPrincipalP
           </>
         )}
 
-        {/* Footer */}
         <div className="p-6 border-t border-slate-200 bg-slate-50">
           <div className="flex gap-3">
             <button

@@ -6,7 +6,7 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     enum: [
       "GOLD_LOAN_GIVEN", "GOLD_LOAN_PAYMENT", "GOLD_LOAN_CLOSURE",
-      "UDHAR_CLOSURE",
+      "UDHAR_CLOSURE","INTEREST_PAID",
       "GOLD_LOAN_INTEREST_RECEIVED", "GOLD_LOAN_ITEM_REMOVAL", 
       "GOLD_LOAN_ADDITION", "ITEM_RETURN",
       "LOAN_INTEREST_RECEIVED",

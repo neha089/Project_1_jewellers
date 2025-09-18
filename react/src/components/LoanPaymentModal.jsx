@@ -32,7 +32,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 0
+      minimumFractionDigits: 0,
     }).format(amount);
   };
 
@@ -42,24 +42,19 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
   };
 
   const getOutstandingAmount = () => {
-    // Handle both API response formats
-    if (loan?.outstandingAmount) return loan.outstandingAmount;
-    if (loan?.outstandingPrincipal) return loan.outstandingPrincipal / 100;
-    return 0;
+    return loan?.outstandingAmount || 0;
   };
 
   const getMonthlyInterest = () => {
-    const outstanding = loan?.outstandingAmount ? loan.outstandingAmount * 100 : loan?.outstandingPrincipal || 0;
-    const interestRate = loan?.interestRateMonthlyPct || loan?.interestRate || 0;
-    
-    if (!outstanding || !interestRate) return 0;
-    return (outstanding * interestRate) / 100; // Return in paise for calculation
+    const outstanding = loan?.outstandingPrincipal || 0;
+    const interestRate = loan?.interestRateMonthlyPct || 0;
+    return (outstanding * interestRate) / 100 / 100; // Convert paise to rupees
   };
 
   const handlePayment = async (e) => {
     e.preventDefault();
-    
-    if (!loan?._id && !loan?.id) {
+
+    if (!loan?._id) {
       setError('Loan ID is missing');
       return;
     }
@@ -73,12 +68,12 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
     }
 
     const outstandingAmount = getOutstandingAmount();
-    if (principalPaise > 0 && (principalPaise / 100) > outstandingAmount) {
+    if (principalPaise > 0 && principalPaise / 100 > outstandingAmount) {
       setError(`Principal payment cannot exceed outstanding amount of ${formatCurrency(outstandingAmount)}`);
       return;
     }
 
-    const expectedInterest = getMonthlyInterest();
+    const expectedInterest = getMonthlyInterest() * 100; // Convert back to paise for validation
     if (interestPaise > 0 && interestPaise > expectedInterest) {
       setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest / 100)}`);
       return;
@@ -89,33 +84,29 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
       setError(null);
 
       const paymentData = {
-        loanId: loan._id || loan.id,
+        loanId: loan._id,
         principalPaise,
         interestPaise,
         note: paymentNote.trim() || undefined,
-        paymentDate: paymentDate,
-        paymentMethod: paymentMethod,
+        paymentDate,
+        paymentMethod,
         reference: paymentReference.trim() || '',
-        transactionId: paymentReference.trim() || ''
+        transactionId: paymentReference.trim() || '',
       };
-
-      console.log('Making loan payment:', paymentData);
-
-      // Determine if this is a loan you gave or took based on loanType
+      console.log('Submitting payment data:', paymentData);
       const isGivenLoan = loan.loanType === 'GIVEN';
-      const response = isGivenLoan 
+      console.log('Is given loan (receivable):', isGivenLoan);
+      const response = isGivenLoan
         ? await ApiService.receiveLoanPayment(paymentData)
         : await ApiService.makeLoanPayment(paymentData);
-
+      console.log(response);
       if (response.success) {
-        console.log('Loan payment successful!');
         onSuccess();
         onClose();
       } else {
         throw new Error(response.message || response.error || 'Payment failed');
       }
     } catch (error) {
-      console.error('Payment error:', error);
       setError(error.message || 'Failed to process payment');
     } finally {
       setLoading(false);
@@ -130,16 +121,18 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
 
   const handleQuickInterestAmount = (percentage) => {
     const expectedInterest = getMonthlyInterest();
-    const amount = (expectedInterest * percentage / 10000).toFixed(2); // Convert from paise to rupees
+    const amount = (expectedInterest * percentage / 100).toFixed(2);
     setInterestAmount(amount);
   };
 
-  if (!isOpen || !loan) return null;
+  if (!isOpen || !loan || !loan._id) {
+    return null;
+  }
 
   const customer = loan.customer || {};
   const isReceivable = loan.loanType === 'GIVEN';
   const outstandingAmount = getOutstandingAmount();
-  const monthlyInterest = getMonthlyInterest() / 100; // Convert to rupees for display
+  const monthlyInterest = getMonthlyInterest();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -160,14 +153,15 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-200 rounded-xl transition-colors"
+            className="p /
+
+System: -2 hover:bg-slate-200 rounded-xl transition-colors"
           >
             <X size={20} className="text-slate-600" />
           </button>
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Loan Summary */}
           <div className="bg-slate-50 p-4 rounded-xl">
             <h3 className="font-semibold text-slate-900 mb-3">Loan Summary</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -176,20 +170,16 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
                 <p className="font-bold text-slate-900">{formatCurrency(outstandingAmount)}</p>
               </div>
               <div>
-                <p className="text-sm text-slate-600">
-                  Monthly Interest ({loan.interestRateMonthlyPct || loan.interestRate}%)
-                </p>
+                <p className="text-sm text-slate-600">Monthly Interest ({loan.interestRateMonthlyPct}%)</p>
                 <p className="font-bold text-purple-600">{formatCurrency(monthlyInterest)}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-600">Original Amount</p>
-                <p className="text-slate-700">
-                  {formatCurrency(loan.originalAmount || (loan.principalPaise || 0) / 100)}
-                </p>
+                <p className="text-slate-700">{formatCurrency(loan.originalAmount)}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-600">Payments Made</p>
-                <p className="text-slate-700">{loan.paymentHistory?.length || loan.paidInstallments || 0}</p>
+                <p className="text-slate-700">{loan.paymentHistory?.length || 0}</p>
               </div>
             </div>
             {loan.note && (
@@ -200,7 +190,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             )}
           </div>
 
-          {/* Principal Payment */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Principal Payment</label>
             <div className="relative">
@@ -243,7 +232,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             )}
           </div>
 
-          {/* Interest Payment */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Interest Payment</label>
             <div className="relative">
@@ -272,7 +260,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             )}
           </div>
 
-          {/* Payment Summary */}
           {(principalAmount || interestAmount) && (
             <div className="p-3 bg-blue-50 rounded-lg">
               <div className="flex justify-between text-sm mb-1">
@@ -298,7 +285,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </div>
           )}
 
-          {/* Payment Method */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
             <select
@@ -318,7 +304,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </select>
           </div>
 
-          {/* Payment Reference */}
           {paymentMethod !== 'CASH' && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Payment Reference / Transaction ID</label>
@@ -332,7 +317,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </div>
           )}
 
-          {/* Payment Date */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Date *</label>
             <input
@@ -345,7 +329,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             />
           </div>
 
-          {/* Payment Note */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Note (Optional)</label>
             <textarea
@@ -357,7 +340,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             />
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
               <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
@@ -365,7 +347,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"

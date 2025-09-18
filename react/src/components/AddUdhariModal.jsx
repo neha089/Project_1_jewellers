@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-import { X, Search, Plus, User, Phone, Mail, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Search, Plus, User, DollarSign, AlertCircle, Loader2, Phone, Mail } from 'lucide-react';
 import ApiService from '../services/api.js';
+import CreateCustomerForm from './CreateCustomerForm';
 
 const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
   const [step, setStep] = useState(1);
@@ -19,14 +21,7 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
     note: '',
     returnDate: '',
     totalInstallments: 1,
-    paymentMethod: 'CASH'
-  });
-
-  const [newCustomer, setNewCustomer] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    address: ''
+    paymentMethod: 'CASH',
   });
 
   useEffect(() => {
@@ -38,10 +33,11 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
 
   useEffect(() => {
     if (searchTerm) {
-      const filtered = customers.filter(customer =>
-        customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.phone?.includes(searchTerm) ||
-        customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      const filtered = customers.filter(
+        (customer) =>
+          customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          customer.phone?.includes(searchTerm) ||
+          customer.email?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredCustomers(filtered);
     } else {
@@ -72,41 +68,12 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
     setError(null);
   };
 
-  const handleCreateCustomer = async (e) => {
-    e.preventDefault();
-    try {
-      setSubmitting(true);
-      setError(null);
-      
-      if (!newCustomer.name.trim()) {
-        throw new Error('Customer name is required');
-      }
-      
-      const customerData = {
-        name: newCustomer.name.trim(),
-        phone: newCustomer.phone.trim() || '',
-        email: newCustomer.email.trim() || '',
-        address: newCustomer.address.trim() || ''
-      };
-      
-      const response = await ApiService.createCustomer(customerData);
-      
-      if (response.success) {
-        const createdCustomer = response.data;
-        setCustomers(prev => [createdCustomer, ...prev]);
-        setSelectedCustomer(createdCustomer);
-        setShowCreateCustomer(false);
-        setNewCustomer({ name: '', phone: '', email: '', address: '' });
-        setStep(2);
-      } else {
-        throw new Error(response.message || 'Failed to create customer');
-      }
-    } catch (error) {
-      console.error('Error creating customer:', error);
-      setError(error.message || 'Failed to create customer');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleCustomerCreated = (newCustomer) => {
+    setCustomers((prev) => [newCustomer, ...prev]);
+    setSelectedCustomer(newCustomer);
+    setShowCreateCustomer(false);
+    setStep(2);
+    setError(null);
   };
 
   const handleSubmitUdhar = async (e) => {
@@ -114,30 +81,29 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       setSubmitting(true);
       setError(null);
-      
+
       if (!selectedCustomer || !selectedCustomer._id) {
         throw new Error('Please select a customer');
       }
-      
+
       if (!formData.amount || parseFloat(formData.amount) <= 0) {
         throw new Error('Please enter a valid amount');
       }
-      
+
       const udharData = {
         customer: selectedCustomer._id,
         principalPaise: Math.round(parseFloat(formData.amount) * 100),
         note: formData.note.trim() || '',
         totalInstallments: parseInt(formData.totalInstallments) || 1,
         dueDate: formData.returnDate || null,
-        paymentMethod: formData.paymentMethod || 'CASH'
+        paymentMethod: formData.paymentMethod || 'CASH',
       };
-      
-      console.log('Creating udhar:', { formData, selectedCustomer, udharData });
-      
-      const response = formData.type === 'given' 
-        ? await ApiService.giveUdhar(udharData)
-        : await ApiService.takeUdhar(udharData);
-      
+
+      const response =
+        formData.type === 'given'
+          ? await ApiService.giveUdhar(udharData)
+          : await ApiService.takeUdhar(udharData);
+
       if (response.success) {
         onSuccess();
         onClose();
@@ -165,58 +131,65 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
       note: '',
       returnDate: '',
       totalInstallments: 1,
-      paymentMethod: 'CASH'
+      paymentMethod: 'CASH',
     });
-    setNewCustomer({ name: '', phone: '', email: '', address: '' });
   };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 0
+      minimumFractionDigits: 0,
     }).format(amount);
   };
 
   const getInitials = (name) => {
     if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
-          <h2 className="text-2xl font-bold text-slate-900">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 sm:p-6">
+      <div className="bg-white rounded-xl w-full max-w-md sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
             {step === 1 ? 'Select Customer' : 'Add Udhar'}
           </h2>
           <button
-            onClick={() => { onClose(); resetForm(); }}
-            className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+            onClick={() => {
+              onClose();
+              resetForm();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <X size={20} className="text-slate-600" />
+            <X size={20} className="text-gray-600" />
           </button>
         </div>
 
         {error && (
-          <div className="mx-6 mt-4 flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <div className="mx-4 sm:mx-6 mt-4 flex items-center gap-2 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
             <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
             <p className="text-red-600 text-sm">{error}</p>
           </div>
         )}
 
         {step === 1 && (
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {!showCreateCustomer ? (
               <>
-                <div className="relative mb-6">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
+                <div className="relative mb-4 sm:mb-6">
+                  <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <input
                     type="text"
                     placeholder="Search customers by name, phone, or email..."
-                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 sm:pl-12 pr-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -224,33 +197,31 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
 
                 <button
                   onClick={() => setShowCreateCustomer(true)}
-                  className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors mb-6"
+                  className="w-full flex items-center gap-3 p-3 sm:p-4 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors mb-4 sm:mb-6 text-sm sm:text-base"
                 >
                   <Plus size={20} />
                   <span className="font-medium">Add New Customer</span>
                 </button>
 
-                <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="space-y-3 max-h-80 sm:max-h-96 overflow-y-auto">
                   {loading ? (
                     <div className="text-center py-8">
-                      <Loader2 className="animate-spin h-8 w-8 text-blue-600 mx-auto" />
-                      <p className="text-slate-500 mt-2">Loading customers...</p>
+                      <Loader2 className="animate-spin h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto" />
+                      <p className="text-gray-500 mt-2 text-sm sm:text-base">Loading customers...</p>
                     </div>
                   ) : filteredCustomers.length > 0 ? (
                     filteredCustomers.map((customer) => (
                       <div
                         key={customer._id}
                         onClick={() => handleCustomerSelect(customer)}
-                        className="flex items-center gap-4 p-4 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
+                        className="flex items-center gap-4 p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                       >
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                          <span className="text-white text-sm font-bold">
-                            {getInitials(customer.name)}
-                          </span>
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                          <span className="text-white text-sm font-bold">{getInitials(customer.name)}</span>
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-slate-900">{customer.name}</h3>
-                          <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
+                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{customer.name}</h3>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500 mt-1">
                             {customer.phone && (
                               <div className="flex items-center gap-1">
                                 <Phone size={14} />
@@ -260,7 +231,7 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
                             {customer.email && (
                               <div className="flex items-center gap-1">
                                 <Mail size={14} />
-                                <span>{customer.email}</span>
+                                <span className="truncate">{customer.email}</span>
                               </div>
                             )}
                           </div>
@@ -269,165 +240,127 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
                     ))
                   ) : (
                     <div className="text-center py-8">
-                      <User size={48} className="text-slate-300 mx-auto mb-4" />
-                      <h3 className="font-semibold text-slate-900 mb-2">No customers found</h3>
-                      <p className="text-slate-500">Try adjusting your search or create a new customer</p>
+                      <User size={40} className="text-gray-300 mx-auto mb-4" />
+                      <h3 className="font-semibold text-gray-900 mb-2 text-sm sm:text-base">No customers found</h3>
+                      <p className="text-gray-500 mb-4 text-sm sm:text-base">Try adjusting your search or create a new customer</p>
+                      <button
+                        onClick={() => setShowCreateCustomer(true)}
+                        className="px-4 py-2 sm:px-6 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
+                      >
+                        Create New Customer
+                      </button>
                     </div>
                   )}
                 </div>
               </>
             ) : (
-              <form onSubmit={handleCreateCustomer} className="space-y-4">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Create New Customer</h3>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Customer Name *</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={newCustomer.name}
-                    onChange={(e) => setNewCustomer(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter customer name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Phone Number</label>
-                  <input
-                    type="tel"
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={newCustomer.phone}
-                    onChange={(e) => setNewCustomer(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="Enter phone number"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={newCustomer.email}
-                    onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="Enter email address"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Address</label>
-                  <textarea
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows="3"
-                    value={newCustomer.address}
-                    onChange={(e) => setNewCustomer(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="Enter address"
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => { setShowCreateCustomer(false); setError(null); }}
-                    className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting || !newCustomer.name.trim()}
-                    className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {submitting ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 size={16} className="animate-spin" />
-                        Creating...
-                      </div>
-                    ) : 'Create Customer'}
-                  </button>
-                </div>
-              </form>
+              <CreateCustomerForm
+                onCancel={() => {
+                  setShowCreateCustomer(false);
+                  setError(null);
+                }}
+                onBack={() => {
+                  setShowCreateCustomer(false);
+                  setError(null);
+                }}
+                onCustomerCreated={handleCustomerCreated}
+              />
             )}
           </div>
         )}
 
         {step === 2 && selectedCustomer && (
-          <div className="p-6">
-            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl mb-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+          <div className="p-4 sm:p-6">
+            <div className="flex items-center gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg mb-4 sm:mb-6">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                 <span className="text-white text-sm font-bold">{getInitials(selectedCustomer.name)}</span>
               </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">{selectedCustomer.name}</h3>
-                <p className="text-sm text-slate-500">{selectedCustomer.phone}</p>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{selectedCustomer.name}</h3>
+                <p className="text-xs sm:text-sm text-gray-500">{selectedCustomer.phone}</p>
               </div>
               <button
-                onClick={() => { setStep(1); setError(null); }}
-                className="ml-auto text-blue-600 hover:bg-white hover:bg-opacity-50 p-2 rounded-lg transition-colors"
+                onClick={() => {
+                  setStep(1);
+                  setError(null);
+                }}
+                className="ml-auto text-blue-600 hover:bg-white hover:bg-opacity-50 p-2 rounded-lg transition-colors text-sm sm:text-base"
               >
                 Change
               </button>
             </div>
 
-            <form onSubmit={handleSubmitUdhar} className="space-y-6">
+            <form onSubmit={handleSubmitUdhar} className="space-y-4 sm:space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-3">Udhar Type *</label>
-                <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2 sm:mb-3">Udhar Type *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, type: 'given' }))}
-                    className={`p-4 rounded-xl border-2 transition-all ${
+                    onClick={() => setFormData((prev) => ({ ...prev, type: 'given' }))}
+                    className={`p-3 sm:p-4 rounded-lg border-2 transition-all text-sm sm:text-base ${
                       formData.type === 'given'
                         ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-slate-200 hover:border-slate-300'
+                        : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <div className="text-center">
-                      <DollarSign size={24} className={`mx-auto mb-2 ${formData.type === 'given' ? 'text-red-500' : 'text-slate-400'}`} />
+                      <DollarSign
+                        size={20}
+                        className={`mx-auto mb-2 ${formData.type === 'given' ? 'text-red-500' : 'text-gray-400'}`}
+                      />
                       <p className="font-semibold">Give Udhar</p>
-                      <p className="text-sm text-slate-500">Lend money to customer</p>
+                      <p className="text-xs sm:text-sm text-gray-500">Lend money to customer</p>
                     </div>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, type: 'taken' }))}
-                    className={`p-4 rounded-xl border-2 transition-all ${
+                    onClick={() => setFormData((prev) => ({ ...prev, type: 'taken' }))}
+                    className={`p-3 sm:p-4 rounded-lg border-2 transition-all text-sm sm:text-base ${
                       formData.type === 'taken'
                         ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-slate-200 hover:border-slate-300'
+                        : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <div className="text-center">
-                      <DollarSign size={24} className={`mx-auto mb-2 ${formData.type === 'taken' ? 'text-green-500' : 'text-slate-400'}`} />
+                      <DollarSign
+                        size={20}
+                        className={`mx-auto mb-2 ${formData.type === 'taken' ? 'text-green-500' : 'text-gray-400'}`}
+                      />
                       <p className="font-semibold">Take Udhar</p>
-                      <p className="text-sm text-slate-500">Borrow money from customer</p>
+                      <p className="text-xs sm:text-sm text-gray-500">Borrow money from customer</p>
                     </div>
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Principal Amount *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Principal Amount *</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">₹</span>
+                  <span className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
                   <input
                     type="number"
                     required
                     min="1"
                     step="0.01"
-                    className="w-full pl-8 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-8 sm:pl-10 pr-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                     value={formData.amount}
-                    onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
                     placeholder="0.00"
                   />
                 </div>
                 {formData.amount && (
-                  <p className="text-sm text-slate-500 mt-1">Amount: {formatCurrency(parseFloat(formData.amount) || 0)}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    Amount: {formatCurrency(parseFloat(formData.amount) || 0)}
+                  </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
                 <select
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                   value={formData.paymentMethod}
-                  onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, paymentMethod: e.target.value }))}
                 >
                   <option value="CASH">Cash</option>
                   <option value="BANK_TRANSFER">Bank Transfer</option>
@@ -442,45 +375,48 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Note / Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Note / Description</label>
                 <textarea
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                   rows="3"
                   value={formData.note}
-                  onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, note: e.target.value }))}
                   placeholder="Enter udhar details..."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Expected Return Date (Optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expected Return Date (Optional)</label>
                 <input
                   type="date"
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                   value={formData.returnDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, returnDate: e.target.value }))}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, returnDate: e.target.value }))}
                   min={new Date().toISOString().split('T')[0]}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Total Installments</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Total Installments</label>
                 <input
                   type="number"
                   min="1"
                   max="100"
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                   value={formData.totalInstallments}
-                  onChange={(e) => setFormData(prev => ({ ...prev, totalInstallments: e.target.value }))}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, totalInstallments: e.target.value }))}
                 />
-                <p className="text-sm text-slate-500 mt-1">Number of payments expected for this udhar</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Number of payments expected for this udhar</p>
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setStep(1); setError(null); }}
-                  className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
+                  onClick={() => {
+                    setStep(1);
+                    setError(null);
+                  }}
+                  className="flex-1 px-4 py-2 sm:px-6 sm:py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
                   disabled={submitting}
                 >
                   Back
@@ -488,7 +424,7 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
                 <button
                   type="submit"
                   disabled={submitting || !formData.amount || !selectedCustomer}
-                  className={`flex-1 px-6 py-3 text-white rounded-xl transition-colors font-medium ${
+                  className={`flex-1 px-4 py-2 sm:px-6 sm:py-3 text-white rounded-lg transition-colors font-medium text-sm sm:text-base ${
                     formData.type === 'given'
                       ? 'bg-red-600 hover:bg-red-700'
                       : 'bg-green-600 hover:bg-green-700'
@@ -509,4 +445,5 @@ const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
     </div>
   );
 };
+
 export default AddUdharModal;
