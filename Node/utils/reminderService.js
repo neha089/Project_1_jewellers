@@ -1,7 +1,7 @@
 import Notification from '../models/Notification.js';
 import GoldLoan from '../models/GoldLoan.js';
 import Loan from '../models/Loan.js';
-import UdhariTransaction from '../models/UdhariTransaction.js';
+import Udhar from '../models/Udhar.js';
 
 export const generateDailyReminders = async () => {
   try {
@@ -105,7 +105,7 @@ export const generateDailyReminders = async () => {
     }
 
     // 3. Udhari Repayment Reminders
-    const pendingUdharis = await UdhariTransaction.find({
+    const pendingUdharis = await Udhar.find({
       kind: 'GIVEN',
       isCompleted: false,
       sourceType: 'UDHARI'
@@ -140,7 +140,7 @@ export const generateDailyReminders = async () => {
             dueDate: today,
             priority,
             relatedDoc: udhari._id,
-            relatedModel: 'UdhariTransaction'
+            relatedModel: 'Udhar'
           });
         }
       }
