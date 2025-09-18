@@ -3,7 +3,6 @@ import { X, Percent, AlertCircle, Loader2 } from 'lucide-react';
 import ApiService from '../services/api.js';
 
 const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [interestAmount, setInterestAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -13,10 +12,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (isOpen && loan && loan.transactions && loan.transactions.length > 0) {
-      if (loan.transactions.length === 1) {
-        setSelectedTransaction(loan.transactions[0]);
-      }
+    if (isOpen) {
       setInterestAmount('');
       setPaymentNote('');
       setPaymentDate(new Date().toISOString().split('T')[0]);
@@ -24,7 +20,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
       setPaymentReference('');
       setError(null);
     }
-  }, [isOpen, loan]);
+  }, [isOpen]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -39,20 +35,26 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const getMonthlyInterest = () => {
+    // Handle both API response formats
+    const outstanding = loan?.outstandingAmount ? loan.outstandingAmount * 100 : loan?.outstandingPrincipal || 0;
+    const interestRate = loan?.interestRateMonthlyPct || loan?.interestRate || 0;
+    
+    if (!outstanding || !interestRate) return 0;
+    return (outstanding * interestRate) / 100; // Return in paise
   };
 
-  const getInterestDue = (transaction) => {
-    return transaction.interestDue ? transaction.interestDue / 100 : 0;
+  const getPendingInterestAmount = () => {
+    // This would ideally come from the backend calculation
+    // For now, we'll use the current month's interest as a baseline
+    return getMonthlyInterest();
   };
 
   const handleInterestPayment = async (e) => {
     e.preventDefault();
     
-    if (!selectedTransaction) {
-      setError('Please select a transaction');
+    if (!loan?._id && !loan?.id) {
+      setError('Loan ID is missing');
       return;
     }
 
@@ -61,19 +63,9 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
       return;
     }
 
-    const interestDue = getInterestDue(selectedTransaction);
-    if (parseFloat(interestAmount) > interestDue) {
-      setError(`Interest payment cannot exceed due amount of ${formatCurrency(interestDue)}`);
-      return;
-    }
-
-    if (!loan.customer || !loan.customer._id) {
-      setError('Customer information is missing');
-      return;
-    }
-
-    if (!selectedTransaction._id) {
-      setError('Transaction ID is missing');
+    const expectedInterest = getPendingInterestAmount();
+    if (parseFloat(interestAmount) * 100 > expectedInterest) {
+      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest / 100)}`);
       return;
     }
 
@@ -82,9 +74,9 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
       setError(null);
 
       const interestData = {
-        customer: String(loan.customer._id),
+        loanId: loan._id || loan.id,
+        principalPaise: 0, // Only interest payment
         interestPaise: parseInt(parseFloat(interestAmount) * 100),
-        sourceRef: String(selectedTransaction._id),
         note: paymentNote.trim() || undefined,
         paymentDate: paymentDate,
         paymentMethod: paymentMethod,
@@ -92,11 +84,13 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
         transactionId: paymentReference.trim() || ''
       };
 
-      console.log('Making interest payment:', { loan, selectedTransaction, interestData });
+      console.log('Making interest payment:', interestData);
 
-      const response = loan.type === 'receivable' 
-        ? await ApiService.receiveInterestPayment(interestData)
-        : await ApiService.payInterest(interestData);
+      // Determine if this is a loan you gave or took based on loanType
+      const isGivenLoan = loan.loanType === 'GIVEN';
+      const response = isGivenLoan 
+        ? await ApiService.receiveLoanPayment(interestData)
+        : await ApiService.makeLoanPayment(interestData);
 
       if (response.success) {
         console.log('Interest payment successful!');
@@ -114,29 +108,31 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
   };
 
   const handleQuickAmount = (percentage) => {
-    if (selectedTransaction) {
-      const interestDue = getInterestDue(selectedTransaction);
-      const amount = (interestDue * percentage / 100).toFixed(2);
-      setInterestAmount(amount);
-    }
+    const expectedInterest = getPendingInterestAmount();
+    const amount = (expectedInterest * percentage / 10000).toFixed(2); // Convert from paise to rupees
+    setInterestAmount(amount);
   };
 
   if (!isOpen || !loan) return null;
 
   const customer = loan.customer || {};
-  const isReceivable = loan.type === 'receivable';
-  const transactions = loan.transactions || [];
+  const isReceivable = loan.loanType === 'GIVEN';
+  const monthlyInterest = getMonthlyInterest() / 100; // Convert to rupees for display
+  const pendingInterest = getPendingInterestAmount() / 100; // Convert to rupees for display
+  const outstandingAmount = loan?.outstandingAmount || (loan?.outstandingPrincipal || 0) / 100;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-md bg-gradient-to-br from-purple-500 to-purple-600`}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md bg-gradient-to-br from-purple-500 to-purple-600">
               <span className="text-white text-sm font-bold">{getInitials(customer.name)}</span>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900">{isReceivable ? 'Receive Interest Payment' : 'Make Interest Payment'}</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                {isReceivable ? 'Receive Interest Payment' : 'Make Interest Payment'}
+              </h2>
               <p className="text-sm text-slate-600">{customer.name}</p>
             </div>
           </div>
@@ -149,65 +145,45 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
         </div>
 
         <div className="p-6 space-y-6">
-          {transactions.length > 1 && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">Select Transaction *</label>
-              <div className="space-y-2">
-                {transactions.map((transaction, index) => {
-                  const originalAmount = transaction.principalPaise ? transaction.principalPaise / 100 : 0;
-                  const interestDue = getInterestDue(transaction);
-                  
-                  return (
-                    <div
-                      key={transaction._id || index}
-                      onClick={() => setSelectedTransaction(transaction)}
-                      className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        selectedTransaction?._id === transaction._id
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-slate-900">{transaction.note || 'Loan Transaction'}</p>
-                          <p className="text-sm text-slate-500">{formatDate(transaction.takenDate || transaction.date)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-purple-600">{formatCurrency(interestDue)}</p>
-                          <p className="text-sm text-slate-500">Interest Due</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+          {/* Loan Interest Summary */}
+          <div className="bg-slate-50 p-4 rounded-xl">
+            <h3 className="font-semibold text-slate-900 mb-3">Interest Summary</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-slate-600">Outstanding Principal</p>
+                <p className="font-bold text-slate-900">
+                  {formatCurrency(outstandingAmount)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Interest Rate</p>
+                <p className="font-bold text-slate-900">
+                  {loan.interestRateMonthlyPct || loan.interestRate}% monthly
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Current Month Interest</p>
+                <p className="font-bold text-purple-600">{formatCurrency(monthlyInterest)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Next Due Date</p>
+                <p className="text-slate-700">
+                  {loan.nextInterestDueDate || loan.dueDate
+                    ? new Date(loan.nextInterestDueDate || loan.dueDate).toLocaleDateString('en-IN') 
+                    : 'N/A'
+                  }
+                </p>
               </div>
             </div>
-          )}
-
-          {selectedTransaction && (
-            <div className="bg-slate-50 p-4 rounded-xl">
-              <h3 className="font-semibold text-slate-900 mb-3">Selected Transaction</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-slate-600">Principal Outstanding</p>
-                  <p className="font-bold text-slate-900">
-                    {formatCurrency((selectedTransaction.outstandingBalance || selectedTransaction.principalPaise || 0) / 100)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-600">Interest Due</p>
-                  <p className="font-bold text-purple-600">{formatCurrency(getInterestDue(selectedTransaction))}</p>
-                </div>
+            {loan.note && (
+              <div className="mt-3">
+                <p className="text-sm text-slate-600">Loan Note</p>
+                <p className="text-slate-900">{loan.note}</p>
               </div>
-              {selectedTransaction.note && (
-                <div className="mt-3">
-                  <p className="text-sm text-slate-600">Note</p>
-                  <p className="text-slate-900">{selectedTransaction.note}</p>
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
+          {/* Interest Payment Amount */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Interest Amount *</label>
             <div className="relative">
@@ -221,10 +197,12 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
                 value={interestAmount}
                 onChange={(e) => setInterestAmount(e.target.value)}
                 placeholder="0.00"
-                max={selectedTransaction ? getInterestDue(selectedTransaction) : undefined}
+                max={pendingInterest}
               />
             </div>
-            {selectedTransaction && (
+            
+            {/* Quick Amount Buttons */}
+            {pendingInterest > 0 && (
               <div className="flex gap-2 mt-3">
                 <button
                   type="button"
@@ -252,26 +230,26 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
                   onClick={() => handleQuickAmount(100)}
                   className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
                 >
-                  Full Payment
+                  Current Month ({formatCurrency(monthlyInterest)})
                 </button>
               </div>
             )}
-            {interestAmount && selectedTransaction && (
+
+            {interestAmount && (
               <div className="mt-2 p-3 bg-purple-50 rounded-lg">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Interest Payment:</span>
                   <span className="font-medium text-slate-900">{formatCurrency(parseFloat(interestAmount))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Remaining Interest Due:</span>
-                  <span className="font-medium text-purple-600">
-                    {formatCurrency(Math.max(0, getInterestDue(selectedTransaction) - parseFloat(interestAmount)))}
-                  </span>
+                  <span className="text-slate-600">Monthly Interest Due:</span>
+                  <span className="font-medium text-purple-600">{formatCurrency(monthlyInterest)}</span>
                 </div>
               </div>
             )}
           </div>
 
+          {/* Payment Method */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
             <select
@@ -291,6 +269,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </select>
           </div>
 
+          {/* Payment Reference */}
           {paymentMethod !== 'CASH' && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Payment Reference / Transaction ID</label>
@@ -304,6 +283,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </div>
           )}
 
+          {/* Payment Date */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Date *</label>
             <input
@@ -316,6 +296,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             />
           </div>
 
+          {/* Payment Note */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Note (Optional)</label>
             <textarea
@@ -327,6 +308,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             />
           </div>
 
+          {/* Error Message */}
           {error && (
             <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
               <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
@@ -334,6 +316,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             </div>
           )}
 
+          {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -346,7 +329,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             <button
               type="button"
               onClick={handleInterestPayment}
-              disabled={loading || !selectedTransaction || !interestAmount}
+              disabled={loading || !interestAmount}
               className="flex-1 px-6 py-3 text-white rounded-xl transition-colors font-medium bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
