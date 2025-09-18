@@ -37,7 +37,7 @@ const UdhariCard = ({ udhari, type, onView, onPayment }) => {
     
     // Find the most recent transaction date
     const dates = udhari.transactions
-      .map(txn => txn.takenDate || txn.date)
+      .map(txn => txn.takenDate || txn.date || txn.createdAt)
       .filter(date => date)
       .sort((a, b) => new Date(b) - new Date(a));
     
@@ -138,10 +138,10 @@ const UdhariCard = ({ udhari, type, onView, onPayment }) => {
         <div className="mt-4 pt-4 border-t border-slate-100">
           <div className="flex items-center justify-between text-sm">
             <span className="text-slate-600">
-              Latest: {udhari.transactions[0]?.note || 'No description'}
+              Latest: {udhari.transactions[0]?.note || udhari.transactions[0]?.description || 'No description'}
             </span>
             <span className="text-slate-500">
-              {formatCurrency(udhari.transactions[0]?.originalAmount || udhari.transactions[0]?.principalPaise / 100 || 0)}
+              {formatCurrency(udhari.transactions[0]?.originalAmount || udhari.transactions[0]?.amount || 0)}
             </span>
           </div>
         </div>
