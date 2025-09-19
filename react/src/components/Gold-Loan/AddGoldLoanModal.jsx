@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { X, Coins, Calculator } from 'lucide-react';
-import CustomerSearch from './CustomerSearch';
-import GoldLoanItems from './GoldLoanItems';
-import ApiService from '../services/api';
+import CustomerSearch from '../CustomerSearch';
+import GoldLoanItems from '../GoldLoanItems';
+import ApiService from '../../services/api';
 
 const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -27,6 +27,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const [errors, setErrors] = useState({});
   const [currentGoldPrice, setCurrentGoldPrice] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // ADDED: Prevent double submission
 
   const branches = [
     'Main Branch', 'North Branch', 'South Branch',
@@ -137,15 +138,24 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     console.log("Submit button clicked");
+    
+    // FIXED: Prevent double submission
+    if (isSubmitting) {
+      console.log("Already submitting, ignoring duplicate click");
+      return;
+    }
    
     // if (!validateForm()) {
     //   console.log("Validation failed:", errors);
     //   return;
     // }
 
+    setIsSubmitting(true); // FIXED: Set submitting state
     setLoading(true);
+    
     try {
       // Prepare the payload to match backend expectations exactly
       const loanData = {
@@ -173,18 +183,11 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
         const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
         const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
        
-        // Prepare data for parent component (matching the expected structure)
-        const loanForParent = {
-          ...response.data,
-          totalAmount,
-          totalWeight,
-          customerName: selectedCustomer.name,
-          customerPhone: selectedCustomer.phone,
-          itemsCount: items.length
-        };
-
-        onSave(loanForParent);
         handleReset();
+        
+        // Close modal immediately after success - parent will handle refresh
+        onClose();
+        
         alert(`Gold loan created successfully! Total amount: ₹${totalAmount.toLocaleString()}`);
       } else {
         setErrors({ submit: response.error || 'Failed to create gold loan' });
@@ -194,6 +197,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
       setErrors({ submit: `Failed to create gold loan: ${error.message}` });
     } finally {
       setLoading(false);
+      setIsSubmitting(false); // FIXED: Reset submitting state
     }
   };
 
@@ -216,6 +220,14 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     setSelectedCustomer(null);
     setSearchTerm('');
     setErrors({});
+  };
+
+  // FIXED: Prevent modal close during submission
+  const handleClose = () => {
+    if (isSubmitting) {
+      return; // Don't allow closing during submission
+    }
+    onClose();
   };
 
   // Auto-fill gold price when current price is available
@@ -251,9 +263,9 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose} // FIXED: Use handleClose instead of onClose
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200"
-            disabled={loading}
+            disabled={isSubmitting} // FIXED: Disable during submission
           >
             <X size={20} />
           </button>
@@ -289,7 +301,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
               <GoldLoanItems
                 items={items}
                 errors={errors}
-                loading={loading}
+                loading={isSubmitting} // FIXED: Use isSubmitting
                 onItemsChange={handleItemsChange}
                 currentGoldPrice={currentGoldPrice}
               />
@@ -314,7 +326,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                       errors.interestRate ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="2.5"
-                    disabled={loading}
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
                   />
                   {errors.interestRate && <p className="text-red-500 text-sm mt-1">{errors.interestRate}</p>}
                 </div>
@@ -331,7 +343,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                     className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
                       errors.date ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
-                    disabled={loading}
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
                   />
                   {errors.date && <p className="text-red-500 text-sm mt-1">{errors.date}</p>}
                 </div>
@@ -345,7 +357,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                     value={formData.branch}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                    disabled={loading}
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
                   >
                     {branches.map(branch => (
                       <option key={branch} value={branch}>{branch}</option>
@@ -367,7 +379,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                 rows={3}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
                 placeholder="Any additional notes about the gold loan..."
-                disabled={loading}
+                disabled={isSubmitting} // FIXED: Use isSubmitting
               />
             </div>
 
@@ -412,9 +424,9 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
           <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose} // FIXED: Use handleClose
               className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium"
-              disabled={loading}
+              disabled={isSubmitting} // FIXED: Disable during submission
             >
               Cancel
             </button>
@@ -422,18 +434,18 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
               type="button"
               onClick={handleReset}
               className="px-6 py-3 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 hover:border-amber-400 transition-all duration-200 font-medium"
-              disabled={loading}
+              disabled={isSubmitting} // FIXED: Disable during submission
             >
               Reset Form
             </button>
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-amber-400 transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
-              disabled={loading}
+              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-amber-400 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
+              disabled={isSubmitting} // FIXED: Use isSubmitting instead of loading
             >
               <Coins size={16} />
-              {loading ? 'Creating...' : 'Create Gold Loan'}
+              {isSubmitting ? 'Creating...' : 'Create Gold Loan'}
             </button>
           </div>
         </div>

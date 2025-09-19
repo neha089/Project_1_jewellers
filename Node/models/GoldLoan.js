@@ -20,6 +20,10 @@ const loanItemSchema = new mongoose.Schema({
 
 const paymentSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
+type: {
+  type: String,
+  enum: ['INTEREST' ,'PRINCIPAL']
+},
   principalAmount: { type: Number, default: 0, min: 0 }, // In rupees
   interestAmount: { type: Number, default: 0, min: 0 }, // In rupees
   forMonth: { type: String, required: true }, // Format: "YYYY-MM"
