@@ -49,7 +49,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   const getMonthlyInterest = () => {
     const outstanding = loan?.currentLoanAmount || loan.totalLoanAmount || 0;
     const interestRate = loan?.interestRateMonthlyPct || 0;
-    return (outstanding * interestRate) ;
+    return (outstanding * interestRate)/100 ;
   };
 
   const getPendingInterestAmount = () => {
@@ -69,7 +69,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
       return;
     }
 
-    const expectedInterest = getPendingInterestAmount() / 100;
+    const expectedInterest = getPendingInterestAmount();
     if (interestAmount > expectedInterest) {
       console.log(expectedInterest , interestAmount);
       setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest)}`);

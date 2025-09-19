@@ -86,6 +86,8 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
     if (onPayment) {
       onPayment(loan);
     }
+    // Refresh the page to reflect updated data
+    window.location.reload();
   };
 
   const handleItemRepaymentSuccess = (result) => {

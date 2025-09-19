@@ -3,6 +3,7 @@ import { X, Coins, Calculator } from 'lucide-react';
 import CustomerSearch from '../CustomerSearch';
 import GoldLoanItems from '../GoldLoanItems';
 import ApiService from '../../services/api';
+import CreateCustomerForm from '../CreateCustomerForm'; 
 
 const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -28,7 +29,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const [currentGoldPrice, setCurrentGoldPrice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // ADDED: Prevent double submission
-
+  const [showCreateCustomerForm, setShowCreateCustomerForm] = useState(false); // Toggle customer form
   const branches = [
     'Main Branch', 'North Branch', 'South Branch',
     'East Branch', 'West Branch'
@@ -67,16 +68,25 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     }
   };
 
-  const handleCustomerSelect = (customer) => {
+const handleCustomerSelect = (customer) => {
     setSelectedCustomer(customer);
     setSearchTerm('');
+    setShowCreateCustomerForm(false); // Hide form when a customer is selected
     if (errors.customer) {
       setErrors(prev => ({ ...prev, customer: '' }));
     }
   };
 
-  const handleCreateCustomer = () => {
-    console.log('Create new customer functionality to be implemented');
+const handleCreateCustomer = () => {
+    setShowCreateCustomerForm(true); // Show the customer creation form
+    setSelectedCustomer(null); // Clear any selected customer
+    setSearchTerm(''); // Clear search term
+  };
+
+  const handleNewCustomerCreated = (newCustomer) => {
+    setSelectedCustomer(newCustomer); // Set the newly created customer
+    setShowCreateCustomerForm(false); // Hide the form after creation
+    setErrors(prev => ({ ...prev, customer: '' })); // Clear customer error
   };
 
   const handleItemsChange = (updatedItems) => {
@@ -182,7 +192,14 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
         // Calculate totals for UI feedback
         const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
         const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
-       
+        onSave({
+          ...loanData,
+          _id: response.data._id, // Include the new loan ID from API response
+          customer: selectedCustomer, // Include full customer object for display
+          totalAmount,
+          totalWeight,
+          createdAt: new Date().toISOString()
+        });
         handleReset();
         
         // Close modal immediately after success - parent will handle refresh
@@ -220,6 +237,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     setSelectedCustomer(null);
     setSearchTerm('');
     setErrors({});
+    setShowCreateCustomerForm(false);
   };
 
   // FIXED: Prevent modal close during submission
@@ -277,21 +295,32 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
             {/* Customer Search */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Selection *</h3>
-              <CustomerSearch
-                onCustomerSelect={handleCustomerSelect}
-                onCreateCustomer={handleCreateCustomer}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-              />
-              {errors.customer && <p className="text-red-500 text-sm mt-2">{errors.customer}</p>}
-              {selectedCustomer && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="font-medium text-gray-900">{selectedCustomer.name}</p>
-                  <p className="text-sm text-gray-600">{selectedCustomer.phone}</p>
-                  {selectedCustomer.email && (
-                    <p className="text-sm text-gray-600">{selectedCustomer.email}</p>
+              {!showCreateCustomerForm ? (
+                <>
+                  <CustomerSearch
+                    onCustomerSelect={handleCustomerSelect}
+                    onCreateCustomer={handleCreateCustomer}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                  />
+                  {errors.customer && <p className="text-red-500 text-sm mt-2">{errors.customer}</p>}
+                  {selectedCustomer && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="font-medium text-gray-900">{selectedCustomer.name}</p>
+                      <p className="text-sm text-gray-600">{selectedCustomer.phone}</p>
+                      {selectedCustomer.email && (
+                        <p className="text-sm text-gray-600">{selectedCustomer.email}</p>
+                      )}
+                    </div>
                   )}
-                </div>
+                </>
+              ) : (
+                <CreateCustomerForm
+                  onCancel={() => setShowCreateCustomerForm(false)}
+                  onBack={() => setShowCreateCustomerForm(false)} // Back to search
+                  onCustomerCreated={handleNewCustomerCreated}
+                  loading={loading}
+                />
               )}
             </div>
 

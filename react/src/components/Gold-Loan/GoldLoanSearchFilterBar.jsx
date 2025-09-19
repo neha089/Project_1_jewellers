@@ -7,7 +7,7 @@ const GoldLoanSearchFilterBar = ({
   statusFilter, 
   onStatusFilterChange, 
   goldTypeFilter,
-  setGoldTypeFilter,
+  onGoldTypeFilterChange,
   sortBy, 
   onSortChange,
   viewMode,
@@ -87,7 +87,7 @@ const GoldLoanSearchFilterBar = ({
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={16} />
               <select
                 value={goldTypeFilter}
-                onChange={(e) => setGoldTypeFilter(e.target.value)}
+                onChange={(e) => onGoldTypeFilterChange(e.target.value)}
                 className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
               >
                 <option value="all">All Gold</option>
@@ -155,8 +155,7 @@ const GoldLoanSearchFilterBar = ({
                       </div>
                     </div>
                   </div>
-
-        {/* Active Filters Display */}
+{/* Active Filters Display */}
         {(searchTerm || statusFilter !== 'all' || goldTypeFilter !== 'all' || sortBy !== 'loanId') && (
           <div className="flex items-center gap-2 mt-6 pt-4 border-t border-gray-100">
             <span className="text-sm font-medium text-gray-600">Active filters:</span>
@@ -165,7 +164,7 @@ const GoldLoanSearchFilterBar = ({
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
                   Search: "{searchTerm}"
                   <button
-                    onClick={() => setSearchTerm('')}
+                    onClick={() => onSearchChange('')}
                     className="ml-1 hover:text-blue-900 transition-colors"
                   >
                     ×
@@ -176,7 +175,7 @@ const GoldLoanSearchFilterBar = ({
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full">
                   Status: {statusFilter}
                   <button
-                    onClick={() => setStatusFilter('all')}
+                    onClick={() => onStatusFilterChange('all')}
                     className="ml-1 hover:text-green-900 transition-colors"
                   >
                     ×
@@ -187,7 +186,7 @@ const GoldLoanSearchFilterBar = ({
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 text-xs rounded-full">
                   Gold: {goldTypeFilter}
                   <button
-                    onClick={() => setGoldTypeFilter('all')}
+                    onClick={() => onGoldTypeFilterChange('all')}
                     className="ml-1 hover:text-amber-900 transition-colors"
                   >
                     ×
@@ -196,9 +195,9 @@ const GoldLoanSearchFilterBar = ({
               )}
               {sortBy !== 'loanId' && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
-                  Sort: {sortBy === 'customer' ? 'Customer Name' : sortBy === 'amount' ? 'Loan Amount' : sortBy === 'dueDate' ? 'Due Date' : sortBy === 'createdDate' ? 'Created Date' : sortBy === 'weight' ? 'Gold Weight' : sortBy}
+                  Sort: {sortBy === 'customer' ? 'Customer Name' : sortBy === 'loanamount' ? 'Loan Amount' : sortBy === 'dueDate' ? 'Due Date' : sortBy === 'createdAt' ? 'Created Date' : sortBy === 'weight' ? 'Gold Weight' : sortBy}
                   <button
-                    onClick={() => setSortBy('loanId')}
+                    onClick={() => onSortChange('loanId')}
                     className="ml-1 hover:text-purple-900 transition-colors"
                   >
                     ×
@@ -207,10 +206,10 @@ const GoldLoanSearchFilterBar = ({
               )}
               <button
                 onClick={() => {
-                  setSearchTerm('');
-                  setStatusFilter('all');
-                  setGoldTypeFilter('all');
-                  setSortBy('loanId');
+                  onSearchChange('');
+                  onStatusFilterChange('all');
+                  onGoldTypeFilterChange('all');
+                  onSortChange('loanId');
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline transition-colors"
               >

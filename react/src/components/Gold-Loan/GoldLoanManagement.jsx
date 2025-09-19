@@ -32,7 +32,9 @@ const GoldLoanManagement = () => {
   const [filteredLoans, setFilteredLoans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortBy, setSortBy] = useState('loanId');
+  const [goldTypeFilter, setGoldTypeFilter] = useState('all');
+  const {notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(goldLoans);
   const [viewMode, setViewMode] = useState('grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
@@ -54,8 +56,6 @@ const GoldLoanManagement = () => {
     dueToday: 0,
     urgentActions: 0
   });
-  const [goldTypeFilter, setGoldTypeFilter] = useState('all');
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(goldLoans);
 
   // Calculate due date based on start date and interest rate (assuming monthly payments)
   const calculateDueDate = (loan) => {
@@ -226,18 +226,27 @@ const GoldLoanManagement = () => {
   }, []);
 
   // Handle form submissions and actions
-  const handleAddLoan = async (formData) => {
-    try {
-      const response = await ApiService.createGoldLoan(formData);
-      if (response.success) {
-        setShowAddModal(false);
-        await loadGoldLoans(); // Refresh the list
-        alert('Gold loan created successfully!');
-      }
-    } catch (error) {
-      alert('Error creating gold loan: ' + error.message);
+const handleAddLoan = (newLoan) => {
+  console.log('handleAddLoan called with:', newLoan);
+  setGoldLoans(prevLoans => {
+    if (prevLoans.some(loan => loan._id === newLoan._id)) {
+      console.log('Loan already exists, skipping duplicate:', newLoan._id);
+      return prevLoans;
     }
-  };
+    const loanWithDueDate = {
+      ...newLoan,
+      totalLoanAmount: newLoan.totalAmount,
+      currentLoanAmount: newLoan.totalAmount,
+      status: 'ACTIVE',
+      dueDate: calculateDueDate(newLoan)
+    };
+    console.log('Adding new loan to state:', loanWithDueDate);
+    const updatedLoans = [...prevLoans, loanWithDueDate];
+    calculateStats(updatedLoans);
+    return updatedLoans;
+  });
+  setShowAddModal(false);
+};
 
   const handleEdit = (loan) => {
     // For now, just show an alert. You can implement edit modal later
@@ -475,7 +484,8 @@ const GoldLoanManagement = () => {
               onSearchChange={setSearchTerm}
               statusFilter={statusFilter}
               onStatusFilterChange={setStatusFilter}
-              setGoldTypeFilter={setGoldTypeFilter}
+              goldTypeFilter={goldTypeFilter}
+              onGoldTypeFilterChange={setGoldTypeFilter}
               sortBy={sortBy}
               onSortChange={setSortBy}
               viewMode={viewMode}
