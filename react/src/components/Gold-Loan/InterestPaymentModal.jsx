@@ -1,6 +1,3 @@
-
-
-// export default InterestPaymentModal;
 import React, { useState, useEffect } from 'react';
 import { X, Percent, AlertCircle, Loader2 } from 'lucide-react';
 import ApiService from '../../services/api.js';
@@ -69,7 +66,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
       return;
     }
 
-    const expectedInterest = getPendingInterestAmount() / 100;
+    const expectedInterest = getPendingInterestAmount() ;
     if (interestAmount > expectedInterest) {
       console.log(expectedInterest , interestAmount);
       setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest)}`);
