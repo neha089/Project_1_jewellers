@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Percent, AlertCircle, Loader2 } from 'lucide-react';
-import ApiService from '../services/api.js';
+import ApiService from '../../services/api.js';
 
 const LInterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
   const [interestAmount, setInterestAmount] = useState('');

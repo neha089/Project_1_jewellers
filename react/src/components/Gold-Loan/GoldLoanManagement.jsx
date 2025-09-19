@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
-import { GoldLoanCard } from "./GoldLoanCard.jsx";
-import GoldLoanSearchFilterBar from "../GoldLoanSearchFilterBar.jsx";
-import StatsCard from "../StatsCard.jsx";
+import { GoldLoanCard } from "./GoldLoanCard";
+import GoldLoanSearchFilterBar from "./GoldLoanSearchFilterBar";
+import StatsCard from "../StatsCard";
 import AddGoldLoanModal from "./AddGoldLoanModal.jsx";
-import GoldLoanTableRow from "../GoldLoanTableRow.jsx";
-import NotificationBell from "../NotificationBell.jsx";
-import PaymentReminderModal from "../PaymentReminderModal.jsx";
-import InterestPaymentModal from "../InterestPaymentModal.jsx";
-import ItemRepaymentModal from "../ItemRepaymentModal.jsx";
-import { useNotifications } from "../useNotifications.jsx";
-import ApiService from "../../services/api.js";
+import GoldLoanTableRow from "./GoldLoanTableRow";
+import NotificationBell from "./NotificationBell";
+import PaymentReminderModal from "./PaymentReminderModal";
+import InterestPaymentModal from "./InterestPaymentModal";
+import ItemRepaymentModal from "./ItemRepaymentModal.jsx";
+import { useNotifications } from "../useNotifications";
+import ApiService from "../../services/api";
 import {
   Download,
   Plus,
@@ -35,7 +35,6 @@ const GoldLoanManagement = () => {
   const [sortBy, setSortBy] = useState('createdAt');
   const [viewMode, setViewMode] = useState('grid');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [shouldRefreshAfterModal, setShouldRefreshAfterModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showInterestPaymentModal, setShowInterestPaymentModal] = useState(false);
   const [showItemRepaymentModal, setShowItemRepaymentModal] = useState(false);
@@ -66,9 +65,7 @@ const GoldLoanManagement = () => {
     dueDate.setMonth(dueDate.getMonth() + 1); // Add 1 month for monthly payment
     return dueDate;
   };
-const handleAdduccess=()=>{
-  loadGoldLoans();
-}
+
   // Load gold loans data
   const loadGoldLoans = async () => {
     setLoading(true);
@@ -228,25 +225,18 @@ const handleAdduccess=()=>{
     loadGoldLoans();
   }, []);
 
-  // FIXED: Add the missing function
-  const handleOpenAddModal = () => {
-    setShowAddModal(true);
-  };
-
   // Handle form submissions and actions
-  const handleAddLoan = (newLoanData) => {
-    // Just close the modal - don't make another API call
-    // The loan is already created by the modal
-    setShowAddModal(false);
-    // Refresh the data to show the new loan
-    loadGoldLoans();
-  };
-
-  // Simple modal close handler - FIXED: Remove duplicate refresh call
-  const handleModalClose = () => {
-    setShowAddModal(false);
-    // Refresh data to show new loan only after successful creation
-    loadGoldLoans();
+  const handleAddLoan = async (formData) => {
+    try {
+      const response = await ApiService.createGoldLoan(formData);
+      if (response.success) {
+        setShowAddModal(false);
+        await loadGoldLoans(); // Refresh the list
+        alert('Gold loan created successfully!');
+      }
+    } catch (error) {
+      alert('Error creating gold loan: ' + error.message);
+    }
   };
 
   const handleEdit = (loan) => {
@@ -385,7 +375,7 @@ const handleAdduccess=()=>{
             </button>
            
             <button
-              onClick={handleOpenAddModal}
+              onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-lg"
             >
               <Plus size={16} />
@@ -512,7 +502,7 @@ const handleAdduccess=()=>{
                 </p>
                 {!searchTerm && statusFilter === 'all' && (
                   <button
-                    onClick={handleOpenAddModal}
+                    onClick={() => setShowAddModal(true)}
                     className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
                   >
                     Create First Loan
@@ -684,7 +674,7 @@ const handleAdduccess=()=>{
         <AddGoldLoanModal
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
-          onSuccess={handleAdduccess}
+          onSave={handleAddLoan}
         />
       )}
 

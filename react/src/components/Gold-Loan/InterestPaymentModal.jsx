@@ -3,7 +3,7 @@
 // export default InterestPaymentModal;
 import React, { useState, useEffect } from 'react';
 import { X, Percent, AlertCircle, Loader2 } from 'lucide-react';
-import ApiService from '../services/api.js';
+import ApiService from '../../services/api.js';
 
 const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   const [interestAmount, setInterestAmount] = useState('');

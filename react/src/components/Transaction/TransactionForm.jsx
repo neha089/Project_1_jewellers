@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
-import ApiService from "../services/api";
-import MetalPriceService from "../services/metalPriceService";
-import LoanSelector from "./LoanSelector";
-import AmountField from "./AmountField";
-import GoldLoanItems from "./GoldLoanItems";
-import LoanFields from "./LoanFields";
-import PhotoUpload from "./PhotoUpload";
-import InterestSummaryCard from "./InterestSummaryCard";
-import GoldLoanRepayment from "./GoldLoanRepayment";
-import UdhariSelector from "./UdhariSelector";
-import UdhariTransactionForm from "./UdhariTransactionForm";
-import MetalItemsManager from "./MetalItemsManager";
+import ApiService from "../../services/api";
+import MetalPriceService from "../../services/metalPriceService";
+import LoanSelector from "../LoanSelector";
+import AmountField from "../AmountField";
+import GoldLoanItems from "../GoldLoanItems";
+import LoanFields from "../LoanFields";
+import PhotoUpload from "../PhotoUpload";
+import InterestSummaryCard from "../InterestSummaryCard";
+import GoldLoanRepayment from "../GoldLoanRepayment";
+import UdhariSelector from "../UdhariSelector";
+import UdhariTransactionForm from "../UdhariTransactionForm";
+import MetalItemsManager from "../MetalItemsManager";
 
 const TransactionForm = ({
   selectedCustomer,

@@ -4,8 +4,8 @@ import { CheckCircle2 } from "lucide-react";
 import SummaryCards from "./SummaryCards";
 import TransactionHeader from "./TransactionHeader";
 import RecentTransactions from "./RecentTransactions";
-import CustomerSearch from "./CustomerSearch";
-import CreateCustomerForm from "./CreateCustomerForm";
+import CustomerSearch from "../CustomerSearch";
+import CreateCustomerForm from "../CreateCustomerForm";
 import TransactionForm from "./TransactionForm";
 import {
   TransactionTypeSelection,

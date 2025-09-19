@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, Lock } from 'lucide-react';
-import ApiService from '../services/api';
-import MetalPriceService from '../services/metalPriceService';
-import CustomerSearch from './CustomerSearch';
-import MetalItemsManager from './MetalItemsManager';
-import CreateCustomerForm from './CreateCustomerForm';
+import ApiService from '../../services/api';
+import MetalPriceService from '../../services/metalPriceService';
+import CustomerSearch from '../CustomerSearch';
+import MetalItemsManager from '../MetalItemsManager';
+import CreateCustomerForm from '../CreateCustomerForm';
 
-const SilverTransactionForm = ({ 
+const GoldTransactionForm = ({ 
   editingTransaction, 
-  silverRates, 
+  GoldRates, 
   onClose, 
   onSuccess, 
   onError 
@@ -63,7 +63,7 @@ const SilverTransactionForm = ({
   const loadCurrentPrices = async () => {
     try {
       const prices = await MetalPriceService.getCurrentPrices();
-      setCurrentPrices(prices.silver);
+      setCurrentPrices(prices.Gold);
     } catch (error) {
       console.error('Error loading current prices:', error);
     }
@@ -381,8 +381,8 @@ const SilverTransactionForm = ({
           return;
         }
 
-        console.log('Calling ApiService.updateSilverTransaction...');
-        const response = await ApiService.updateSilverTransaction(transactionId, updateData);
+        console.log('Calling ApiService.updateGoldTransaction...');
+        const response = await ApiService.updateGoldTransaction(transactionId, updateData);
         
         console.log('=== UPDATE RESPONSE ===');
         console.log('Response:', response);
@@ -440,7 +440,7 @@ const SilverTransactionForm = ({
         console.log('=== SENDING CREATE DATA ===');
         console.log('Create payload:', JSON.stringify(transactionData, null, 2));
 
-        const response = await ApiService.createSilverTransaction(transactionData);
+        const response = await ApiService.createGoldTransaction(transactionData);
         
         console.log('=== CREATE RESPONSE ===');
         console.log('Response:', response);
@@ -521,7 +521,7 @@ const SilverTransactionForm = ({
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">
-              {isEditing ? 'Edit' : 'New'} Silver Transaction
+              {isEditing ? 'Edit' : 'New'} Gold Transaction
               {isEditing && <span className="text-sm text-gray-500 ml-2">({formData.transactionType === 'SELL' ? 'Customer' : 'Supplier'} details are locked)</span>}
             </h2>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -544,7 +544,7 @@ const SilverTransactionForm = ({
                   } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isEditing && <Lock className="w-4 h-4 inline mr-1" />}
-                  Buy Silver
+                  Buy Gold
                 </button>
                 <button
                   type="button"
@@ -557,7 +557,7 @@ const SilverTransactionForm = ({
                   } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isEditing && <Lock className="w-4 h-4 inline mr-1" />}
-                  Sell Silver
+                  Sell Gold
                 </button>
               </div>
             </div>
@@ -683,7 +683,7 @@ const SilverTransactionForm = ({
               <MetalItemsManager
                 items={items}
                 onItemsChange={setItems}
-                metalType="Silver"
+                metalType="Gold"
                 currentPrices={currentPrices}
                 loading={loading}
               />
@@ -873,4 +873,4 @@ const SilverTransactionForm = ({
   );
 };
 
-export default SilverTransactionForm;
+export default GoldTransactionForm;

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter,RefreshCw, AlertCircle, X } from 'lucide-react';
 import ApiService from '../services/api';
 import MetalPriceService from '../services/metalPriceService';
-import SilverTransactionForm from '../components/SilverTransactionForm';
+import SilverTransactionForm from '../components/SilverBuySell/SilverTransactionForm';
 import TransactionViewModal from '../components/TransactionViewModal';
-import SStatsCards from '../components/SStatsCards';
-import SilverRatesDisplay from '../components/SilverRatesDisplay';
+import SStatsCards from '../components/SilverBuySell/SStatsCards';
+import SilverRatesDisplay from '../components/SilverBuySell/SilverRatesDisplay';
 import TransactionTable from '../components/TransactionTable';
 import EmptyState from '../components/EmptyState';
 

@@ -303,7 +303,7 @@ export const updateSilverTransaction = async (req, res) => {
       
       updates.totalAmount = Math.round(totalAmount);
       updates.remainingAmount = updates.totalAmount - (updates.advanceAmount || 0);
-      updates.paymentStatus = updates.remainingAmount === 0 ? "PAID" : updates.advanceAmount > 0 ? "PARTIAL" : "PENDING";
+      updates.paymentStatus = "PAID" ;
     }
 
     const transaction = await SilverTransaction.findByIdAndUpdate(

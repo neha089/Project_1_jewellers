@@ -107,11 +107,7 @@ const goldTransactionSchema = new mongoose.Schema({
     type: Number, 
     default: 0
   },
-  paymentStatus: {
-    type: String,
-    enum: ["PAID", "PARTIAL", "PENDING"],
-    default: "PAID"
-  },
+
   paymentMode: {
     type: String,
     enum: ["CASH", "UPI", "BANK_TRANSFER", "CARD", "CHEQUE"],

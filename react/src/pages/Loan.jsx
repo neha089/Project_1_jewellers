@@ -12,11 +12,11 @@ import {
   Building
 } from 'lucide-react';
 import ApiService from '../services/api.js';
-import AddLoanModal from '../components/AddLoanModal';
-import LoanCard from '../components/LoanCard';
-import LoanDetailModal from '../components/LoanDetailModal';
-import LoanPaymentModal from '../components/LoanPaymentModal';
-import LInterstPaymentModal from '../components/LInterestPaymentModal';
+import AddLoanModal from '../components/Loan/AddLoanModal';
+import LoanCard from '../components/Loan/LoanCard';
+import LoanDetailModal from '../components/Loan/LoanDetailModal';
+import LoanPaymentModal from '../components/Loan/LoanPaymentModal';
+import LInterstPaymentModal from '../components/Loan/LInterestPaymentModal';
 import CustomerSearch from '../components/CustomerSearch.jsx';
 
 const Loan = () => {

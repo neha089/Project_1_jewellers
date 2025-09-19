@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Edit, Trash2, User, Calendar, FileText } from 'lucide-react';
-import ApiService from '../services/api';
+import ApiService from '../../services/api';
 
 const RecentTransactions = ({ onEdit, onDelete, refreshTrigger }) => {
   const [transactions, setTransactions] = useState([]);

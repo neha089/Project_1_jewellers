@@ -17,7 +17,7 @@ const ExpenseModal = ({ isEdit, editingExpense, onAdd, onUpdate, onClose }) => {
         vendorEmail: '',
         vendorGst: '',
         paymentMethod: '',
-        status: 'PENDING',
+        status: 'PAID',
         reference: '',
         taxAmount: '',
         netAmount: '',

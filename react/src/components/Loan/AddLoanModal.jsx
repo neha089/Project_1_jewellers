@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, User, Phone, Mail, Plus, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
-import ApiService from '../services/api.js';
+import ApiService from '../../services/api.js';
 
 const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
   const [step, setStep] = useState(1);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, DollarSign, Calculator } from "lucide-react";
-import ApiService from "../services/api";
+import ApiService from "../../services/api";
 
 const SummaryCards = () => {
   const [stats, setStats] = useState({

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
 import Customer from './pages/Customers';
 import Balances from './pages/Balances';
 import GoldLoan from './pages/GoldLoan';
@@ -31,8 +30,8 @@ const SimpleRouter = () => {
         return <GoldLoan />;
       case '/analytics':
         return <Analysis />;
-      default:
-        return <Dashboard />;
+      default :
+      return <Transactions/>
     }
   };
 

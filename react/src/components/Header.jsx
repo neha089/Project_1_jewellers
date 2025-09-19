@@ -24,7 +24,7 @@ const Header = ({ toggleSidebar, isMobile, onNotificationClick }) => {
         return 'SilverLoan Management';
       case '/loan':
         return 'Loan Management';
-      case '/bussiness-expense':
+      case '/business-expense':
         return 'Business - Expense';
       case '/transactions':
         return 'Transactions';

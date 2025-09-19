@@ -121,11 +121,7 @@ const silverTransactionSchema = new mongoose.Schema({
     default: 0 // Remaining amount in paise
   },
   
-  paymentStatus: {
-    type: String,
-    enum: ["PAID", "PARTIAL", "PENDING"],
-    default: "PAID"
-  },
+
   
   paymentMode: {
     type: String,

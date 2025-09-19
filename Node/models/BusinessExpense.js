@@ -91,13 +91,7 @@ const businessExpenseSchema = new mongoose.Schema({
     min: 0
   },
   
-  // Payment details
-  paymentStatus: {
-    type: String,
-    enum: ['PENDING', 'PAID', 'PARTIAL', 'OVERDUE', 'CANCELLED'],
-    default: 'PENDING',
-    index: true
-  },
+
   
   paymentMethod: {
     type: String,

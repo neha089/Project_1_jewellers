@@ -119,7 +119,7 @@ const ExpenseTable = ({ expenses, onEdit, onDelete, onStatusToggle, loading }) =
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="space-y-2">
                                         <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusBadgeColor(expense.status)}`}>
-                                            {expense.status}
+                                            {'PAID'}
                                         </span>
                                         {expense.paymentMethod && (
                                             <div className="text-xs text-slate-500">

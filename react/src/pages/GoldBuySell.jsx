@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, RefreshCw, AlertCircle, X } from 'lucide-react';
 import ApiService from '../services/api';
 import MetalPriceService from '../services/metalPriceService';
-import GoldTransactionForm from '../components/GoldTransactionForm';
+import GoldTransactionForm from '../components/GoldBuySell/GoldTransactionForm';
 import TransactionViewModal from '../components/TransactionViewModal';
-import GStatsCards from '../components/GStatsCards';
-import MetalRatesDisplay from '../components/MetalRatesDisplay';
+import GStatsCards from '../components/GoldBuySell/GStatsCards';
+import MetalRatesDisplay from '../components/GoldBuySell/MetalRatesDisplay';
 import TransactionTable from '../components/TransactionTable';
 import EmptyState from '../components/EmptyState';
 import CustomerSearch

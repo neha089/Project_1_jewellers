@@ -166,7 +166,7 @@ const TransactionTable = ({
           <tbody className="bg-white divide-y divide-gray-200">
             {transactions.map((transaction, index) => {
               const person = getTransactionPerson(transaction);
-              const status = getTransactionStatus(transaction);
+              const status = 'PAID'
               
               return (
                 <tr key={transaction._id || transaction.id || index} className="hover:bg-gray-50">
@@ -205,7 +205,7 @@ const TransactionTable = ({
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.className}`}>
-                      {status.status}
+                      {status}
                     </span>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">

@@ -59,13 +59,7 @@ const TransactionViewModal = ({ transaction, onClose, onEdit }) => {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Transaction Details</h2>
             <div className="flex items-center gap-2">
-              <button
-                onClick={onEdit}
-                className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </button>
+            
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600"
@@ -114,7 +108,7 @@ const TransactionViewModal = ({ transaction, onClose, onEdit }) => {
                         ? 'bg-yellow-100 text-yellow-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
-                      {transaction.paymentStatus || 'PENDING'}
+                      {transaction.paymentStatus || 'PAID'}
                     </span>
                   </div>
                   {transaction.notes && (
@@ -291,13 +285,7 @@ const TransactionViewModal = ({ transaction, onClose, onEdit }) => {
             >
               Close
             </button>
-            <button
-              onClick={onEdit}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Transaction
-            </button>
+            
           </div>
         </div>
       </div>
