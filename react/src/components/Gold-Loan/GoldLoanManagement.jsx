@@ -230,14 +230,14 @@ const GoldLoanManagement = () => {
     try {
       const response = await ApiService.createGoldLoan(formData);
       if (response.success) {
-        setShowAddModal(false);
         await loadGoldLoans(); // Refresh the list
-        alert('Gold loan created successfully!');
       }
     } catch (error) {
       alert('Error creating gold loan: ' + error.message);
+      throw error; // Re-throw to let modal catch it
     }
   };
+  
 
   const handleEdit = (loan) => {
     // For now, just show an alert. You can implement edit modal later
@@ -717,3 +717,6 @@ const GoldLoanManagement = () => {
 };
 
 export default GoldLoanManagement;
+
+
+// export default InterestPaymentModal;
