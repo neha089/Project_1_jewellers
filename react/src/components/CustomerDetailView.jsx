@@ -6,29 +6,29 @@ import LoanTab from "./LoanTab";
 import UdhariTab from "./UdhariTab";
 import GoldTransactionTab from "./GoldTransactionTab";
 import SilverTransactionTab from "./SilverTransactionTab";
-// import ApiService from "../services/api.js";
+import ApiService from "../services/api";
 
 const CustomerDetailView = ({ customerId, onBack }) => {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('info');
-  const [transactionData, setTransactionData] = useState({
-    goldLoans: [],
-    loans: [],
-    udhari: [],
-    goldTransactions: [],
-    silverTransactions: []
+  const [transactionCounts, setTransactionCounts] = useState({
+    goldLoans: 0,
+    loans: 0,
+    udhari: 0,
+    goldTransactions: 0,
+    silverTransactions: 0
   });
 
   // Tab configuration
   const tabs = [
     { id: 'info', label: 'Customer Info', icon: User },
-    { id: 'goldLoan', label: 'Gold Loans', icon: TrendingUp, count: transactionData.goldLoans.length },
-    { id: 'loan', label: 'Loans', icon: IndianRupee, count: transactionData.loans.length },
-    { id: 'udhari', label: 'Udhari', icon: Calendar, count: transactionData.udhari.length },
-    { id: 'goldTransaction', label: 'Gold Buy/Sell', icon: TrendingUp, count: transactionData.goldTransactions.length },
-    { id: 'silverTransaction', label: 'Silver Buy/Sell', icon: TrendingUp, count: transactionData.silverTransactions.length }
+    { id: 'goldLoan', label: 'Gold Loans', icon: TrendingUp, count: transactionCounts.goldLoans },
+    { id: 'loan', label: 'Loans', icon: IndianRupee, count: transactionCounts.loans },
+    { id: 'udhari', label: 'Udhari', icon: Calendar, count: transactionCounts.udhari },
+    { id: 'goldTransaction', label: 'Gold Buy/Sell', icon: TrendingUp, count: transactionCounts.goldTransactions },
+    { id: 'silverTransaction', label: 'Silver Buy/Sell', icon: TrendingUp, count: transactionCounts.silverTransactions }
   ];
 
   // Load customer data
@@ -37,171 +37,58 @@ const CustomerDetailView = ({ customerId, onBack }) => {
       setLoading(true);
       setError(null);
 
-      // For now, using dummy data - replace with actual API calls
-      const dummyCustomer = {
-        _id: customerId,
-        name: "Neha Sharma",
-        phone: "9866543210",
-        email: "neha@example.com",
-        address: {
-          street: "123 Main St",
-          city: "Mumbai",
-          state: "Maharashtra",
-          pincode: "400001"
-        },
-        adhaarNumber: "123456789000",
-        city: "Mumbai",
-        state: "Maharashtra",
-        pincode: "400001",
-        totalAmountTakenFromJewellers: 500000,
-        totalAmountTakenByUs: 300000,
-        status: "active",
-        createdAt: "2025-08-27T12:48:46.273Z",
-        updatedAt: "2025-08-27T12:48:46.273Z"
-      };
-
-      // Dummy transaction data
-      const dummyTransactionData = {
-        goldLoans: [
-          {
-            id: '1',
-            amount: 50000,
-            interestRate: 1.5,
-            startDate: '2024-01-15',
-            dueDate: '2024-07-15',
-            status: 'active',
-            goldWeight: 25,
-            goldPurity: '22K',
-            interestPaid: 15000,
-            principalPaid: 10000,
-            remainingAmount: 40000,
-            payments: [
-              { date: '2024-02-15', type: 'interest', amount: 5000 },
-              { date: '2024-03-15', type: 'interest', amount: 5000 },
-              { date: '2024-04-15', type: 'principal', amount: 10000 }
-            ]
-          },
-          {
-            id: '2',
-            amount: 75000,
-            interestRate: 1.5,
-            startDate: '2024-03-01',
-            dueDate: '2024-09-01',
-            status: 'active',
-            goldWeight: 35,
-            goldPurity: '18K',
-            interestPaid: 7500,
-            principalPaid: 0,
-            remainingAmount: 75000,
-            payments: [
-              { date: '2024-04-01', type: 'interest', amount: 3750 },
-              { date: '2024-05-01', type: 'interest', amount: 3750 }
-            ]
-          }
-        ],
-        loans: [
-          {
-            id: '1',
-            amount: 25000,
-            interestRate: 2,
-            startDate: '2024-02-01',
-            dueDate: '2024-08-01',
-            status: 'completed',
-            purpose: 'Business',
-            collateral: 'Property Documents',
-            totalPaid: 25000,
-            interestPaid: 3000
-          }
-        ],
-        udhari: [
-          {
-            id: '1',
-            amount: 5000,
-            date: '2024-08-15',
-            description: 'Emergency cash',
-            status: 'pending',
-            dueDate: '2024-09-15'
-          },
-          {
-            id: '2',
-            amount: 2000,
-            date: '2024-08-20',
-            description: 'Medical expenses',
-            status: 'paid',
-            paidDate: '2024-08-25'
-          }
-        ],
-        goldTransactions: [
-          {
-            id: '1',
-            type: 'buy',
-            weight: 10,
-            purity: '22K',
-            rate: 6000,
-            amount: 60000,
-            date: '2024-07-15',
-            invoiceNumber: 'GB001'
-          },
-          {
-            id: '2',
-            type: 'sell',
-            weight: 5,
-            purity: '18K',
-            rate: 5800,
-            amount: 29000,
-            date: '2024-08-10',
-            invoiceNumber: 'GS001'
-          }
-        ],
-        silverTransactions: [
-          {
-            id: '1',
-            type: 'buy',
-            weight: 100,
-            rate: 80,
-            amount: 8000,
-            date: '2024-06-20',
-            invoiceNumber: 'SB001'
-          }
-        ]
-      };
-
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      setCustomer(dummyCustomer);
-      setTransactionData(dummyTransactionData);
-
-      // Real API calls (uncomment when available)
-      /*
+      // Load customer details
       const customerResponse = await ApiService.getCustomerById(customerId);
       if (customerResponse.success) {
         setCustomer(customerResponse.data);
+      } else {
+        throw new Error('Customer not found');
       }
 
-      // Load all transaction data
-      const [goldLoansRes, loansRes, udhariRes, goldTransRes, silverTransRes] = await Promise.all([
-        ApiService.getGoldLoansByCustomer(customerId),
-        ApiService.getLoansByCustomer(customerId),
-        ApiService.getUdhariByCustomer(customerId),
-        ApiService.getGoldTransactionsByCustomer(customerId),
-        ApiService.getSilverTransactionsByCustomer(customerId)
-      ]);
-
-      setTransactionData({
-        goldLoans: goldLoansRes.success ? goldLoansRes.data : [],
-        loans: loansRes.success ? loansRes.data : [],
-        udhari: udhariRes.success ? udhariRes.data : [],
-        goldTransactions: goldTransRes.success ? goldTransRes.data : [],
-        silverTransactions: silverTransRes.success ? silverTransRes.data : []
-      });
-      */
+      // Load transaction counts for tabs
+      await loadTransactionCounts();
 
     } catch (error) {
       console.error('Error loading customer data:', error);
       setError(error.message || 'Failed to load customer data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load transaction counts for tab badges
+  const loadTransactionCounts = async () => {
+    try {
+      const counts = { ...transactionCounts };
+
+      // Load gold transactions count
+      try {
+        const goldResponse = await ApiService.getGoldTransactions({ customerId, limit: 1 });
+        if (goldResponse.success) {
+          counts.goldTransactions = goldResponse.pagination?.totalCount || goldResponse.data?.length || 0;
+        }
+      } catch (error) {
+        console.error('Error loading gold transactions count:', error);
+      }
+
+      // Load silver transactions count
+      try {
+        const silverResponse = await ApiService.getSilverTransactions({ customerId, limit: 1 });
+        if (silverResponse.success) {
+          counts.silverTransactions = silverResponse.pagination?.totalCount || silverResponse.data?.length || 0;
+        }
+      } catch (error) {
+        console.error('Error loading silver transactions count:', error);
+      }
+
+      // For now, set other counts to 0 (implement when those APIs are ready)
+      counts.goldLoans = 0;
+      counts.loans = 0;
+      counts.udhari = 0;
+
+      setTransactionCounts(counts);
+    } catch (error) {
+      console.error('Error loading transaction counts:', error);
     }
   };
 
@@ -276,18 +163,30 @@ const CustomerDetailView = ({ customerId, onBack }) => {
       case 'info':
         return <CustomerInfoTab customer={customer} onRefresh={handleRefresh} />;
       case 'goldLoan':
-        return <GoldLoanTab goldLoans={transactionData.goldLoans} customerId={customerId} onRefresh={handleRefresh} />;
+        return <GoldLoanTab customerId={customerId} onRefresh={handleRefresh} />;
       case 'loan':
-        return <LoanTab loans={transactionData.loans} customerId={customerId} onRefresh={handleRefresh} />;
+        return <LoanTab customerId={customerId} onRefresh={handleRefresh} />;
       case 'udhari':
-        return <UdhariTab udhari={transactionData.udhari} customerId={customerId} onRefresh={handleRefresh} />;
+        return <UdhariTab customerId={customerId} onRefresh={handleRefresh} />;
       case 'goldTransaction':
-        return <GoldTransactionTab transactions={transactionData.goldTransactions} customerId={customerId} onRefresh={handleRefresh} />;
+        return <GoldTransactionTab customerId={customerId} onRefresh={handleRefresh} />;
       case 'silverTransaction':
-        return <SilverTransactionTab transactions={transactionData.silverTransactions} customerId={customerId} onRefresh={handleRefresh} />;
+        return <SilverTransactionTab customerId={customerId} onRefresh={handleRefresh} />;
       default:
         return <CustomerInfoTab customer={customer} onRefresh={handleRefresh} />;
     }
+  };
+
+  // Helper function to format customer address
+  const getFormattedAddress = () => {
+    if (typeof customer.address === 'string') {
+      return customer.address;
+    }
+    if (customer.address && typeof customer.address === 'object') {
+      const { street, city, state, pincode } = customer.address;
+      return [street, city, state, pincode].filter(Boolean).join(', ');
+    }
+    return `${customer.city || ''}, ${customer.state || ''}`.replace(/^, |, $/, '');
   };
 
   return (
@@ -304,20 +203,28 @@ const CustomerDetailView = ({ customerId, onBack }) => {
                 <ArrowLeft size={20} />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {customer.name || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'N/A'}
+                </h1>
                 <div className="flex items-center gap-4 mt-1">
-                  <div className="flex items-center gap-1 text-sm text-gray-600">
-                    <Phone size={14} />
-                    {customer.phone}
-                  </div>
-                  <div className="flex items-center gap-1 text-sm text-gray-600">
-                    <Mail size={14} />
-                    {customer.email}
-                  </div>
-                  <div className="flex items-center gap-1 text-sm text-gray-600">
-                    <MapPin size={14} />
-                    {customer.city}, {customer.state}
-                  </div>
+                  {(customer.phone || customer.phoneNumber) && (
+                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                      <Phone size={14} />
+                      {customer.phone || customer.phoneNumber}
+                    </div>
+                  )}
+                  {customer.email && (
+                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                      <Mail size={14} />
+                      {customer.email}
+                    </div>
+                  )}
+                  {getFormattedAddress() && (
+                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                      <MapPin size={14} />
+                      {getFormattedAddress()}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -327,7 +234,7 @@ const CustomerDetailView = ({ customerId, onBack }) => {
                   ? 'bg-green-100 text-green-800' 
                   : 'bg-red-100 text-red-800'
               }`}>
-                {customer.status.charAt(0).toUpperCase() + customer.status.slice(1)}
+                {customer.status ? customer.status.charAt(0).toUpperCase() + customer.status.slice(1) : 'Active'}
               </span>
               <button
                 onClick={handleRefresh}
@@ -359,7 +266,7 @@ const CustomerDetailView = ({ customerId, onBack }) => {
                 >
                   <Icon size={16} />
                   {tab.label}
-                  {tab.count !== undefined && (
+                  {tab.count !== undefined && tab.count > 0 && (
                     <span className={`ml-1 px-2 py-0.5 text-xs rounded-full ${
                       activeTab === tab.id
                         ? 'bg-blue-100 text-blue-600'
