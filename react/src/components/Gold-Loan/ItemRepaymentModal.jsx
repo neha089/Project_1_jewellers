@@ -32,7 +32,7 @@ const ItemRepaymentModal = ({
   isOpen,
   onClose,
   loan,
-  onReturnSuccess
+  onRepaymentSuccess
 }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -343,8 +343,8 @@ const ItemRepaymentModal = ({
           : `${selectedItems.length} items returned successfully! ₹${calculations.remainingLoanAmount.toLocaleString()} remaining.`;
         
         setSuccess(message);
+        onRepaymentSuccess?.(result);
         setTimeout(() => {
-          onReturnSuccess?.(result);
           onClose();
         }, 3000);
       } else {
