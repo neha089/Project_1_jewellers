@@ -107,7 +107,15 @@ class ApiService {
   async searchCustomers(query) {
     return this.get(`/api/customers/search?q=${encodeURIComponent(query)}`);
   }
-
+async getCustomerById(customerId) {
+    return this.get(`/api/customers/${customerId}`);
+  }
+  async getCustomerTakenLoans(customerId) {
+    return this.get(`/api/loans/customer/${customerId}?loanType=TAKEN`);
+  }
+  async getCustomerGivenLoans(customerId) { 
+    return this.get(`/api/loans/customer/${customerId}?loanType=GIVEN`);
+  }
   async createCustomer(customerData) {
     return this.post('/api/customers', customerData);
   }
