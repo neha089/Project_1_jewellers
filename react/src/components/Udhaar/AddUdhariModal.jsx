@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Search, Plus, User, DollarSign, AlertCircle, Loader2, Phone, Mail } from 'lucide-react';
-import ApiService from '../services/api.js';
-import CreateCustomerForm from './CreateCustomerForm';
+import ApiService from '../../services/api.js';
+import CreateCustomerForm from '../CreateCustomerForm';
 
 const AddUdharModal = ({ isOpen, onClose, onSuccess }) => {
   const [step, setStep] = useState(1);

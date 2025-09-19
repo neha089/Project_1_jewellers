@@ -56,6 +56,13 @@ const incomeCategories = [
     icon: CreditCard,
     color: "orange",
     shortLabel: "Loan Taken"
+  },
+   {
+    id: "udhari-taken",
+    label: "Udhari Taken From Someone",
+    icon: Banknote,
+    color: "blue",
+    shortLabel: "Udhari Given"
   }
 ];
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, TrendingUp, TrendingDown, DollarSign, RefreshCw, Loader2, AlertCircle, Building } from 'lucide-react';
 import ApiService from '../services/api.js';
-import AddUdharModal from '../components/AddUdhariModal';
-import UdhariCard from '../components/UdhariCard';
-import UdhariDetailModal from '../components/UdhariDetailModal';
-import UdhariPaymentModal from '../components/UdhariPaymentModal';
+import AddUdharModal from '../components/Udhaar/AddUdhariModal';
+import UdhariCard from '../components/Udhaar/UdhariCard';
+import UdhariDetailModal from '../components/Udhaar/UdhariDetailModal';
+import UdhariPaymentModal from '../components//Udhaar/UdhariPaymentModal';
 import CustomerSearch from "../components/CustomerSearch";
 
 const Udhaar = () => {

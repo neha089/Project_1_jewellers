@@ -9,8 +9,11 @@ import LoanFields from "../LoanFields";
 import PhotoUpload from "../PhotoUpload";
 import InterestSummaryCard from "../InterestSummaryCard";
 import GoldLoanRepayment from "../GoldLoanRepayment";
-import UdhariSelector from "../UdhariSelector";
-import UdhariTransactionForm from "../UdhariTransactionForm";
+import AddLoanModal from "../AddLoanModal";
+import LInterestPaymentModal from "../Loan/LInterestPaymentModal";
+import LoanPaymentModal from "../Loan/LoanPaymentModal";
+import AddUdharModal from "../AddUdhariModal";
+import UdhariPaymentModal from "../Udhaar/UdhariPaymentModal";
 import MetalItemsManager from "../MetalItemsManager";
 
 const TransactionForm = ({
@@ -21,25 +24,14 @@ const TransactionForm = ({
   onCancel,
   onSuccess,
 }) => {
-  // Check if this is an Udhari transaction
-  const isUdhariTransaction = selectedCategory?.id.includes("udhari");
-  
-  // If it's an Udhari transaction, render the specialized form
-  if (isUdhariTransaction) {
-    return (
-      <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
-        <div className="max-w-5xl mx-auto">
-          <UdhariTransactionForm
-            selectedCustomer={selectedCustomer}
-            selectedCategory={selectedCategory}
-            onSuccess={onSuccess}
-            onCancel={onCancel}
-            onBack={onBack}
-          />
-        </div>
-      </div>
-    );
-  }
+  // State for controlling modal visibility
+  const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
+  const [isInterestModalOpen, setIsInterestModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isUdharModalOpen, setIsUdharModalOpen] = useState(false);
+  const [isUdharPaymentModalOpen, setIsUdharPaymentModalOpen] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [selectedUdhar, setSelectedUdhar] = useState(null);
 
   const [transactionData, setTransactionData] = useState({
     amount: "",
@@ -53,9 +45,7 @@ const TransactionForm = ({
     durationMonths: "6",
     selectedLoanId: "",
     photos: [],
-    // New fields for gold/silver individual items
     items: [],
-    // For purchases/sales
     partyName: "",
     supplierName: "",
     supplierPhone: "",
@@ -64,71 +54,108 @@ const TransactionForm = ({
     advanceAmount: "0",
     paymentMode: "CASH",
     billNumber: "",
-    // For loan repayment
-    repaymentType: "partial", // "partial" or "full"
+    repaymentType: "partial",
     principalAmount: "",
     interestAmount: "",
-    // For udhari selection
     selectedUdhariId: "",
   });
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [availableLoans, setAvailableLoans] = useState([]);
+  const [availableUdhars, setAvailableUdhars] = useState([]);
   const [loadingLoans, setLoadingLoans] = useState(false);
   const [currentMetalPrices, setCurrentMetalPrices] = useState(null);
   const [interestSummary, setInterestSummary] = useState(null);
 
-  // Load available loans and metal prices
+  // Load available loans and udhars
   useEffect(() => {
     const isInterestPayment = selectedCategory?.id.includes("interest-received");
     const isRepayment = selectedCategory?.id.includes("repayment");
-    
+    const isUdhari = selectedCategory?.id.includes("udhari");
+
     if ((isInterestPayment || isRepayment) && selectedCustomer) {
       fetchCustomerLoans();
+      if (isUdhari) {
+        fetchCustomerUdhars();
+      }
     }
 
     // Fetch current metal prices for gold/silver-related transactions
     if (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver")) {
       fetchCurrentMetalPrices();
     }
-  }, [selectedCategory, selectedCustomer]);
+
+    // Open modals based on category
+    if (selectedCategory?.id === "business-loan-given" || selectedCategory?.id === "business-loan-taken") {
+      setIsLoanModalOpen(true);
+    } else if (selectedCategory?.id === "interest-received-l" && transactionData.selectedLoanId) {
+      const loan = availableLoans.find((loan) => loan._id === transactionData.selectedLoanId);
+      if (loan) {
+        setSelectedLoan(loan);
+        setIsInterestModalOpen(true);
+      }
+    } else if (selectedCategory?.id === "loan-repayment" && transactionData.selectedLoanId) {
+      const loan = availableLoans.find((loan) => loan._id === transactionData.selectedLoanId);
+      if (loan) {
+        setSelectedLoan(loan);
+        setIsPaymentModalOpen(true);
+      }
+    } else if (selectedCategory?.id === "udhari-given" || selectedCategory?.id === "udhari-taken") {
+      setIsUdharModalOpen(true);
+    } else if (selectedCategory?.id === "udhari-repayment" && transactionData.selectedUdhariId) {
+      const udhar = availableUdhars.find((udhar) => udhar._id === transactionData.selectedUdhariId);
+      if (udhar) {
+        setSelectedUdhar(udhar);
+        setIsUdharPaymentModalOpen(true);
+      }
+    }
+  }, [
+    selectedCategory,
+    selectedCustomer,
+    transactionData.selectedLoanId,
+    transactionData.selectedUdhariId,
+    availableLoans,
+    availableUdhars,
+  ]);
 
   // Auto-calculate interest amount when loan is selected
   useEffect(() => {
-    if (transactionData.selectedLoanId && selectedCategory?.id.includes("interest-received")) {
+    if (transactionData.selectedLoanId && selectedCategory?.id.includes("interest-received-gl")) {
       calculateAndSetInterestAmount();
     }
   }, [transactionData.selectedLoanId]);
 
   // Calculate suggested amounts for loan repayment
   useEffect(() => {
-    if (transactionData.selectedLoanId && selectedCategory?.id === "loan-repayment") {
+    if (transactionData.selectedLoanId && selectedCategory?.id === "gold-loan-repayment") {
       calculateLoanRepaymentAmounts();
     }
   }, [transactionData.selectedLoanId, selectedCategory?.id]);
 
   // Auto-calculate total amount for metal transactions with individual items
   useEffect(() => {
-    if ((selectedCategory?.id.includes("gold-sell") || selectedCategory?.id.includes("silver-sell")) && 
-        transactionData.items.length > 0) {
+    if (
+      (selectedCategory?.id.includes("gold-sell") || selectedCategory?.id.includes("silver-sell")) &&
+      transactionData.items.length > 0
+    ) {
       const totalAmount = transactionData.items.reduce((sum, item) => {
         const weight = parseFloat(item.weight) || 0;
         const rate = parseFloat(item.ratePerGram) || 0;
         const makingCharges = parseFloat(item.makingCharges) || 0;
         const wastage = parseFloat(item.wastage) || 0;
         const taxAmount = parseFloat(item.taxAmount) || 0;
-        
+
         const baseAmount = weight * rate;
         const wastageAmount = (baseAmount * wastage) / 100;
         const itemTotal = baseAmount + wastageAmount + makingCharges + taxAmount;
-        
+
         return sum + itemTotal;
       }, 0);
-      
-      setTransactionData(prev => ({
+
+      setTransactionData((prev) => ({
         ...prev,
-        amount: totalAmount.toFixed(2)
+        amount: totalAmount.toFixed(2),
       }));
     }
   }, [transactionData.items, selectedCategory?.id]);
@@ -137,13 +164,15 @@ const TransactionForm = ({
     try {
       const prices = await MetalPriceService.getCurrentPrices();
       setCurrentMetalPrices(prices);
-      
-      // Initialize first item with current price if items are empty
-      if (transactionData.items.length === 0 && (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver"))) {
+
+      if (
+        transactionData.items.length === 0 &&
+        (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver"))
+      ) {
         const metalType = selectedCategory?.id.includes("gold") ? "Gold" : "Silver";
         const defaultPurity = metalType === "Gold" ? "22K" : "925";
         const currentPrice = metalType === "Gold" ? prices.gold.rates[defaultPurity] : prices.silver.rates[defaultPurity];
-        
+
         const newItem = {
           id: Date.now(),
           itemName: "",
@@ -156,12 +185,12 @@ const TransactionForm = ({
           taxAmount: "0",
           photos: [],
           hallmarkNumber: "",
-          certificateNumber: ""
+          certificateNumber: "",
         };
-        
-        setTransactionData(prev => ({
+
+        setTransactionData((prev) => ({
           ...prev,
-          items: [newItem]
+          items: [newItem],
         }));
       }
     } catch (error) {
@@ -173,45 +202,53 @@ const TransactionForm = ({
     setLoadingLoans(true);
     try {
       let loans = [];
-      if (selectedCategory.id === "interest-received-gl" || selectedCategory.id === "gold-loan-repayment") {
+      if (
+        selectedCategory.id === "interest-received-gl" ||
+        selectedCategory.id === "gold-loan-repayment"
+      ) {
         const response = await ApiService.getGoldLoansByCustomer(selectedCustomer._id);
         loans = response.data || [];
-      } else if (selectedCategory.id === "interest-received-l" || selectedCategory.id === "loan-repayment") {
+      } else if (
+        selectedCategory.id === "interest-received-l" ||
+        selectedCategory.id === "loan-repayment"
+      ) {
         const response = await ApiService.getLoansByCustomer(selectedCustomer._id);
         loans = response.data || [];
       }
-      setAvailableLoans(loans.filter(loan => loan.status === 'ACTIVE' || loan.status === 'PARTIALLY_PAID'));
+      setAvailableLoans(loans.filter((loan) => loan.status === "ACTIVE" || loan.status === "PARTIALLY_PAID"));
     } catch (error) {
       console.error("Failed to fetch loans:", error);
-      setErrors(prev => ({...prev, loans: "Failed to load loans"}));
+      setErrors((prev) => ({ ...prev, loans: "Failed to load loans" }));
     } finally {
       setLoadingLoans(false);
     }
   };
 
+  const fetchCustomerUdhars = async () => {
+    try {
+      const response = await ApiService.getUdharsByCustomer(selectedCustomer._id);
+      setAvailableUdhars(response.data || []);
+    } catch (error) {
+      console.error("Failed to fetch udhars:", error);
+      setErrors((prev) => ({ ...prev, udhars: "Failed to load udhars" }));
+    }
+  };
+
   const calculateAndSetInterestAmount = async () => {
-    const selectedLoan = availableLoans.find(loan => loan._id === transactionData.selectedLoanId);
+    const selectedLoan = availableLoans.find((loan) => loan._id === transactionData.selectedLoanId);
     if (!selectedLoan) return;
 
     try {
       if (selectedCategory.id === "interest-received-gl") {
         const summary = await ApiService.getGoldLoanInterestSummary(selectedLoan._id);
         setInterestSummary(summary.data);
-        
+
         if (summary.data?.suggestedInterestAmount) {
-          setTransactionData(prev => ({
+          setTransactionData((prev) => ({
             ...prev,
-            amount: summary.data.suggestedInterestAmount.toString()
+            amount: summary.data.suggestedInterestAmount.toString(),
           }));
         }
-      } else if (selectedCategory.id === "interest-received-l") {
-        const monthlyInterest = selectedLoan.outstandingPrincipal ? 
-          (selectedLoan.outstandingPrincipal * selectedLoan.interestRateMonthlyPct) / 100 / 100 : 0;
-        
-        setTransactionData(prev => ({
-          ...prev,
-          amount: monthlyInterest.toFixed(2)
-        }));
       }
     } catch (error) {
       console.error("Failed to calculate interest:", error);
@@ -219,72 +256,55 @@ const TransactionForm = ({
   };
 
   const calculateLoanRepaymentAmounts = async () => {
-    const selectedLoan = availableLoans.find(loan => loan._id === transactionData.selectedLoanId);
+    const selectedLoan = availableLoans.find((loan) => loan._id === transactionData.selectedLoanId);
     if (!selectedLoan) return;
-  
+
     try {
       const response = await ApiService.getLoanDetails(selectedLoan._id);
       const loanDetails = response.data;
-      
+
       const outstandingPrincipal = loanDetails.outstandingPrincipal / 100;
       const pendingInterest = loanDetails.paymentStatus?.pendingAmount / 100 || 0;
-      
-      setTransactionData(prev => ({
+
+      setTransactionData((prev) => ({
         ...prev,
         principalAmount: outstandingPrincipal.toString(),
         interestAmount: pendingInterest.toString(),
-        amount: prev.repaymentType === "full" 
-          ? (outstandingPrincipal + pendingInterest).toString()
-          : prev.amount
+        amount: prev.repaymentType === "full" ? (outstandingPrincipal + pendingInterest).toString() : prev.amount,
       }));
     } catch (error) {
       console.error("Failed to calculate loan repayment amounts:", error);
     }
   };
+
   const handleDataChange = (e) => {
     const { name, value } = e.target;
     setTransactionData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
-
-    // Handle repayment type changes
-    if (name === "repaymentType" && selectedCategory?.id === "loan-repayment") {
-      if (value === "full") {
-        const principal = parseFloat(transactionData.principalAmount) || 0;
-        const interest = parseFloat(transactionData.interestAmount) || 0;
-        setTransactionData(prev => ({
-          ...prev,
-          amount: (principal + interest).toFixed(2)
-        }));
-      } else {
-        setTransactionData(prev => ({
-          ...prev,
-          amount: ""
-        }));
-      }
-    }
   };
 
   const handleItemsChange = (items) => {
-    setTransactionData(prev => ({ ...prev, items }));
+    setTransactionData((prev) => ({ ...prev, items }));
     if (errors.items) {
-      setErrors(prev => ({ ...prev, items: "" }));
+      setErrors((prev) => ({ ...prev, items: "" }));
     }
   };
 
   const updateTransactionData = (updates) => {
-    setTransactionData(prev => ({ ...prev, ...updates }));
+    setTransactionData((prev) => ({ ...prev, ...updates }));
   };
 
   const validateForm = () => {
     const newErrors = {};
-
-    // Validation for metal transactions with individual items
     const isMetalTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
-    const isMetalBuySell = (selectedCategory?.id.includes("gold-sell") || selectedCategory?.id.includes("gold-purchase") || 
-                           selectedCategory?.id.includes("silver-sell") || selectedCategory?.id.includes("silver-purchase"));
-    
+    const isMetalBuySell =
+      selectedCategory?.id.includes("gold-sell") ||
+      selectedCategory?.id.includes("gold-purchase") ||
+      selectedCategory?.id.includes("silver-sell") ||
+      selectedCategory?.id.includes("silver-purchase");
+
     if (isMetalTransaction && isMetalBuySell) {
       if (transactionData.items.length === 0) {
         newErrors.items = "At least one item is required";
@@ -302,7 +322,6 @@ const TransactionForm = ({
         });
       }
     } else if (selectedCategory?.id === "gold-loan") {
-      // Existing gold loan validation
       if (transactionData.items.length === 0) {
         newErrors.items = "At least one item is required";
       } else {
@@ -318,33 +337,15 @@ const TransactionForm = ({
           }
         });
       }
-    } else 
-    if (selectedCategory?.id === "loan-repayment") {
-      if (transactionData.repaymentType === "full") {
-        const principal = parseFloat(transactionData.principalAmount) || 0;
-        const interest = parseFloat(transactionData.interestAmount) || 0;
-        const totalAmount = principal + interest;
-        
-        if (totalAmount <= 0) {
-          newErrors.amount = "Valid payment amount is required for full repayment";
-        }
-        
-        // Update amount to match total for full repayment
-        if (totalAmount > 0) {
-          setTransactionData(prev => ({
-            ...prev,
-            amount: totalAmount.toString()
-          }));
-        }
-      } else if (transactionData.repaymentType === "partial") {
-        const amount = parseFloat(transactionData.amount) || 0;
-        if (amount <= 0) {
-          newErrors.amount = "Valid amount is required for partial repayment";
-        }
-      }
-    }
-     else if (!selectedCategory?.id.includes("gold-loan-repayment") && !isMetalBuySell) {
-      // Regular amount validation for other transaction types
+    } else if (
+      !selectedCategory?.id.includes("gold-loan-repayment") &&
+      !selectedCategory?.id.includes("business-loan-given") &&
+      !selectedCategory?.id.includes("business-loan-taken") &&
+      !selectedCategory?.id.includes("interest-received-l") &&
+      !selectedCategory?.id.includes("loan-repayment") &&
+      !selectedCategory?.id.includes("udhari") &&
+      !isMetalBuySell
+    ) {
       if (!transactionData.amount.trim() || parseFloat(transactionData.amount) <= 0) {
         newErrors.amount = "Valid amount is required";
       }
@@ -352,8 +353,11 @@ const TransactionForm = ({
 
     const isInterestPayment = selectedCategory?.id.includes("interest-received");
     const isRepayment = selectedCategory?.id.includes("repayment");
-    if ((isInterestPayment || isRepayment) && !transactionData.selectedLoanId) {
+    if ((isInterestPayment || isRepayment) && !transactionData.selectedLoanId && selectedCategory?.id.includes("loan")) {
       newErrors.selectedLoanId = "Please select a loan";
+    }
+    if (isRepayment && selectedCategory?.id.includes("udhari") && !transactionData.selectedUdhariId) {
+      newErrors.selectedUdhariId = "Please select an udhari";
     }
 
     setErrors(newErrors);
@@ -387,7 +391,7 @@ const TransactionForm = ({
               weightGram: parseFloat(item.weight),
               amountPaise: Math.round(parseFloat(item.amount) * 100),
               purityK: parseInt(item.purity),
-              images: item.images?.map(img => img.dataUrl),
+              images: item.images?.map((img) => img.dataUrl),
             })),
             totalAmount: totalAmount,
             interestRate: transactionData.interestRate,
@@ -401,7 +405,7 @@ const TransactionForm = ({
           response = await ApiService.createGoldTransaction({
             transactionType: selectedCategory.id === "gold-sell" ? "SELL" : "BUY",
             customer: selectedCustomer._id,
-            items: transactionData.items.map(item => ({
+            items: transactionData.items.map((item) => ({
               itemName: item.itemName,
               description: item.description,
               purity: item.purity,
@@ -412,13 +416,13 @@ const TransactionForm = ({
               taxAmount: parseFloat(item.taxAmount || 0),
               photos: item.photos,
               hallmarkNumber: item.hallmarkNumber,
-              certificateNumber: item.certificateNumber
+              certificateNumber: item.certificateNumber,
             })),
             advanceAmount: parseFloat(transactionData.advanceAmount || 0),
             paymentMode: transactionData.paymentMode,
             notes: transactionData.description,
             billNumber: transactionData.billNumber,
-            fetchCurrentRates: true
+            fetchCurrentRates: true,
           });
           break;
 
@@ -427,7 +431,7 @@ const TransactionForm = ({
           response = await ApiService.createSilverTransaction({
             transactionType: selectedCategory.id === "silver-sell" ? "SELL" : "BUY",
             customer: selectedCustomer._id,
-            items: transactionData.items.map(item => ({
+            items: transactionData.items.map((item) => ({
               itemName: item.itemName,
               description: item.description,
               purity: item.purity,
@@ -438,13 +442,13 @@ const TransactionForm = ({
               taxAmount: parseFloat(item.taxAmount || 0),
               photos: item.photos,
               hallmarkNumber: item.hallmarkNumber,
-              certificateNumber: item.certificateNumber
+              certificateNumber: item.certificateNumber,
             })),
             advanceAmount: parseFloat(transactionData.advanceAmount || 0),
             paymentMode: transactionData.paymentMode,
             notes: transactionData.description,
             billNumber: transactionData.billNumber,
-            fetchCurrentRates: true
+            fetchCurrentRates: true,
           });
           break;
 
@@ -452,7 +456,7 @@ const TransactionForm = ({
           response = await ApiService.makeGoldLoanInterestPayment(
             transactionData.selectedLoanId,
             parseFloat(transactionData.amount),
-            transactionData.description || 'Interest payment received'
+            transactionData.description || "Interest payment received"
           );
           break;
 
@@ -460,67 +464,7 @@ const TransactionForm = ({
           response = { success: true };
           break;
 
-        case "business-loan-taken":
-          response = await ApiService.createLoan({
-            customerId: selectedCustomer._id,
-            amount: transactionData.amount,
-            interestRate: transactionData.interestRate,
-            durationMonths: transactionData.durationMonths,
-            description: transactionData.description,
-            date: transactionData.date,
-          }, 1);
-          break;
-        
-        case "business-loan-given":
-          response = await ApiService.createLoan({
-            customerId: selectedCustomer._id,
-            amount: transactionData.amount,
-            interestRate: transactionData.interestRate,
-            durationMonths: transactionData.durationMonths,
-            description: transactionData.description,
-            date: transactionData.date,
-          }, -1);
-          break;
-        
-        case "interest-received-l":
-          response = await ApiService.makeLoanInterestPayment(
-            transactionData.selectedLoanId,
-            parseFloat(transactionData.amount),
-            transactionData.description || 'Interest payment received'
-          );
-          break;
-        
-          case "loan-repayment":
-            let principal = 0;
-            let interest = 0;
-            
-            if (transactionData.repaymentType === "full") {
-              // For full repayment, use the calculated amounts
-              principal = parseFloat(transactionData.principalAmount) || 0;
-              interest = parseFloat(transactionData.interestAmount) || 0;
-            } else {
-              // For partial repayment, apply the amount to principal only
-              principal = parseFloat(transactionData.amount) || 0;
-              interest = 0; // No interest payment for partial repayment
-            }
-            
-            const paymentData = {
-              principal: principal,
-              interest: interest,
-              photos: transactionData.photos,
-              notes: transactionData.description || `${transactionData.repaymentType === "full" ? "Full" : "Partial"} loan repayment`
-            };
-            
-            console.log("Sending payment data:", paymentData); // Debug log
-            
-            response = await ApiService.makeLoanPayment(
-              transactionData.selectedLoanId,
-              paymentData
-            );
-            break;
-        
         default:
-          console.log("Transaction data:", commonData);
           response = { success: true };
           break;
       }
@@ -544,25 +488,108 @@ const TransactionForm = ({
   const isRepayment = selectedCategory?.id.includes("repayment");
   const isGoldLoan = selectedCategory?.id === "gold-loan";
   const isGoldLoanRepayment = selectedCategory?.id === "gold-loan-repayment";
-  const isLoanRepayment = selectedCategory?.id === "loan-repayment";
   const isMetalTransaction = selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver");
-  const isMetalBuySell = (selectedCategory?.id.includes("gold-sell") || selectedCategory?.id.includes("gold-purchase") || 
-                         selectedCategory?.id.includes("silver-sell") || selectedCategory?.id.includes("silver-purchase"));
+  const isMetalBuySell =
+    selectedCategory?.id.includes("gold-sell") ||
+    selectedCategory?.id.includes("gold-purchase") ||
+    selectedCategory?.id.includes("silver-sell") ||
+    selectedCategory?.id.includes("silver-purchase");
+  const isUdhariTransaction = selectedCategory?.id.includes("udhari");
+
+  // Render nothing if modals are handling the transaction
+  if (
+    selectedCategory?.id === "business-loan-given" ||
+    selectedCategory?.id === "business-loan-taken" ||
+    selectedCategory?.id === "interest-received-l" ||
+    selectedCategory?.id === "loan-repayment" ||
+    selectedCategory?.id === "udhari-given" ||
+    selectedCategory?.id === "udhari-taken" ||
+    selectedCategory?.id === "udhari-repayment"
+  ) {
+    return (
+      <>
+        {/* Loan Modals */}
+        <AddLoanModal
+          isOpen={isLoanModalOpen}
+          onClose={() => {
+            setIsLoanModalOpen(false);
+            onCancel();
+          }}
+          onSuccess={() => {
+            setIsLoanModalOpen(false);
+            onSuccess();
+          }}
+          selectedCustomer={selectedCustomer}
+          loanType={selectedCategory?.id === "business-loan-given" ? "given" : "taken"}
+        />
+        <LInterestPaymentModal
+          isOpen={isInterestModalOpen}
+          loan={selectedLoan}
+          onClose={() => {
+            setIsInterestModalOpen(false);
+            onCancel();
+          }}
+          onSuccess={() => {
+            setIsInterestModalOpen(false);
+            onSuccess();
+          }}
+        />
+        <LoanPaymentModal
+          isOpen={isPaymentModalOpen}
+          loan={selectedLoan}
+          onClose={() => {
+            setIsPaymentModalOpen(false);
+            onCancel();
+          }}
+          onSuccess={() => {
+            setIsPaymentModalOpen(false);
+            onSuccess();
+          }}
+        />
+        {/* Udhari Modals */}
+        <AddUdharModal
+          isOpen={isUdharModalOpen}
+          onClose={() => {
+            setIsUdharModalOpen(false);
+            onCancel();
+          }}
+          onSuccess={() => {
+            setIsUdharModalOpen(false);
+            onSuccess();
+          }}
+          selectedCustomer={selectedCustomer}
+          udharType={selectedCategory?.id === "udhari-given" ? "given" : "taken"}
+        />
+        <UdhariPaymentModal
+          isOpen={isUdharPaymentModalOpen}
+          udhari={selectedUdhar}
+          onClose={() => {
+            setIsUdharPaymentModalOpen(false);
+            onCancel();
+          }}
+          onSuccess={() => {
+            setIsUdharPaymentModalOpen(false);
+            onSuccess();
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="w-full px-3 sm:px-4 lg:px-6 xl:px-8">
       <div className="max-w-5xl mx-auto">
-        {/* Main Form Container */}
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 shadow-sm">
-          
-          {/* Header Section */}
           <div className="p-4 sm:p-5 lg:p-6 border-b border-gray-100">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              
-              {/* Transaction Info */}
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-${selectedCategory.color}-100 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0`}>
-                  <selectedCategory.icon size={20} className={`sm:w-6 sm:h-6 text-${selectedCategory.color}-600`} />
+                <div
+                  className={`w-10 h-10 sm:w-12 sm:h-12 bg-${selectedCategory.color}-100 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0`}
+                >
+                  <selectedCategory.icon
+                    size={20}
+                    className={`sm:w-6 sm:h-6 text-${selectedCategory.color}-600`}
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900 truncate">
@@ -573,10 +600,8 @@ const TransactionForm = ({
                   </p>
                 </div>
               </div>
-              
-              {/* Close Button */}
-              <button 
-                onClick={onBack} 
+              <button
+                onClick={onBack}
                 className="text-gray-500 hover:text-gray-700 p-1 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
               >
                 <X size={18} className="sm:w-5 sm:h-5" />
@@ -584,21 +609,15 @@ const TransactionForm = ({
             </div>
           </div>
 
-          {/* Form Content */}
           <div className="p-4 sm:p-5 lg:p-6">
-            
-            {/* Error Message */}
             {errors.submit && (
               <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
                 {errors.submit}
               </div>
             )}
 
-            {/* Form Fields */}
             <div className="space-y-4 sm:space-y-6">
-              
-              {/* Loan Selection for Interest Payments and Repayments */}
-              {(isInterestPayment || isRepayment) && (
+              {(isInterestPayment || isRepayment) && selectedCategory?.id.includes("loan") && (
                 <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <LoanSelector
                     availableLoans={availableLoans}
@@ -611,11 +630,10 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Interest Summary Card for Interest Payments */}
-              {isInterestPayment && transactionData.selectedLoanId && (
+              {isInterestPayment && selectedCategory?.id.includes("gold") && transactionData.selectedLoanId && (
                 <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <InterestSummaryCard
-                    selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
+                    selectedLoan={availableLoans.find((loan) => loan._id === transactionData.selectedLoanId)}
                     interestSummary={interestSummary}
                     categoryId={selectedCategory.id}
                     currentGoldPrice={currentMetalPrices}
@@ -623,109 +641,6 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Loan Repayment Type Selection */}
-              {isLoanRepayment && transactionData.selectedLoanId && (
-                <div className="bg-indigo-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Repayment Type</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="repaymentType"
-                        value="partial"
-                        checked={transactionData.repaymentType === "partial"}
-                        onChange={handleDataChange}
-                        className="mr-2"
-                      />
-                      <span className="text-sm">Partial Repayment</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="repaymentType"
-                        value="full"
-                        checked={transactionData.repaymentType === "full"}
-                        onChange={handleDataChange}
-                        className="mr-2"
-                      />
-                      <span className="text-sm">Full Repayment</span>
-                    </label>
-                  </div>
-
-                  {transactionData.repaymentType === "full" && (
-                    <div className="mt-4 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Outstanding Principal (₹)
-                          </label>
-                          <input
-                            type="text"
-                            value={transactionData.principalAmount}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            placeholder="0"
-                            min="0"
-                            step="0.01"
-                            disabled={loading}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Pending Interest (₹)
-                          </label>
-                          <input
-                            type="text"
-                            value={transactionData.interestAmount}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            placeholder="0"
-                            min="0"
-                            step="0.01"
-                            disabled={loading}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Payment Mode and Bill Number */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Mode
-                      </label>
-                      <select
-                        name="paymentMode"
-                        value={transactionData.paymentMode}
-                        onChange={handleDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        disabled={loading}
-                      >
-                        <option value="CASH">Cash</option>
-                        <option value="UPI">UPI</option>
-                        <option value="BANK_TRANSFER">Bank Transfer</option>
-                        <option value="CARD">Card</option>
-                        <option value="CHEQUE">Cheque</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Bill Number
-                      </label>
-                      <input
-                        type="text"
-                        name="billNumber"
-                        value={transactionData.billNumber}
-                        onChange={handleDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        placeholder="Optional bill number"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Gold Loan Items (existing) */}
               {isGoldLoan && (
                 <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <GoldLoanItems
@@ -737,9 +652,10 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Metal Items Manager for Buy/Sell */}
               {isMetalTransaction && isMetalBuySell && (
-                <div className={`${selectedCategory?.id.includes("gold") ? "bg-yellow-50" : "bg-gray-50"} p-4 sm:p-5 rounded-lg sm:rounded-xl`}>
+                <div
+                  className={`${selectedCategory?.id.includes("gold") ? "bg-yellow-50" : "bg-gray-50"} p-4 sm:p-5 rounded-lg sm:rounded-xl`}
+                >
                   <MetalItemsManager
                     items={transactionData.items}
                     onItemsChange={handleItemsChange}
@@ -751,19 +667,40 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Gold Loan Repayment */}
               {isGoldLoanRepayment && transactionData.selectedLoanId && (
                 <div className="bg-yellow-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <GoldLoanRepayment
-                    selectedLoan={availableLoans.find(loan => loan._id === transactionData.selectedLoanId)}
+                    selectedLoan={availableLoans.find((loan) => loan._id === transactionData.selectedLoanId)}
                     onSuccess={onSuccess}
                     onCancel={onBack}
                   />
                 </div>
               )}
 
-              {/* Regular Amount Field for Non-Metal-Item Transactions */}
-              {!isGoldLoan && !isGoldLoanRepayment && !isMetalBuySell && (transactionData.repaymentType !== "full" || !isLoanRepayment) && (
+              {isUdhariTransaction && selectedCategory?.id.includes("repayment") && (
+                <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Udhari</label>
+                  <select
+                    name="selectedUdhariId"
+                    value={transactionData.selectedUdhariId}
+                    onChange={handleDataChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    disabled={loading}
+                  >
+                    <option value="">Select an udhari</option>
+                    {availableUdhars.map((udhar) => (
+                      <option key={udhar._id} value={udhar._id}>
+                        {udhar.note || `Udhari #${udhar._id}`} - ₹{((udhar.outstandingAmount || udhar.principalRupees) / 100).toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.selectedUdhariId && (
+                    <p className="text-red-600 text-sm mt-1">{errors.selectedUdhariId}</p>
+                  )}
+                </div>
+              )}
+
+              {!isGoldLoan && !isGoldLoanRepayment && !isMetalBuySell && !isUdhariTransaction && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <AmountField
                     amount={transactionData.amount}
@@ -775,15 +712,12 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Advance Amount and Payment Details for Metal Transactions */}
               {isMetalBuySell && (
                 <div className="bg-blue-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <h4 className="text-sm font-medium text-gray-700 mb-3">Payment Details</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Advance Amount (₹)
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount (₹)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -797,9 +731,7 @@ const TransactionForm = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Payment Mode
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>
                       <select
                         name="paymentMode"
                         value={transactionData.paymentMode}
@@ -815,9 +747,7 @@ const TransactionForm = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Bill Number
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Bill Number</label>
                       <input
                         type="text"
                         name="billNumber"
@@ -830,7 +760,6 @@ const TransactionForm = ({
                     </div>
                   </div>
 
-                  {/* Transaction Summary */}
                   {transactionData.items.length > 0 && (
                     <div className="mt-4 p-4 bg-white rounded-lg border">
                       <h5 className="text-sm font-medium text-gray-700 mb-2">Transaction Summary</h5>
@@ -865,8 +794,7 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Loan Fields */}
-              {selectedCategory?.id.includes("loan") && !isInterestPayment && !isRepayment && (
+              {selectedCategory?.id.includes("gold-loan") && !isInterestPayment && !isRepayment && (
                 <div className="bg-indigo-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <LoanFields
                     transactionData={transactionData}
@@ -876,11 +804,8 @@ const TransactionForm = ({
                 </div>
               )}
 
-              {/* Description Field */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
                   name="description"
                   value={transactionData.description}
@@ -892,23 +817,22 @@ const TransactionForm = ({
                 />
               </div>
 
-              {/* Photo Upload - Only for non-metal-item transactions */}
-              {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver") || selectedCategory?.id.includes("loan")) && 
-               !isGoldLoanRepayment && !isMetalBuySell && (
-                <div className="bg-green-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
-                  <PhotoUpload
-                    photos={transactionData.photos}
-                    loading={loading}
-                    onPhotosChange={(photos) => updateTransactionData({ photos })}
-                  />
-                </div>
-              )}
+              {(selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver") || selectedCategory?.id.includes("loan")) &&
+                !isGoldLoanRepayment &&
+                !isMetalBuySell &&
+                !isUdhariTransaction && (
+                  <div className="bg-green-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
+                    <PhotoUpload
+                      photos={transactionData.photos}
+                      loading={loading}
+                      onPhotosChange={(photos) => updateTransactionData({ photos })}
+                    />
+                  </div>
+                )}
             </div>
 
-            {/* Action Buttons */}
             {!isGoldLoanRepayment && (
               <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mt-6 pt-6 border-t border-gray-100">
-                {/* Back Button */}
                 <button
                   onClick={onBack}
                   className="text-gray-600 hover:text-gray-800 flex items-center justify-center gap-2 px-3 py-2 hover:bg-gray-200 rounded-lg transition-colors text-sm sm:text-base"
@@ -916,8 +840,6 @@ const TransactionForm = ({
                 >
                   ← Back to Category
                 </button>
-                
-                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <button
                     onClick={onCancel}
