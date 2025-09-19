@@ -1,20 +1,13 @@
-
-
-// export default InterestPaymentModal;
 import React, { useState, useEffect } from 'react';
 import { X, Percent, AlertCircle, Loader2 } from 'lucide-react';
 import ApiService from '../services/api.js';
 
-const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
+const LInterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
   const [interestAmount, setInterestAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [paymentReference, setPaymentReference] = useState('');
-  const [chequeNumber, setChequeNumber] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [chequeDate, setChequeDate] = useState('');
-  const [forMonth, setForMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -25,10 +18,6 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
       setPaymentDate(new Date().toISOString().split('T')[0]);
       setPaymentMethod('CASH');
       setPaymentReference('');
-      setChequeNumber('');
-      setBankName('');
-      setChequeDate('');
-      setForMonth(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
       setError(null);
     }
   }, [isOpen]);
@@ -47,9 +36,9 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   };
 
   const getMonthlyInterest = () => {
-    const outstanding = loan?.currentLoanAmount || loan.totalLoanAmount || 0;
+    const outstanding = loan?.outstandingPrincipal || 0;
     const interestRate = loan?.interestRateMonthlyPct || 0;
-    return (outstanding * interestRate) ;
+    return (outstanding * interestRate) / 100 / 100; // Convert paise to rupees
   };
 
   const getPendingInterestAmount = () => {
@@ -69,10 +58,9 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
       return;
     }
 
-    const expectedInterest = getPendingInterestAmount() / 100;
-    if (interestAmount > expectedInterest) {
-      console.log(expectedInterest , interestAmount);
-      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest)}`);
+    const expectedInterest = getPendingInterestAmount() * 100; // Convert to paise
+    if (parseFloat(interestAmount) * 100 > expectedInterest) {
+      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest / 100)}`);
       return;
     }
 
@@ -81,26 +69,26 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
       setError(null);
 
       const interestData = {
-        interestAmount: parseFloat(interestAmount),
+        loanId: loan._id,
+        principalPaise: 0,
+        interestPaise: parseInt(parseFloat(interestAmount) * 100),
+        note: paymentNote.trim() || undefined,
         paymentDate,
         paymentMethod,
-        forMonth,
-        referenceNumber: paymentReference.trim() || undefined,
-        chequeNumber: chequeNumber.trim() || undefined,
-        bankName: bankName.trim() || undefined,
-        chequeDate: chequeDate || undefined,
-        photos: [], // Add photo handling if needed
-        notes: paymentNote.trim() || '',
-        recordedBy: 'Admin' // Or get from auth
+        reference: paymentReference.trim() || '',
+        transactionId: paymentReference.trim() || '',
       };
 
-      const response = await ApiService.addInterestPayment(loan._id, interestData);
+      const isGivenLoan = loan.loanType === 'GIVEN';
+      const response = isGivenLoan
+        ? await ApiService.receiveLoanPayment(interestData)
+        : await ApiService.makeLoanPayment(interestData);
 
       if (response.success) {
-        onPaymentSuccess?.(response);
+        onSuccess();
         onClose();
       } else {
-        throw new Error(response.error || 'Interest payment failed');
+        throw new Error(response.message || response.error || 'Interest payment failed');
       }
     } catch (error) {
       setError(error.message || 'Failed to process interest payment');
@@ -120,9 +108,10 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   }
 
   const customer = loan.customer || {};
+  const isReceivable = loan.loanType === 'GIVEN';
   const monthlyInterest = getMonthlyInterest();
   const pendingInterest = getPendingInterestAmount();
-  const outstandingAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
+  const outstandingAmount = loan?.outstandingAmount || 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -134,7 +123,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                Receive Interest Payment
+                {isReceivable ? 'Receive Interest Payment' : 'Make Interest Payment'}
               </h2>
               <p className="text-sm text-slate-600">{customer.name}</p>
             </div>
@@ -243,16 +232,6 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">For Month *</label>
-            <input
-              type="month"
-              value={forMonth}
-              onChange={(e) => setForMonth(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
             <select
               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -282,40 +261,6 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
                 placeholder="Enter transaction ID or reference"
               />
             </div>
-          )}
-
-          {paymentMethod === 'CHEQUE' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Cheque Number</label>
-                <input
-                  type="text"
-                  value={chequeNumber}
-                  onChange={(e) => setChequeNumber(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="Enter cheque number"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Bank Name</label>
-                <input
-                  type="text"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="Enter bank name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Cheque Date</label>
-                <input
-                  type="date"
-                  value={chequeDate}
-                  onChange={(e) => setChequeDate(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-              </div>
-            </>
           )}
 
           <div>
@@ -371,7 +316,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
               ) : (
                 <div className="flex items-center justify-center gap-2">
                   <Percent size={18} />
-                  Receive Interest
+                  {isReceivable ? 'Receive Interest' : 'Pay Interest'}
                 </div>
               )}
             </button>
@@ -381,5 +326,4 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
     </div>
   );
 };
-
-export default InterestPaymentModal;
+export default LInterestPaymentModal;

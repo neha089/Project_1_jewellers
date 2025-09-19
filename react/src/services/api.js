@@ -345,27 +345,7 @@ async makeUdhariPayment(data) {
 
   // Gold Loan APIs
   async createGoldLoan(formData) {
-    console.log('Creating gold loan with data:', formData);
-    
-    // Match backend controller expectations exactly
-    const payload = {
-      customer: formData.customer, // Backend expects 'customer' field
-      items: formData.items.map(item => ({
-        name: item.name || 'Gold Item',
-        weightGram: parseFloat(item.weightGram), // Note: frontend uses 'weight', backend expects 'weightGram'
-        loanAmount: parseFloat(item.loanAmount
-), // Backend expects 'loanAmount' for manual amounts
-        purityK: parseInt(item.purityK), // Frontend uses 'purity', backend expects 'purityK'
-        images: item.images || [],
-        goldPriceAtDeposit: parseFloat(item.goldPriceAtDeposit) || 0
-      })),
-      interestRateMonthlyPct: parseFloat(formData.interestRateMonthlyPct),
-      startDate: formData.startDate
- || new Date().toISOString(),
-      notes: formData.notes || ''
-    };
-
-    return this.post('/api/gold-loans', payload);
+    return this.post('/api/gold-loans', formData);
   }
 
   async getAllGoldLoans(filters = {}) {
@@ -1028,7 +1008,13 @@ async getGoldTransactions(params = {}) {
 
     return this.post('/api/business-expenses', expenseData);
   }
-
+async getActiveItemsForReturn(loanId){
+    return this.get(`/api/gold-loans/${loanId}/active-items`);
+  }
+  async processItemReturn(loanId, returnData){
+    return this.post(`api/gold-loans/${loanId}/return-items`, returnData);
+  }
+  
   // In your api.js file
 // In api.js
 async updateExpense(id, data) {

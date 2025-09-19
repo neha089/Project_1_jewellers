@@ -3,7 +3,6 @@ import ApiService from '../services/api';
 
 import {
   X,
-  DollarSign,
   Camera,
   Upload,
   CheckCircle,
@@ -21,15 +20,19 @@ import {
   EyeOff,
   Percent,
   Weight,
-  Clock,
-  TrendingDown
+  Ruler,
+  Image,
+  Info,
+  TrendingUp,
+  TrendingDown,
+  DollarSign
 } from 'lucide-react';
 
-const ItemRepaymentModal = ({ 
-  isOpen, 
-  onClose, 
-  loan, 
-  onRepaymentSuccess 
+const ItemRepaymentModal = ({
+  isOpen,
+  onClose,
+  loan,
+  onReturnSuccess
 }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -38,313 +41,356 @@ const ItemRepaymentModal = ({
   
   // Form state
   const [formData, setFormData] = useState({
-    repaymentAmount: '',
     paymentMethod: 'CASH',
-    repaymentDate: new Date().toISOString().split('T')[0],
-    repaymentType: 'PARTIAL_PRINCIPAL', // Changed default
-    currentGoldPrice: '',
-    referenceNumber: '',
-    chequeNumber: '',
-    bankName: '',
-    chequeDate: '',
-    selectedItemIds: [],
+    returnDate: new Date().toISOString().split('T')[0],
     photos: [],
     notes: '',
     processingFee: '0',
     lateFee: '0',
     adjustmentAmount: '0',
     adjustmentReason: '',
-    interestPaidWithRepayment: '0',
-    interestPeriodCovered: ''
+    showAdvanced: false
   });
 
+  // Items state
+  const [activeItems, setActiveItems] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]); // Items with detailed return info
+  const [currentItemIndex, setCurrentItemIndex] = useState(0);
+
+  // Calculations
   const [calculations, setCalculations] = useState({
-    totalItemValue: 0,
-    totalMarketValue: 0,
-    remainingLoanAmount: 0,
+    totalReturnValue: 0,
     totalWeight: 0,
+    totalOriginalValue: 0,
+    totalAppreciation: 0,
     netRepaymentAmount: 0,
-    canReturnItems: false,
-    partialPaymentAmount: 0
+    remainingLoanAmount: 0
   });
 
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [selectedItems, setSelectedItems] = useState([]);
-
-  // Initialize form when modal opens
+  // Initialize when modal opens
   useEffect(() => {
     if (isOpen && loan) {
-      resetForm();
-      loadCurrentGoldPrice();
+      initializeForm();
     }
   }, [isOpen, loan]);
 
-  // Calculate values when selections change
+  // Recalculate when items change
   useEffect(() => {
-    calculateRepaymentValues();
-  }, [formData.selectedItemIds, formData.currentGoldPrice, formData.repaymentAmount, formData.processingFee, formData.lateFee, formData.adjustmentAmount, formData.repaymentType, loan]);
+    calculateTotals();
+  }, [selectedItems, formData.processingFee, formData.lateFee, formData.adjustmentAmount]);
 
-  const loadCurrentGoldPrice = async () => {
+  const initializeForm = async () => {
     try {
       setLoading(true);
-      console.log('Loading current gold price...');
+      setError('');
+      setSuccess('');
       
-      const result = await ApiService.getCurrentGoldPrice();
-      console.log('Gold price result:', result);
+      // Reset form
+      setFormData({
+        paymentMethod: 'CASH',
+        returnDate: new Date().toISOString().split('T')[0],
+        photos: [],
+        notes: '',
+        processingFee: '0',
+        lateFee: '0',
+        adjustmentAmount: '0',
+        adjustmentReason: '',
+        showAdvanced: false
+      });
+
+      // Load active items
+      console.log('Loading active items for loan:', loan._id);
+      const result = await ApiService.getActiveItemsForReturn(loan._id.toString());
       
-      if (result.success && result.data) {
-        setFormData(prev => ({
-          ...prev,
-          currentGoldPrice: result.data.pricePerGram.toString()
-        }));
+      if (result.success) {
+        console.log('Active items loaded:', result.data.activeItems);
+        setActiveItems(result.data.activeItems || []);
+        setSelectedItems([]);
+        setCurrentItemIndex(0);
       } else {
-        setFormData(prev => ({
-          ...prev,
-          currentGoldPrice: '5000'
-        }));
+        throw new Error(result.error || 'Failed to load active items');
       }
-    } catch (err) {
-      console.error('Failed to load gold price:', err);
-      setFormData(prev => ({
-        ...prev,
-        currentGoldPrice: '5000'
-      }));
+    } catch (error) {
+      console.error('Error initializing form:', error);
+      setError(error.error || error.message || 'Failed to load active items');
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      repaymentAmount: '',
-      paymentMethod: 'CASH',
-      repaymentDate: new Date().toISOString().split('T')[0],
-      repaymentType: 'PARTIAL_PRINCIPAL',
-      currentGoldPrice: '',
-      referenceNumber: '',
-      chequeNumber: '',
-      bankName: '',
-      chequeDate: '',
-      selectedItemIds: [],
-      photos: [],
-      notes: '',
-      processingFee: '0',
-      lateFee: '0',
-      adjustmentAmount: '0',
-      adjustmentReason: '',
-      interestPaidWithRepayment: '0',
-      interestPeriodCovered: ''
-    });
-    setSelectedItems([]);
-    setError('');
-    setSuccess('');
-  };
+  const calculateTotals = () => {
+    if (!selectedItems.length || !loan) {
+      setCalculations({
+        totalReturnValue: 0,
+        totalWeight: 0,
+        totalOriginalValue: 0,
+        totalAppreciation: 0,
+        netRepaymentAmount: 0,
+        remainingLoanAmount: loan?.currentLoanAmount || 0
+      });
+      return;
+    }
 
-  const calculateRepaymentValues = () => {
-    if (!loan) return;
-
-    const selectedItemsData = loan.items?.filter(item => 
-      formData.selectedItemIds.includes(item._id?.toString())
-    ) || [];
-
-    const totalItemValue = selectedItemsData.reduce((sum, item) => sum + (item.loanAmount || 0), 0);
-    const totalWeight = selectedItemsData.reduce((sum, item) => sum + (item.weightGram || 0), 0);
-    
-    const currentGoldPrice = parseFloat(formData.currentGoldPrice) || 0;
-    const totalMarketValue = selectedItemsData.reduce((sum, item) => {
-      return sum + ((item.weightGram * currentGoldPrice * item.purityK) / 24);
+    const totalReturnValue = selectedItems.reduce((sum, item) => sum + (parseFloat(item.returnPrice) || 0), 0);
+    const totalWeight = selectedItems.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+    const totalOriginalValue = selectedItems.reduce((sum, item) => sum + (parseFloat(item.originalLoanAmount) || 0), 0);
+    const totalAppreciation = selectedItems.reduce((sum, item) => {
+      const appreciation = (parseFloat(item.returnValue) || 0) - (parseFloat(item.originalLoanAmount) || 0);
+      return sum + appreciation;
     }, 0);
-
-    const currentLoanAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
-    const repaymentAmount = parseFloat(formData.repaymentAmount) || 0;
+    
     const processingFee = parseFloat(formData.processingFee) || 0;
     const lateFee = parseFloat(formData.lateFee) || 0;
     const adjustmentAmount = parseFloat(formData.adjustmentAmount) || 0;
-    const netRepaymentAmount = repaymentAmount - processingFee - lateFee + adjustmentAmount;
-
-    // Calculate remaining amount after this payment
-    const remainingLoanAmount = Math.max(0, currentLoanAmount - netRepaymentAmount);
-
-    // Determine if items can be returned based on repayment type and amount
-    let canReturnItems = false;
-    if (formData.repaymentType === 'ITEM_RETURN' && selectedItemsData.length > 0) {
-      // For item return, payment must cover the full value of selected items
-      canReturnItems = netRepaymentAmount >= totalItemValue;
-    } else if (formData.repaymentType === 'FULL_PRINCIPAL') {
-      // For full payment, must pay the entire remaining loan amount
-      canReturnItems = netRepaymentAmount >= currentLoanAmount && selectedItemsData.length > 0;
-    }
+    const netRepaymentAmount = totalReturnValue - processingFee - lateFee + adjustmentAmount;
+    
+    const currentLoanAmount = parseFloat(loan.currentLoanAmount) || 0;
+    const remainingLoanAmount = Math.max(0, currentLoanAmount - totalOriginalValue);
 
     setCalculations({
-      totalItemValue,
-      totalMarketValue,
-      remainingLoanAmount,
+      totalReturnValue,
       totalWeight,
+      totalOriginalValue,
+      totalAppreciation,
       netRepaymentAmount,
-      canReturnItems,
-      partialPaymentAmount: netRepaymentAmount
+      remainingLoanAmount
     });
-
-    setSelectedItems(selectedItemsData);
-
-    // Auto-adjust repayment type based on amount and selection
-    if (repaymentAmount > 0) {
-      if (netRepaymentAmount >= currentLoanAmount) {
-        // Full payment - can return all remaining items
-        if (formData.repaymentType !== 'FULL_PRINCIPAL') {
-          setFormData(prev => ({ ...prev, repaymentType: 'FULL_PRINCIPAL' }));
-        }
-      } else if (selectedItemsData.length > 0 && netRepaymentAmount >= totalItemValue) {
-        // Can return selected items
-        if (formData.repaymentType !== 'ITEM_RETURN') {
-          setFormData(prev => ({ ...prev, repaymentType: 'ITEM_RETURN' }));
-        }
-      } else {
-        // Partial payment only
-        if (formData.repaymentType !== 'PARTIAL_PRINCIPAL') {
-          setFormData(prev => ({ ...prev, repaymentType: 'PARTIAL_PRINCIPAL' }));
-        }
-      }
-    }
-  };
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    setError('');
   };
 
   const handleItemSelection = (itemId) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedItemIds: prev.selectedItemIds.includes(itemId)
-        ? prev.selectedItemIds.filter(id => id !== itemId)
-        : [...prev.selectedItemIds, itemId]
-    }));
+    // Check if item is already selected
+    const existingItem = selectedItems.find(item => item.itemId === itemId);
+    if (existingItem) {
+      // Update current item index to the existing one
+      const index = selectedItems.findIndex(item => item.itemId === itemId);
+      setCurrentItemIndex(index);
+      return;
+    }
+
+    // Find the original item
+    const originalItem = activeItems.find(item => item._id?.toString() === itemId);
+    if (originalItem) {
+      // Calculate initial return value
+      const purityFactor = originalItem.purityK / 24;
+      const defaultGoldPrice = 6500;
+      const initialReturnValue = originalItem.weightGram * purityFactor * defaultGoldPrice;
+      const initialAppreciation = initialReturnValue - originalItem.loanAmount;
+
+      // Create new item with default return details
+      const newItem = {
+        itemId: itemId,
+        name: originalItem.name || 'Gold Item',
+        originalWeightGram: parseFloat(originalItem.weightGram) || 0,
+        originalLoanAmount: parseFloat(originalItem.loanAmount) || 0,
+        purityK: parseFloat(originalItem.purityK) || 22,
+        images: originalItem.images || [],
+        weight: parseFloat(originalItem.weightGram) || 0, // Default to original weight
+        returnPrice: parseFloat(originalItem.loanAmount) || 0, // Default return price to loan amount
+        currentGoldPrice: defaultGoldPrice.toString(), // Default gold price
+        returnValue: initialReturnValue, // Calculated value
+        returnPhotos: [],
+        returnNotes: '',
+        condition: 'good',
+        appreciation: initialAppreciation,
+        weightDifference: 0,
+        weightDifferencePct: 0
+      };
+      
+      const updatedItems = [...selectedItems, newItem];
+      setSelectedItems(updatedItems);
+      setCurrentItemIndex(updatedItems.length - 1); // Set to newly added item
+    }
   };
 
-  const handleRepaymentTypeChange = (newType) => {
-    setFormData(prev => ({
-      ...prev,
-      repaymentType: newType,
-      // Clear item selection for partial payments
-      selectedItemIds: newType === 'PARTIAL_PRINCIPAL' ? [] : prev.selectedItemIds
-    }));
+  const updateCurrentItemDetail = (field, value) => {
+    if (currentItemIndex >= 0 && currentItemIndex < selectedItems.length) {
+      const updatedItems = [...selectedItems];
+      const currentItem = { ...updatedItems[currentItemIndex] };
+      
+      // Update the field
+      if (field === 'weight') {
+        currentItem[field] = parseFloat(value) || 0;
+        currentItem.weightDifference = currentItem.weight - currentItem.originalWeightGram;
+        currentItem.weightDifferencePct = currentItem.originalWeightGram > 0 
+          ? ((currentItem.weight - currentItem.originalWeightGram) / currentItem.originalWeightGram) * 100 
+          : 0;
+      } else if (field === 'currentGoldPrice') {
+        currentItem[field] = value;
+      } else {
+        currentItem[field] = value;
+      }
+      
+      // Calculate return value if gold price or weight changed
+      if (field === 'currentGoldPrice' || field === 'weight') {
+        const purityFactor = currentItem.purityK / 24;
+        const goldPrice = parseFloat(currentItem.currentGoldPrice) || 0;
+        const weight = parseFloat(currentItem.weight) || 0;
+        currentItem.returnValue = weight * purityFactor * goldPrice;
+        currentItem.appreciation = currentItem.returnValue - currentItem.originalLoanAmount;
+        
+        // Auto-update return price if not manually set
+        if (!currentItem.returnPrice || currentItem.returnPrice === currentItem.originalLoanAmount) {
+          currentItem.returnPrice = currentItem.returnValue;
+        }
+      }
+      
+      updatedItems[currentItemIndex] = currentItem;
+      setSelectedItems(updatedItems);
+    }
   };
 
-  const handlePhotoUpload = (event) => {
+  const removeCurrentItem = () => {
+    if (currentItemIndex >= 0 && currentItemIndex < selectedItems.length) {
+      const updatedItems = selectedItems.filter((_, index) => index !== currentItemIndex);
+      setSelectedItems(updatedItems);
+      
+      // Adjust current item index
+      const newIndex = Math.max(0, Math.min(currentItemIndex, updatedItems.length - 1));
+      setCurrentItemIndex(newIndex);
+    }
+  };
+
+  const handlePhotoUpload = (event, itemIndex = null) => {
     const files = Array.from(event.target.files);
     const photoUrls = files.map(file => URL.createObjectURL(file));
-    setFormData(prev => ({
-      ...prev,
-      photos: [...prev.photos, ...photoUrls]
-    }));
-  };
-
-  const removePhoto = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      photos: prev.photos.filter((_, i) => i !== index)
-    }));
-  };
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setSubmitting(true);
-  setError('');
-  setSuccess('');
-
-  try {
-    console.log('Submitting repayment with formData:', formData); // Log formData to inspect repaymentType
-
-    if (!formData.repaymentAmount || parseFloat(formData.repaymentAmount) <= 0) {
-      throw new Error('Please enter a valid repayment amount');
+    
+    if (itemIndex !== null && itemIndex >= 0 && itemIndex < selectedItems.length) {
+      // Upload to specific item
+      const updatedItems = [...selectedItems];
+      updatedItems[itemIndex].returnPhotos = [...(updatedItems[itemIndex].returnPhotos || []), ...photoUrls];
+      setSelectedItems(updatedItems);
+    } else {
+      // Upload to general payment photos
+      setFormData(prev => ({
+        ...prev,
+        photos: [...prev.photos, ...photoUrls]
+      }));
     }
+  };
 
-    if (formData.repaymentType === 'ITEM_RETURN') {
-      if (formData.selectedItemIds.length === 0) {
+  const removePhoto = (index, itemIndex = null, photoIndex) => {
+    if (itemIndex !== null && itemIndex >= 0 && itemIndex < selectedItems.length) {
+      // Remove from specific item
+      const updatedItems = [...selectedItems];
+      const itemPhotos = [...(updatedItems[itemIndex].returnPhotos || [])];
+      itemPhotos.splice(photoIndex, 1);
+      updatedItems[itemIndex].returnPhotos = itemPhotos;
+      setSelectedItems(updatedItems);
+    } else {
+      // Remove from general photos
+      setFormData(prev => ({
+        ...prev,
+        photos: prev.photos.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  // FIXED: Direct submit handler for the button
+  const handleSubmit = async () => {
+    console.log('Submit button clicked'); // Debug log
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (selectedItems.length === 0) {
         throw new Error('Please select at least one item to return');
       }
-      if (!calculations.canReturnItems) {
-        throw new Error(`Payment amount (₹${calculations.netRepaymentAmount.toLocaleString()}) is insufficient to return selected items (₹${calculations.totalItemValue.toLocaleString()} required)`);
+
+      // Validate all selected items
+      for (const item of selectedItems) {
+        if (!item.weight || item.weight <= 0) {
+          throw new Error(`Please enter weight for item: ${item.name}`);
+        }
+        if (!item.returnPrice || item.returnPrice <= 0) {
+          throw new Error(`Please enter return price for item: ${item.name}`);
+        }
+        if (!item.currentGoldPrice || parseFloat(item.currentGoldPrice) <= 0) {
+          throw new Error(`Please enter current gold price for item: ${item.name}`);
+        }
       }
-    }
 
-    if (formData.repaymentType === 'FULL_PRINCIPAL') {
-      const currentLoanAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
-      if (calculations.netRepaymentAmount < currentLoanAmount) {
-        throw new Error(`Payment amount (₹${calculations.netRepaymentAmount.toLocaleString()}) is insufficient for full payment (₹${currentLoanAmount.toLocaleString()} required)`);
+      // Prepare data for submission
+      const submitData = {
+        selectedItems: selectedItems.map(item => ({
+          itemId: item.itemId,
+          weight: parseFloat(item.weight),
+          returnPrice: parseFloat(item.returnPrice),
+          currentGoldPrice: parseFloat(item.currentGoldPrice),
+          returnPhotos: item.returnPhotos || [],
+          returnNotes: item.returnNotes || '',
+          condition: item.condition || 'good'
+        })),
+        paymentMethod: formData.paymentMethod,
+        repaymentDate: formData.returnDate,
+        photos: formData.photos,
+        notes: formData.notes,
+        processingFee: parseFloat(formData.processingFee) || 0,
+        lateFee: parseFloat(formData.lateFee) || 0,
+        adjustmentAmount: parseFloat(formData.adjustmentAmount) || 0,
+        adjustmentReason: formData.adjustmentReason
+      };
+
+      console.log('Submitting data:', submitData); // Debug log
+
+      const result = await ApiService.processItemReturn(loan._id.toString(), submitData);
+
+      console.log('API Response:', result); // Debug log
+
+      if (result.success) {
+        const message = calculations.remainingLoanAmount === 0
+          ? `All ${selectedItems.length} items returned successfully! Loan closed.`
+          : `${selectedItems.length} items returned successfully! ₹${calculations.remainingLoanAmount.toLocaleString()} remaining.`;
+        
+        setSuccess(message);
+        setTimeout(() => {
+          onReturnSuccess?.(result);
+          onClose();
+        }, 3000);
+      } else {
+        throw new Error(result.error || 'Failed to process item return');
       }
+    } catch (err) {
+      console.error('Submission error:', err);
+      setError(err.message || err.error || 'Failed to process item return');
+    } finally {
+      setSubmitting(false);
     }
+  };
 
-    if (!formData.currentGoldPrice || parseFloat(formData.currentGoldPrice) <= 0) {
-      throw new Error('Please enter current gold price');
-    }
-
-    const repaymentData = {
-      ...formData,
-      items: loan.items // Include items for weightGrams calculation in api.js
-    };
-
-    console.log('Sending repaymentData to API:', repaymentData); // Log the payload
-
-    const result = await ApiService.processItemRepayment(loan._id, repaymentData);
-
-    if (result.success) {
-      const message = formData.repaymentType === 'PARTIAL_PRINCIPAL' 
-        ? `Partial payment of ₹${parseFloat(formData.repaymentAmount).toLocaleString()} processed successfully! Remaining: ₹${calculations.remainingLoanAmount.toLocaleString()}`
-        : formData.repaymentType === 'ITEM_RETURN'
-        ? `Payment processed and ${selectedItems.length} items returned successfully!`
-        : 'Loan fully paid and closed successfully!';
-      
-      setSuccess(message);
-      setTimeout(() => {
-        onRepaymentSuccess?.(result);
-        onClose();
-      }, 3000);
-    } else {
-      throw new Error(result.error || 'Failed to process repayment');
-    }
-  } catch (err) {
-    console.error('Submission error:', err);
-    setError(err.message);
-  } finally {
-    setSubmitting(false);
-  }
-};
-
-  const formatCurrency = (amount) => `₹${amount?.toLocaleString() || '0'}`;
-  const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-IN') : 'N/A';
+  const formatCurrency = (amount) => `₹${(parseFloat(amount) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  const formatWeight = (weight) => `${(parseFloat(weight) || 0).toFixed(2)}g`;
 
   if (!isOpen || !loan) return null;
 
-  const currentLoanAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
+  const currentLoanAmount = parseFloat(loan.currentLoanAmount) || 0;
+  const hasActiveItems = activeItems.length > 0;
 
+  // FIXED: Add proper form id and onSubmit
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg sm:rounded-2xl w-full max-w-6xl h-full sm:max-h-[95vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg sm:rounded-2xl w-full max-w-7xl h-full sm:max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-6 border-b border-blue-100 flex-shrink-0">
+        <div className="bg-gradient-to-r from-emerald-50 to-green-50 p-4 sm:p-6 border-b border-emerald-100 flex-shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 sm:ring-4 ring-blue-100 flex-shrink-0">
-                <DollarSign size={24} className="sm:w-7 sm:h-7" />
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 sm:ring-4 ring-emerald-100 flex-shrink-0">
+                <CheckCircle size={24} className="sm:w-7 sm:h-7" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Loan Repayment</h2>
-                <p className="text-sm sm:text-base text-blue-700 font-medium truncate">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Item Return & Repayment</h2>
+                <p className="text-sm sm:text-base text-emerald-700 font-medium truncate">
                   Loan ID: {loan._id} • {loan.customer?.name}
                 </p>
                 <p className="text-xs sm:text-sm text-gray-600">
-                  Outstanding: {formatCurrency(currentLoanAmount)}
+                  Outstanding: {formatCurrency(currentLoanAmount)} • Available Items: {activeItems.length}
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
               className="w-8 h-8 sm:w-10 sm:h-10 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full flex items-center justify-center transition-all flex-shrink-0"
+              disabled={submitting || loading}
             >
               <X size={18} className="sm:w-5 sm:h-5" />
             </button>
@@ -353,679 +399,564 @@ const handleSubmit = async (e) => {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Loan Status Summary */}
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Clock size={18} />
-                Current Loan Status
-              </h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <div className="text-lg font-bold text-blue-600">
-                    {formatCurrency(currentLoanAmount)}
-                  </div>
-                  <div className="text-xs text-gray-600">Outstanding Amount</div>
-                </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <div className="text-lg font-bold text-purple-600">
-                    {loan.items?.filter(item => !item.returnDate).length || 0}
-                  </div>
-                  <div className="text-xs text-gray-600">Items Remaining</div>
-                </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <div className="text-lg font-bold text-green-600">
-                    {formatCurrency(loan.payments?.reduce((sum, payment) => sum + (payment.principalAmount || 0), 0) || 0)}
-                  </div>
-                  <div className="text-xs text-gray-600">Total Paid</div>
-                </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
-                  <div className="text-lg font-bold text-red-600">
-                    {loan.interestRateMonthlyPct || 0}%
-                  </div>
-                  <div className="text-xs text-gray-600">Monthly Interest</div>
-                </div>
+          {/* FIXED: Add proper form with id="return-form" */}
+          <form id="return-form" className="space-y-6">
+            {loading && (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+                <p className="text-sm text-gray-600 mt-2">Loading items...</p>
               </div>
-            </div>
+            )}
 
-            {/* Repayment Type Selection */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingDown size={18} />
-                Repayment Type
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div 
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                    formData.repaymentType === 'PARTIAL_PAYMENT'
-                      ? 'border-blue-300 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-blue-200'
-                  }`}
-                  onClick={() => handleRepaymentTypeChange('PARTIAL_PRINCIPAL')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 ${
-                      formData.repaymentType === 'PARTIAL_PRINCIPAL'
-                        ? 'border-blue-500 bg-blue-500'
-                        : 'border-gray-300'
-                    }`}>
-                      {formData.repaymentType === 'PARTIAL_PRINCIPAL' && (
-                        <div className="w-full h-full rounded-full bg-blue-500"></div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900">Partial Payment</div>
-                      <div className="text-sm text-gray-600">Pay any amount without item return</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div 
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                    formData.repaymentType === 'ITEM_RETURN'
-                      ? 'border-green-300 bg-green-50'
-                      : 'border-gray-200 bg-white hover:border-green-200'
-                  }`}
-                  onClick={() => handleRepaymentTypeChange('ITEM_RETURN')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 ${
-                      formData.repaymentType === 'ITEM_RETURN'
-                        ? 'border-green-500 bg-green-500'
-                        : 'border-gray-300'
-                    }`}>
-                      {formData.repaymentType === 'ITEM_RETURN' && (
-                        <div className="w-full h-full rounded-full bg-green-500"></div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900">Item Return</div>
-                      <div className="text-sm text-gray-600">Pay item value and get items back</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div 
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                    formData.repaymentType === 'FULL_PRINCIPAL'
-                      ? 'border-purple-300 bg-purple-50'
-                      : 'border-gray-200 bg-white hover:border-purple-200'
-                  }`}
-                  onClick={() => handleRepaymentTypeChange('FULL_PRINCIPAL')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 ${
-                      formData.repaymentType === 'FULL_PRINCIPAL'
-                        ? 'border-purple-500 bg-purple-500'
-                        : 'border-gray-300'
-                    }`}>
-                      {formData.repaymentType === 'FULL_PRINCIPAL' && (
-                        <div className="w-full h-full rounded-full bg-purple-500"></div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900">Full Payment</div>
-                      <div className="text-sm text-gray-600">Close loan and get all items</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Item Selection - Only for Item Return and Full Payment */}
-            {(formData.repaymentType === 'ITEM_RETURN' || formData.repaymentType === 'FULL_PRINCIPAL') && (
+            {/* Active Items Selection */}
+            {!loading && hasActiveItems && (
               <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <CheckCircle size={18} />
-                  {formData.repaymentType === 'FULL_PRINCIPAL' ? 'All Items to Return' : 'Select Items to Return'} 
-                  ({loan.items?.filter(item => !item.returnDate).length || 0} available)
+                  <Coins size={18} />
+                  Select Items to Return ({activeItems.length} available)
                 </h3>
                 
-                {loan.items && loan.items.filter(item => !item.returnDate).length > 0 ? (
-                  <div className="space-y-3">
-                    {loan.items.filter(item => !item.returnDate).map((item, index) => {
-                      const isSelected = formData.repaymentType === 'FULL_PRINCIPAL' || 
-                                        formData.selectedItemIds.includes(item._id?.toString());
-                      const isDisabled = formData.repaymentType === 'FULL_PRINCIPAL';
-                      
-                      return (
-                        <div 
-                          key={item._id || index}
-                          className={`border rounded-lg p-4 transition-all ${
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-48 overflow-y-auto">
+                  {activeItems.map((item) => {
+                    const isSelected = selectedItems.some(s => s.itemId === item._id?.toString());
+                    return (
+                      <div
+                        key={item._id?.toString() || Math.random()}
+                        className={`border rounded-lg p-3 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-emerald-300 bg-emerald-50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-amber-300 hover:shadow-sm'
+                        }`}
+                        onClick={() => handleItemSelection(item._id?.toString())}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 ${
                             isSelected
-                              ? 'border-green-300 bg-green-50'
-                              : 'border-gray-200 bg-white hover:border-amber-300'
-                          } ${!isDisabled ? 'cursor-pointer' : ''}`}
-                          onClick={() => !isDisabled && handleItemSelection(item._id?.toString())}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-1 ${
-                              isSelected
-                                ? 'border-green-500 bg-green-500'
-                                : 'border-gray-300'
-                            }`}>
-                              {isSelected && (
-                                <CheckCircle size={14} className="text-white" />
-                              )}
-                            </div>
-                            <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-4">
-                              <div>
-                                <span className="text-sm text-gray-600 block">Item</span>
-                                <span className="font-medium">{item.name || 'Gold Item'}</span>
-                              </div>
-                              <div>
-                                <span className="text-sm text-gray-600 block">Weight</span>
-                                <span className="font-medium">{item.weightGram}g</span>
-                              </div>
-                              <div>
-                                <span className="text-sm text-gray-600 block">Purity</span>
-                                <span className="font-medium">{item.purityK}K</span>
-                              </div>
-                              <div>
-                                <span className="text-sm text-gray-600 block">Loan Amount</span>
-                                <span className="font-medium text-green-600">
-                                  {formatCurrency(item.loanAmount)}
-                                </span>
-                              </div>
+                              ? 'border-emerald-500 bg-emerald-500'
+                              : 'border-gray-300'
+                          }`}>
+                            {isSelected && <CheckCircle size={12} className="text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{item.name}</div>
+                            <div className="flex flex-wrap gap-2 text-xs text-gray-600 mt-1">
+                              <span className="flex items-center gap-1">
+                                <Weight size={10} /> {formatWeight(item.weightGram)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Percent size={10} /> {item.purityK}K
+                              </span>
+                              <span className="flex items-center gap-1 text-emerald-600">
+                                {formatCurrency(item.loanAmount)}
+                              </span>
                             </div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No items available for return
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Calculations Summary */}
-            {(selectedItems.length > 0 || formData.repaymentType === 'PARTIAL_PRINCIPAL') && (
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Calculator size={18} />
-                  Payment Calculation
-                </h3>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {formData.repaymentType !== 'PARTIAL_PAYMENT' && (
-                    <>
-                      <div className="text-center p-3 bg-white rounded-lg">
-                        <div className="text-lg font-bold text-blue-600">
-                          {selectedItems.length}
-                        </div>
-                        <div className="text-xs text-gray-600">Items Selected</div>
                       </div>
-                      <div className="text-center p-3 bg-white rounded-lg">
-                        <div className="text-lg font-bold text-green-600">
-                          {formatCurrency(calculations.totalItemValue)}
-                        </div>
-                        <div className="text-xs text-gray-600">Required Amount</div>
-                      </div>
-                    </>
-                  )}
-                  <div className="text-center p-3 bg-white rounded-lg">
-                    <div className="text-lg font-bold text-purple-600">
-                      {formatCurrency(calculations.netRepaymentAmount)}
-                    </div>
-                    <div className="text-xs text-gray-600">Net Payment</div>
-                  </div>
-                  <div className="text-center p-3 bg-white rounded-lg">
-                    <div className="text-lg font-bold text-amber-600">
-                      {formatCurrency(calculations.remainingLoanAmount)}
-                    </div>
-                    <div className="text-xs text-gray-600">Remaining Loan</div>
-                  </div>
+                    );
+                  })}
                 </div>
                 
-                {/* Payment Status Indicator */}
-                {formData.repaymentAmount && (
-                  <div className="mt-4 p-3 rounded-lg border-l-4 bg-white">
-                    {formData.repaymentType === 'PARTIAL_PRINCIPAL' && (
-                      <div className="border-l-blue-500">
-                        <div className="flex items-center gap-2 text-blue-700">
-                          <Clock size={16} />
-                          <span className="font-medium">Partial Payment</span>
-                        </div>
-                        <p className="text-sm text-blue-600 mt-1">
-                          Loan will remain active. Remaining balance: {formatCurrency(calculations.remainingLoanAmount)}
-                        </p>
-                      </div>
-                    )}
-                    {formData.repaymentType === 'ITEM_RETURN' && calculations.canReturnItems && (
-                      <div className="border-l-green-500">
-                        <div className="flex items-center gap-2 text-green-700">
-                          <CheckCircle size={16} />
-                          <span className="font-medium">Items Can Be Returned</span>
-                        </div>
-                        <p className="text-sm text-green-600 mt-1">
-                          Payment covers selected items. Remaining balance: {formatCurrency(calculations.remainingLoanAmount)}
-                        </p>
-                      </div>
-                    )}
-                    {formData.repaymentType === 'ITEM_RETURN' && !calculations.canReturnItems && selectedItems.length > 0 && (
-                      <div className="border-l-red-500">
-                        <div className="flex items-center gap-2 text-red-700">
-                          <AlertTriangle size={16} />
-                          <span className="font-medium">Insufficient Payment</span>
-                        </div>
-                        <p className="text-sm text-red-600 mt-1">
-                          Need {formatCurrency(calculations.totalItemValue)} to return selected items. Current: {formatCurrency(calculations.netRepaymentAmount)}
-                        </p>
-                      </div>
-                    )}
-                    {formData.repaymentType === 'FULL_PRINCIPAL' && calculations.remainingLoanAmount === 0 && (
-                      <div className="border-l-purple-500">
-                        <div className="flex items-center gap-2 text-purple-700">
-                          <CheckCircle size={16} />
-                          <span className="font-medium">Loan Will Be Closed</span>
-                        </div>
-                        <p className="text-sm text-purple-600 mt-1">
-                          All items will be returned and loan will be marked as completed.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Repayment Details */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Basic Repayment Info */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <DollarSign size={18} />
-                  Payment Details
-                </h3>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Gold Price (per gram) *
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Weight size={16} className="text-gray-400" />
-                    </div>
-                    <input
-                      type="number"
-                      value={formData.currentGoldPrice}
-                      onChange={(e) => handleInputChange('currentGoldPrice', e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="5000"
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Amount *
-                    {formData.repaymentType === 'FULL_PRINCIPAL' && (
-                      <span className="text-sm text-purple-600 ml-2">(Min: {formatCurrency(currentLoanAmount)})</span>
-                    )}
-                    {formData.repaymentType === 'ITEM_RETURN' && selectedItems.length > 0 && (
-                      <span className="text-sm text-green-600 ml-2">(Min: {formatCurrency(calculations.totalItemValue)})</span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <DollarSign size={16} className="text-gray-400" />
-                    </div>
-                    <input
-                      type="number"
-                      value={formData.repaymentAmount}
-                      onChange={(e) => handleInputChange('repaymentAmount', e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="0"
-                      required
-                      min="1"
-                    />
-                  </div>
-                  {calculations.netRepaymentAmount !== parseFloat(formData.repaymentAmount || 0) && (
-                    <p className="text-xs text-blue-600 mt-1">
-                      Net Amount: {formatCurrency(calculations.netRepaymentAmount)}
+                {selectedItems.length > 0 && (
+                  <div className="mt-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <p className="text-sm text-emerald-700">
+                      <CheckCircle size={14} className="inline ml-1" /> 
+                      {selectedItems.length} item{selectedItems.length > 1 ? 's' : ''} selected for return
                     </p>
-                  )}
-                  
-                  {/* Quick Amount Buttons */}
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {formData.repaymentType === 'PARTIAL_PRINCIPAL' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange('repaymentAmount', Math.ceil(currentLoanAmount * 0.25).toString())}
-                          className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
-                        >
-                          25% ({formatCurrency(Math.ceil(currentLoanAmount * 0.25))})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange('repaymentAmount', Math.ceil(currentLoanAmount * 0.5).toString())}
-                          className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
-                        >
-                          50% ({formatCurrency(Math.ceil(currentLoanAmount * 0.5))})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange('repaymentAmount', Math.ceil(currentLoanAmount * 0.75).toString())}
-                          className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
-                        >
-                          75% ({formatCurrency(Math.ceil(currentLoanAmount * 0.75))})
-                        </button>
-                      </>
-                    )}
-                    {formData.repaymentType === 'ITEM_RETURN' && selectedItems.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => handleInputChange('repaymentAmount', calculations.totalItemValue.toString())}
-                        className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors"
-                      >
-                        Item Value ({formatCurrency(calculations.totalItemValue)})
-                      </button>
-                    )}
-                    {formData.repaymentType === 'FULL_PRINCIPAL' && (
-                      <button
-                        type="button"
-                        onClick={() => handleInputChange('repaymentAmount', currentLoanAmount.toString())}
-                        className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-full hover:bg-purple-200 transition-colors"
-                      >
-                        Full Amount ({formatCurrency(currentLoanAmount)})
-                      </button>
-                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Show message if no active items */}
+            {!loading && !hasActiveItems && (
+              <div className="text-center py-12">
+                <Info size={48} className="mx-auto text-gray-300 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Items Available</h3>
+                <p className="text-gray-600">All items have been returned or the loan is closed.</p>
+              </div>
+            )}
+
+            {/* Item Details Collection */}
+            {selectedItems.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Ruler size={18} />
+                    Item Return Details
+                  </h3>
+                  <div className="text-sm text-gray-600">
+                    Item {currentItemIndex + 1} of {selectedItems.length}
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Date *
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Calendar size={16} className="text-gray-400" />
+
+                {/* Item Navigation */}
+                <div className="flex gap-2 justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentItemIndex(prev => Math.max(0, prev - 1))}
+                    disabled={currentItemIndex === 0}
+                    className="px-4 py-2 text-sm bg-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-colors"
+                  >
+                    ← Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentItemIndex(prev => Math.min(selectedItems.length - 1, prev + 1))}
+                    disabled={currentItemIndex === selectedItems.length - 1}
+                    className="px-4 py-2 text-sm bg-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-colors"
+                  >
+                    Next →
+                  </button>
+                </div>
+
+                {/* Current Item Details */}
+                {currentItemIndex < selectedItems.length && (
+                  <div className="bg-white rounded-xl p-4 border border-gray-200">
+                    <div className="mb-4 p-3 bg-emerald-50 rounded-lg">
+                      <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <Info size={16} />
+                        {selectedItems[currentItemIndex].name}
+                      </h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Original: {formatWeight(selectedItems[currentItemIndex].originalWeightGram)} • 
+                        {formatCurrency(selectedItems[currentItemIndex].originalLoanAmount)}
+                      </p>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Weight Input */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Weight size={16} />
+                          Returned Weight *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={selectedItems[currentItemIndex].weight?.toString() || ''}
+                          onChange={(e) => updateCurrentItemDetail('weight', e.target.value)}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="0.00"
+                          required
+                        />
+                        {selectedItems[currentItemIndex].weight && (
+                          <p className={`text-xs mt-1 ${
+                            selectedItems[currentItemIndex].weightDifference < 0
+                              ? 'text-red-600' 
+                              : selectedItems[currentItemIndex].weightDifference > 0
+                              ? 'text-emerald-600'
+                              : 'text-gray-500'
+                          }`}>
+                            {selectedItems[currentItemIndex].weightDifference 
+                              ? `${selectedItems[currentItemIndex].weightDifference >= 0 ? '+' : ''}${selectedItems[currentItemIndex].weightDifference.toFixed(2)}g (${selectedItems[currentItemIndex].weightDifferencePct?.toFixed(1)}%)`
+                              : 'Same as original'
+                            }
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Current Gold Price */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <TrendingUp size={16} />
+                          Gold Price Today *
+                        </label>
+                        <input
+                          type="number"
+                          step="1"
+                          value={selectedItems[currentItemIndex].currentGoldPrice || ''}
+                          onChange={(e) => updateCurrentItemDetail('currentGoldPrice', e.target.value)}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="6500"
+                          required
+                        />
+                        <p className="text-xs text-gray-500 mt-1">₹/gram</p>
+                      </div>
+
+                      {/* Return Value Calculation */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Calculator size={16} />
+                          Current Market Value
+                        </label>
+                        <input
+                          type="number"
+                          value={selectedItems[currentItemIndex].returnValue?.toFixed(0) || '0'}
+                          readOnly
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-emerald-600 font-medium"
+                        />
+                      </div>
+
+                      {/* Return Price */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <DollarSign size={16} />
+                          Return Price *
+                        </label>
+                        <input
+                          type="number"
+                          step="1"
+                          value={selectedItems[currentItemIndex].returnPrice?.toString() || ''}
+                          onChange={(e) => updateCurrentItemDetail('returnPrice', e.target.value)}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="0"
+                          required
+                        />
+                        {selectedItems[currentItemIndex].appreciation !== undefined && (
+                          <p className={`text-xs mt-1 ${
+                            selectedItems[currentItemIndex].appreciation >= 0
+                              ? 'text-emerald-600'
+                              : 'text-red-600'
+                          }`}>
+                            Appreciation: {formatCurrency(selectedItems[currentItemIndex].appreciation)} 
+                            ({((selectedItems[currentItemIndex].appreciation / selectedItems[currentItemIndex].originalLoanAmount) * 100 || 0).toFixed(1)}%)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Condition and Notes */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Condition</label>
+                        <select
+                          value={selectedItems[currentItemIndex].condition || 'good'}
+                          onChange={(e) => updateCurrentItemDetail('condition', e.target.value)}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        >
+                          <option value="excellent">Excellent</option>
+                          <option value="good">Good</option>
+                          <option value="fair">Fair</option>
+                          <option value="poor">Poor</option>
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Return Notes</label>
+                        <textarea
+                          value={selectedItems[currentItemIndex].returnNotes || ''}
+                          onChange={(e) => updateCurrentItemDetail('returnNotes', e.target.value)}
+                          rows={2}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="Any notes about item condition..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* Return Photos */}
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <Image size={16} />
+                        Return Photos (Recommended)
+                      </label>
+                      <div className="flex items-center justify-center w-full">
+                        <label htmlFor={`item-photo-${currentItemIndex}`} className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-emerald-300 rounded-lg cursor-pointer bg-emerald-50 hover:bg-emerald-100">
+                          <div className="flex flex-col items-center justify-center pt-3 pb-4">
+                            <Camera size={20} className="text-emerald-400 mb-2" />
+                            <p className="mb-1 text-xs text-emerald-600">
+                              <span className="font-semibold">Click to add photos</span>
+                            </p>
+                            <p className="text-xs text-emerald-500">Current item condition</p>
+                          </div>
+                          <input
+                            id={`item-photo-${currentItemIndex}`}
+                            type="file"
+                            className="hidden"
+                            multiple
+                            accept="image/*"
+                            onChange={(e) => handlePhotoUpload(e, currentItemIndex)}
+                          />
+                        </label>
+                      </div>
+
+                      {/* Item Photo Preview */}
+                      {selectedItems[currentItemIndex]?.returnPhotos?.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 mt-3">
+                          {selectedItems[currentItemIndex].returnPhotos.map((photo, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={photo}
+                                alt={`Return photo ${index + 1}`}
+                                className="w-full h-16 object-cover rounded border"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removePhoto(null, currentItemIndex, index)}
+                                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Remove Item Button */}
+                    <div className="flex justify-center mt-4">
+                      <button
+                        type="button"
+                        onClick={removeCurrentItem}
+                        className="px-4 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                      >
+                        Remove This Item from Return
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Selected Items Summary */}
+                {selectedItems.length > 1 && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-2">Selected Items Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      {selectedItems.map((item, index) => (
+                        <div
+                          key={item.itemId}
+                          className={`p-2 rounded text-center cursor-pointer hover:bg-gray-100 ${
+                            index === currentItemIndex ? 'bg-emerald-100 border border-emerald-300' : ''
+                          }`}
+                          onClick={() => setCurrentItemIndex(index)}
+                        >
+                          <div className="font-medium truncate">{item.name}</div>
+                          <div className="text-xs text-gray-600">{formatWeight(item.weight)}</div>
+                          <div className={`text-xs ${
+                            item.appreciation >= 0 ? 'text-emerald-600' : 'text-red-600'
+                          }`}>
+                            {formatCurrency(item.appreciation)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Payment Details */}
+            {selectedItems.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Payment Method */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <CreditCard size={18} />
+                    Payment Details
+                  </h3>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method *</label>
+                    <select
+                      value={formData.paymentMethod}
+                      onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      required
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="CHEQUE">Cheque</option>
+                      <option value="UPI">UPI</option>
+                      <option value="BANK_TRANSFER">Bank Transfer</option>
+                      <option value="CARD">Card</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Calendar size={16} />
+                      Return Date *
+                    </label>
                     <input
                       type="date"
-                      value={formData.repaymentDate}
-                      onChange={(e) => handleInputChange('repaymentDate', e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={formData.returnDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, returnDate: e.target.value }))}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                       required
                     />
                   </div>
-                </div>
-              </div>
 
-              {/* Payment Method */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <CreditCard size={18} />
-                  Payment Method
-                </h3>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Method *
-                  </label>
-                  <select
-                    value={formData.paymentMethod}
-                    onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  >
-                    <option value="CASH">Cash</option>
-                    <option value="CHEQUE">Cheque</option>
-                    <option value="NET_BANKING">Net Banking</option>
-                    <option value="UPI">UPI</option>
-                    <option value="CARD">Card</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                  </select>
-                </div>
-
-                {/* Conditional fields based on payment method */}
-                {(formData.paymentMethod === 'CHEQUE' || 
-                  formData.paymentMethod === 'NET_BANKING' || 
-                  formData.paymentMethod === 'BANK_TRANSFER') && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Bank Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.bankName}
-                        onChange={(e) => handleInputChange('bankName', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Bank name"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Reference Number
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.referenceNumber}
-                        onChange={(e) => handleInputChange('referenceNumber', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Transaction reference"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {formData.paymentMethod === 'CHEQUE' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Cheque Number
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.chequeNumber}
-                        onChange={(e) => handleInputChange('chequeNumber', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Cheque number"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Cheque Date
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.chequeDate}
-                        onChange={(e) => handleInputChange('chequeDate', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {formData.paymentMethod === 'UPI' && (
+                  {/* Payment Photos */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      UPI Transaction ID
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                      <Camera size={16} />
+                      Payment Photos (Recommended)
                     </label>
-                    <input
-                      type="text"
-                      value={formData.referenceNumber}
-                      onChange={(e) => handleInputChange('referenceNumber', e.target.value)}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="UPI transaction ID"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Photo Upload */}
-            <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Camera size={18} />
-                Upload Photos (Optional)
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-center w-full">
-                  <label htmlFor="photo-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-purple-300 border-dashed rounded-lg cursor-pointer bg-purple-50 hover:bg-purple-100">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload size={24} className="text-purple-400 mb-2" />
-                      <p className="mb-2 text-sm text-purple-600">
-                        <span className="font-semibold">Click to upload</span> payment photos
-                      </p>
-                      <p className="text-xs text-purple-500">PNG, JPG or JPEG (MAX. 10MB each)</p>
+                    <div className="flex items-center justify-center w-full">
+                      <label htmlFor="payment-photos" className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div className="flex flex-col items-center justify-center pt-3 pb-4">
+                          <Upload size={20} className="text-gray-400 mb-2" />
+                          <p className="mb-1 text-xs text-gray-600">
+                            <span className="font-semibold">Click to add</span> payment proof
+                          </p>
+                          <p className="text-xs text-gray-500">PNG, JPG or JPEG (Max 10MB)</p>
+                        </div>
+                        <input
+                          id="payment-photos"
+                          type="file"
+                          className="hidden"
+                          multiple
+                          accept="image/*"
+                          onChange={handlePhotoUpload}
+                        />
+                      </label>
                     </div>
-                    <input
-                      id="photo-upload"
-                      type="file"
-                      className="hidden"
-                      multiple
-                      accept="image/*"
-                      onChange={handlePhotoUpload}
-                    />
-                  </label>
+
+                    {formData.photos.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mt-3">
+                        {formData.photos.map((photo, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={photo}
+                              alt={`Payment photo ${index + 1}`}
+                              className="w-full h-16 object-cover rounded border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(index)}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Photo Preview */}
-                {formData.photos.length > 0 && (
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                    {formData.photos.map((photo, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={photo}
-                          alt={`Upload ${index + 1}`}
-                          className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removePhoto(index)}
-                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                        >
-                          <X size={12} />
-                        </button>
+                {/* Calculations Summary */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Calculator size={18} />
+                    Return Summary
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-xs text-gray-600">Items Returning</div>
+                      <div className="font-semibold text-emerald-600">{selectedItems.length}</div>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-xs text-gray-600">Total Weight</div>
+                      <div className="font-semibold">{formatWeight(calculations.totalWeight)}</div>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-xs text-gray-600">Original Value</div>
+                      <div className="font-semibold text-gray-900">{formatCurrency(calculations.totalOriginalValue)}</div>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-xs text-gray-600">Market Value</div>
+                      <div className={`font-semibold ${
+                        calculations.totalAppreciation >= 0 ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
+                        {formatCurrency(calculations.totalReturnValue)}
                       </div>
-                    ))}
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-xs text-gray-600">Appreciation</div>
+                      <div className={`font-semibold ${
+                        calculations.totalAppreciation >= 0 ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
+                        {formatCurrency(calculations.totalAppreciation)}
+                      </div>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-xs text-gray-600">Total Payment</div>
+                      <div className="font-semibold text-blue-600">{formatCurrency(calculations.totalReturnValue)}</div>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border md:col-span-2">
+                      <div className="text-xs text-gray-600">Remaining Loan</div>
+                      <div className={`font-semibold ${
+                        calculations.remainingLoanAmount === 0 ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
+                        {calculations.remainingLoanAmount === 0 ? 'LOAN CLOSED' : formatCurrency(calculations.remainingLoanAmount)}
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Advanced Options */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4"
-              >
-                {showAdvanced ? <EyeOff size={16} /> : <Eye size={16} />}
-                {showAdvanced ? 'Hide' : 'Show'} Advanced Options
-              </button>
+            {selectedItems.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
+                  className="flex items-center gap-2 px-3 py-2 text-emerald-600 hover:text-emerald-700 font-medium mb-4"
+                >
+                  {formData.showAdvanced ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {formData.showAdvanced ? 'Hide' : 'Show'} Advanced Options
+                </button>
 
-              {showAdvanced && (
-                <div className="bg-gray-50 rounded-xl p-4 space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Advanced Settings</h3>
-                  
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Processing Fee
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.processingFee}
-                        onChange={(e) => handleInputChange('processingFee', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="0"
-                      />
+                {formData.showAdvanced && (
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Additional Charges</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Processing Fee</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.processingFee}
+                          onChange={(e) => setFormData(prev => ({ ...prev, processingFee: e.target.value }))}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Late Fee</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.lateFee}
+                          onChange={(e) => setFormData(prev => ({ ...prev, lateFee: e.target.value }))}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Adjustment</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.adjustmentAmount}
+                          onChange={(e) => setFormData(prev => ({ ...prev, adjustmentAmount: e.target.value }))}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="0"
+                        />
+                      </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Late Fee
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.lateFee}
-                        onChange={(e) => handleInputChange('lateFee', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="0"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Adjustment Amount
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.adjustmentAmount}
-                        onChange={(e) => handleInputChange('adjustmentAmount', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="0"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Adjustment Reason
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.adjustmentReason}
-                      onChange={(e) => handleInputChange('adjustmentReason', e.target.value)}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Reason for adjustment (if any)"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Interest Paid with Payment
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.interestPaidWithRepayment}
-                        onChange={(e) => handleInputChange('interestPaidWithRepayment', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="0"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Interest Period Covered
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Adjustment Reason</label>
                       <input
                         type="text"
-                        value={formData.interestPeriodCovered}
-                        onChange={(e) => handleInputChange('interestPeriodCovered', e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g., Jan 2024 - Mar 2024"
+                        value={formData.adjustmentReason}
+                        onChange={(e) => setFormData(prev => ({ ...prev, adjustmentReason: e.target.value }))}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        placeholder="Reason for adjustment (if any)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                        rows={3}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        placeholder="Additional notes about this return..."
                       />
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notes (Optional)
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => handleInputChange('notes', e.target.value)}
-                rows={4}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Add any additional notes about this payment..."
-              />
-            </div>
-
-            {/* Error and Success Messages */}
+            {/* Messages */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
                 <AlertTriangle size={20} className="text-red-500 flex-shrink-0" />
@@ -1037,44 +968,40 @@ const handleSubmit = async (e) => {
             )}
 
             {success && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-                <CheckCircle size={20} className="text-green-500 flex-shrink-0" />
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center gap-3">
+                <CheckCircle size={20} className="text-emerald-500 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-green-800">Success</p>
-                  <p className="text-sm text-green-700">{success}</p>
+                  <p className="font-medium text-emerald-800">Success</p>
+                  <p className="text-sm text-emerald-700">{success}</p>
                 </div>
               </div>
             )}
 
             {/* Final Summary */}
-            {formData.repaymentAmount && parseFloat(formData.repaymentAmount) > 0 && (
-              <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+            {selectedItems.length > 0 && (
+              <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <FileText size={18} />
-                  Transaction Summary
+                  Final Transaction Summary
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                   <div className="bg-white p-3 rounded-lg">
-                    <span className="text-gray-600 block">Payment Type</span>
-                    <span className="font-semibold text-blue-600">{formData.repaymentType.replace(/_/g, ' ')}</span>
+                    <span className="text-gray-600 block">Items Returning</span>
+                    <span className="font-semibold text-emerald-600">{selectedItems.length}</span>
                   </div>
-                  {formData.repaymentType !== 'PARTIAL_PRINCIPAL' && selectedItems.length > 0 && (
-                    <div className="bg-white p-3 rounded-lg">
-                      <span className="text-gray-600 block">Items Returning</span>
-                      <span className="font-semibold text-green-600">{selectedItems.length} items</span>
-                    </div>
-                  )}
                   <div className="bg-white p-3 rounded-lg">
-                    <span className="text-gray-600 block">Payment Amount</span>
-                    <span className="font-semibold text-blue-600">{formatCurrency(parseFloat(formData.repaymentAmount) || 0)}</span>
+                    <span className="text-gray-600 block">Total Payment</span>
+                    <span className="font-semibold text-blue-600">{formatCurrency(calculations.totalReturnValue)}</span>
                   </div>
                   <div className="bg-white p-3 rounded-lg">
                     <span className="text-gray-600 block">Net Amount</span>
-                    <span className="font-semibold text-green-600">{formatCurrency(calculations.netRepaymentAmount)}</span>
+                    <span className="font-semibold text-purple-600">{formatCurrency(calculations.netRepaymentAmount)}</span>
                   </div>
                   <div className="bg-white p-3 rounded-lg">
-                    <span className="text-gray-600 block">After Payment</span>
-                    <span className={`font-semibold ${calculations.remainingLoanAmount === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className="text-gray-600 block">After Return</span>
+                    <span className={`font-semibold ${
+                      calculations.remainingLoanAmount === 0 ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
                       {calculations.remainingLoanAmount === 0 ? 'LOAN CLOSED' : formatCurrency(calculations.remainingLoanAmount)}
                     </span>
                   </div>
@@ -1082,72 +1009,64 @@ const handleSubmit = async (e) => {
                     <span className="text-gray-600 block">Payment Method</span>
                     <span className="font-semibold text-gray-900">{formData.paymentMethod.replace(/_/g, ' ')}</span>
                   </div>
+                  <div className="bg-white p-3 rounded-lg md:col-span-2 lg:col-span-1">
+                    <span className="text-gray-600 block">Status</span>
+                    <span className={`font-semibold ${
+                      calculations.remainingLoanAmount === 0 ? 'text-emerald-600' : 'text-amber-600'
+                    }`}>
+                      {calculations.remainingLoanAmount === 0 ? 'FULL CLOSURE' : 'PARTIAL RETURN'}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
           </form>
         </div>
 
-        {/* Footer - Action Buttons */}
+        {/* Footer */}
         <div className="bg-gray-50 p-4 sm:p-6 border-t border-gray-200 flex-shrink-0">
-          <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="w-full sm:w-auto px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || !formData.repaymentAmount || loading}
-              className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <RefreshCw size={18} className="animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Save size={18} />
-                  {formData.repaymentType === 'PARTIAL_PRINCIPAL' ? 'Record Payment' :
-                   formData.repaymentType === 'ITEM_RETURN' ? 'Return Items' :
-                   'Close Loan'}
-                </>
-              )}
-            </button>
-          </div>
-          
-          {/* Quick Stats Footer */}
-          {formData.repaymentAmount && parseFloat(formData.repaymentAmount) > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="text-center text-sm text-gray-600">
-                {formData.repaymentType === 'PARTIAL_PRINCIPAL' && (
-                  <>
-                    Processing partial payment of <span className="font-semibold text-blue-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> • 
-                    Remaining: <span className="font-semibold text-red-600">{formatCurrency(calculations.remainingLoanAmount)}</span>
-                  </>
-                )}
-                {formData.repaymentType === 'ITEM_RETURN' && (
-                  <>
-                    Returning <span className="font-semibold">{selectedItems.length} items</span> • 
-                    Payment: <span className="font-semibold text-green-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> • 
-                    Remaining: <span className="font-semibold text-red-600">{formatCurrency(calculations.remainingLoanAmount)}</span>
-                  </>
-                )}
-                {formData.repaymentType === 'FULL_PRINCIPAL' && (
-                  <>
-                    <span className="font-semibold text-purple-600">Full Payment</span> • 
-                    Amount: <span className="font-semibold text-green-600">{formatCurrency(parseFloat(formData.repaymentAmount))}</span> • 
-                    <span className="font-semibold text-green-600">LOAN WILL BE CLOSED</span>
-                  </>
-                )}
-              </div>
+          <div className="flex flex-col sm:flex-row gap-3 sm:justify-between items-center">
+            <div className="text-sm text-gray-600">
+              {selectedItems.length > 0 
+                ? `Returning ${selectedItems.length} items • Total: ${formatCurrency(calculations.netRepaymentAmount)}`
+                : 'Select items to begin return process'
+              }
             </div>
-          )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={submitting || loading}
+                className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Cancel
+              </button>
+              {/* FIXED: Direct onClick handler instead of form submit */}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || selectedItems.length === 0 || loading}
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-lg hover:from-emerald-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <RefreshCw size={18} className="animate-spin" />
+                    Processing...
+                  </>
+                ) : calculations.remainingLoanAmount === 0 ? (
+                  <>
+                    <CheckCircle size={18} />
+                    Complete Return & Close Loan
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={18} />
+                    Process Return ({selectedItems.length} items)
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -16,7 +16,7 @@ import AddLoanModal from '../components/AddLoanModal';
 import LoanCard from '../components/LoanCard';
 import LoanDetailModal from '../components/LoanDetailModal';
 import LoanPaymentModal from '../components/LoanPaymentModal';
-import InterestPaymentModal from '../components/InterestPaymentModal';
+import LInterstPaymentModal from '../components/LInterestPaymentModal';
 import CustomerSearch from '../components/CustomerSearch.jsx';
 
 const Loan = () => {
@@ -430,7 +430,7 @@ const handlePrincipalPayment = (loan) => {
           onSuccess={handlePaymentSuccess}
         />
 
-        <InterestPaymentModal
+        <LInterstPaymentModal
           isOpen={showInterestModal}
           loan={selectedLoan}
           onClose={() => setShowInterestModal(false)}
