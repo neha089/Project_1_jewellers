@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, Lock } from 'lucide-react';
 import ApiService from '../../services/api';
@@ -38,11 +39,11 @@ const GoldTransactionForm = ({
       email: '',
       address: ''
     },
-    advanceAmount: 0,
+    Amount: 0,
     paymentMode: 'CASH',
     notes: '',
     billNumber: '',
-    originalAdvanceAmount: 0,
+    originalAmount: 0,
     additionalPayment: 0,
     additionalPaymentMode: 'CASH'
   });
@@ -72,7 +73,7 @@ const GoldTransactionForm = ({
   const populateEditForm = () => {
     const transaction = editingTransaction;
     
-    const originalAdvance = transaction.advanceAmount ? transaction.advanceAmount / 100 : 0;
+    const original = transaction.Amount ? transaction.Amount : 0;
     
     setFormData({
       transactionType: transaction.transactionType,
@@ -90,8 +91,8 @@ const GoldTransactionForm = ({
         email: getPersonEmail(transaction),
         address: getPersonAddress(transaction)
       },
-      advanceAmount: originalAdvance,
-      originalAdvanceAmount: originalAdvance,
+      Amount: original,
+      originalAmount: original,
       additionalPayment: 0,
       additionalPaymentMode: 'CASH',
       paymentMode: transaction.paymentMode || 'CASH',
@@ -326,14 +327,14 @@ const GoldTransactionForm = ({
           return;
         }
         
-        const originalAdvance = parseFloat(formData.originalAdvanceAmount) || 0;
+        const original = parseFloat(formData.originalAmount) || 0;
         const additionalPayment = parseFloat(formData.additionalPayment) || 0;
-        const newTotalAdvance = originalAdvance + additionalPayment;
+        const newTotal = original + additionalPayment;
         
         console.log('Payment calculation:', {
-          originalAdvance,
+          original,
           additionalPayment,
-          newTotalAdvance
+          newTotal
         });
         
         const updateData = {
@@ -361,13 +362,13 @@ const GoldTransactionForm = ({
             certificateNumber: item.certificateNumber || ''
           })),
           
-          advanceAmount: newTotalAdvance,
+          Amount: newTotal,
           paymentMode: additionalPayment > 0 ? formData.additionalPaymentMode : formData.paymentMode,
           notes: formData.notes || "",
           billNumber: formData.billNumber || "",
           additionalPayment: additionalPayment,
           additionalPaymentMode: formData.additionalPaymentMode,
-          originalAdvanceAmount: originalAdvance
+          originalAmount: original
         };
 
         console.log('=== SENDING UPDATE DATA ===');
@@ -420,7 +421,7 @@ const GoldTransactionForm = ({
             certificateNumber: item.certificateNumber || '',
             photos: item.photos || []
           })),
-          advanceAmount: parseFloat(formData.advanceAmount) || 0,
+          Amount: parseFloat(formData.Amount) || 0,
           paymentMode: formData.paymentMode,
           notes: formData.notes,
           billNumber: formData.billNumber,
@@ -495,7 +496,7 @@ const GoldTransactionForm = ({
   };
 
   const { totalWeight, totalAmount } = calculateTotals();
-  const totalPaidAmount = parseFloat(formData.originalAdvanceAmount) + parseFloat(formData.additionalPayment);
+  const totalPaidAmount = parseFloat(formData.originalAmount) + parseFloat(formData.additionalPayment);
   const remainingAmount = totalAmount - totalPaidAmount;
 
   if (showCreateCustomer) {
@@ -654,8 +655,8 @@ const GoldTransactionForm = ({
                   {isEditing && (
                     <>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Original Advance:</span>
-                        <span className="font-medium">₹{formData.originalAdvanceAmount.toFixed(2)}</span>
+                        <span className="text-sm text-gray-600">Original :</span>
+                        <span className="font-medium">₹{formData.originalAmount.toFixed(2)}</span>
                       </div>
                       {parseFloat(formData.additionalPayment) > 0 && (
                         <div className="flex justify-between">
@@ -723,10 +724,10 @@ const GoldTransactionForm = ({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Original Advance</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Original </label>
                     <input
                       type="number"
-                      value={formData.originalAdvanceAmount}
+                      value={formData.originalAmount}
                       disabled
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
                     />
@@ -735,11 +736,11 @@ const GoldTransactionForm = ({
               ) : (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount (₹)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2"> Amount (₹)</label>
                     <input
                       type="number"
-                      name="advanceAmount"
-                      value={formData.advanceAmount}
+                      name="Amount"
+                      value={formData.Amount}
                       onChange={handleInputChange}
                       step="0.1"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-transparent"
@@ -797,8 +798,8 @@ const GoldTransactionForm = ({
               {isEditing ? (
                 <>
                   <div className="flex justify-between items-center mt-2 text-sm text-gray-600">
-                    <span>Original Advance:</span>
-                    <span>₹{formData.originalAdvanceAmount.toFixed(2)}</span>
+                    <span>Original :</span>
+                    <span>₹{formData.originalAmount.toFixed(2)}</span>
                   </div>
                   {parseFloat(formData.additionalPayment) > 0 && (
                     <div className="flex justify-between items-center mt-1 text-sm text-green-600">
@@ -819,10 +820,10 @@ const GoldTransactionForm = ({
                   </div>
                 </>
               ) : (
-                parseFloat(formData.advanceAmount) > 0 && (
+                parseFloat(formData.Amount) > 0 && (
                   <div className="flex justify-between items-center mt-2 text-sm text-gray-600">
                     <span>Remaining Amount:</span>
-                    <span>₹{(totalAmount - parseFloat(formData.advanceAmount)).toFixed(2)}</span>
+                    <span>₹{(totalAmount - parseFloat(formData.Amount)).toFixed(2)}</span>
                   </div>
                 )
               )}
@@ -874,3 +875,4 @@ const GoldTransactionForm = ({
 };
 
 export default GoldTransactionForm;
+

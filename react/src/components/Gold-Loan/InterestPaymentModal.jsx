@@ -66,19 +66,25 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
       return;
     }
 
-    const expectedInterest = getPendingInterestAmount() ;
-    if (interestAmount > expectedInterest) {
-      console.log(expectedInterest , interestAmount);
-      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest)}`);
+const expectedInterest = getPendingInterestAmount();
+    const enteredAmount = Math.round(parseFloat(interestAmount) * 100) / 100; // Round to 2 decimal places
+    const expectedAmount = Math.round(expectedInterest * 100) / 100; // Round to 2 decimal places
+    
+    // Use a small tolerance for comparison to handle floating point precision
+    const tolerance = 0.01;
+    if (enteredAmount > expectedAmount + tolerance) {
+      console.log('Expected:', expectedAmount, 'Entered:', enteredAmount);
+      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedAmount)}`);
       return;
     }
+
 
     try {
       setLoading(true);
       setError(null);
 
       const interestData = {
-        interestAmount: parseFloat(interestAmount),
+        interestAmount: expectedInterest,
         paymentDate,
         paymentMethod,
         forMonth,
