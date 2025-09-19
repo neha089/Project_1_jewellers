@@ -18,10 +18,11 @@ import {
   ArrowDownRight,
   RefreshCw,
   CreditCard,
-  Percent
+  Percent,
+  DollarSign
 } from 'lucide-react';
 import ApiService from '../services/api';
-import AddLoanModal from './AddLoanModal';
+import AddLoanModal from './Loan/AddLoanModal';
 import LoanDetailModal from './Loan/LoanDetailModal';
 import LoanPaymentModal from './Loan/LoanPaymentModal';
 import LInterestPaymentModal from './Loan/LInterestPaymentModal';
@@ -49,78 +50,75 @@ const LoanTab = ({ customerId, onRefresh }) => {
       setLoading(true);
       setError(null);
 
-      // Load customer loans (both given and taken)
-      const [givenResponse, takenResponse] = await Promise.all([
-        customerId 
-          ? ApiService.getCustomerGivenLoans(customerId)
-          : ApiService.getGivenLoans(),
-        customerId 
-          ? ApiService.getCustomerTakenLoans(customerId) 
-          : ApiService.getTakenLoans()
+      // Load outstanding loans using the new API endpoints
+      const [collectResponse, payResponse] = await Promise.all([
+        ApiService.getOutstandingToCollectLoan(),
+        ApiService.getOutstandingToPayLoan()
       ]);
 
       let allLoans = [];
 
-      // Process given loans (receivable)
-      if (givenResponse.success && givenResponse.data) {
-        const givenLoans = Array.isArray(givenResponse.data) 
-          ? givenResponse.data 
-          : givenResponse.data.customers || [];
-        
-        givenLoans.forEach(customerData => {
+      // Process receivable loans (to collect)
+      if (collectResponse.success && collectResponse.data?.customerWise) {
+        collectResponse.data.customerWise.forEach(customerData => {
           if (customerData.loans && customerData.loans.length > 0) {
             customerData.loans.forEach(loan => {
               allLoans.push({
                 ...loan,
-                type: 'given',
+                type: 'receivable',
                 loanType: 'GIVEN',
                 customer: customerData.customer,
                 status: loan.status || 'ACTIVE',
                 amount: loan.originalAmount || 0,
                 interestRate: loan.interestRateMonthlyPct || 0,
                 remainingAmount: loan.outstandingAmount || loan.originalAmount || 0,
-                totalPaid: loan.totalPrincipalPaid ? loan.totalPrincipalPaid / 100 : 0,
-                startDate: loan.takenDate,
+                totalPaid: (loan.originalAmount - loan.outstandingAmount) || 0,
+                startDate: loan.takenDate || loan.createdAt,
                 dueDate: loan.dueDate,
                 purpose: loan.note || 'Loan Given',
                 collateral: '',
                 interestReceived: 0,
-                payments: loan.paymentHistory || []
+                payments: loan.paymentHistory || [],
+                totalOutstanding: customerData.totalOutstanding,
+                interestDue: customerData.interestDue || 0
               });
             });
           }
         });
       }
 
-      // Process taken loans (payable)
-      if (takenResponse.success && takenResponse.data) {
-        const takenLoans = Array.isArray(takenResponse.data)
-          ? takenResponse.data
-          : takenResponse.data.customers || [];
-        
-        takenLoans.forEach(customerData => {
+      // Process payable loans (to pay)
+      if (payResponse.success && payResponse.data?.customerWise) {
+        payResponse.data.customerWise.forEach(customerData => {
           if (customerData.loans && customerData.loans.length > 0) {
             customerData.loans.forEach(loan => {
               allLoans.push({
                 ...loan,
-                type: 'taken',
+                type: 'payable',
                 loanType: 'TAKEN',
                 customer: customerData.customer,
                 status: loan.status || 'ACTIVE',
                 amount: loan.originalAmount || 0,
                 interestRate: loan.interestRateMonthlyPct || 0,
                 remainingAmount: loan.outstandingAmount || loan.originalAmount || 0,
-                totalPaid: loan.totalPrincipalPaid ? loan.totalPrincipalPaid / 100 : 0,
-                startDate: loan.takenDate,
+                totalPaid: (loan.originalAmount - loan.outstandingAmount) || 0,
+                startDate: loan.takenDate || loan.createdAt,
                 dueDate: loan.dueDate,
                 purpose: loan.note || 'Loan Taken',
                 collateral: '',
                 interestPaid: 0,
-                payments: loan.paymentHistory || []
+                payments: loan.paymentHistory || [],
+                totalOutstanding: customerData.totalOutstanding,
+                interestDue: customerData.interestDue || 0
               });
             });
           }
         });
+      }
+
+      // Filter by customerId if provided
+      if (customerId) {
+        allLoans = allLoans.filter(loan => loan.customer?._id === customerId);
       }
 
       setLoans(allLoans);
@@ -145,13 +143,12 @@ const LoanTab = ({ customerId, onRefresh }) => {
 
   // Calculate summary statistics
   const summary = {
-    totalGiven: loans.filter(l => l.type === 'given').reduce((sum, l) => sum + l.amount, 0),
-    totalTaken: loans.filter(l => l.type === 'taken').reduce((sum, l) => sum + l.amount, 0),
+    totalToCollect: loans.filter(l => l.type === 'receivable').reduce((sum, l) => sum + l.remainingAmount, 0),
+    totalToPay: loans.filter(l => l.type === 'payable').reduce((sum, l) => sum + l.remainingAmount, 0),
     activeLoans: loans.filter(l => l.status === 'ACTIVE').length,
     completedLoans: loans.filter(l => l.status === 'PAID' || l.status === 'COMPLETED').length,
     overdueLoans: loans.filter(l => l.status === 'OVERDUE').length,
-    totalInterestEarned: loans.filter(l => l.type === 'given').reduce((sum, l) => sum + (l.interestReceived || 0), 0),
-    totalInterestPaid: loans.filter(l => l.type === 'taken').reduce((sum, l) => sum + (l.interestPaid || 0), 0)
+    totalInterestDue: loans.reduce((sum, l) => sum + (l.interestDue || 0), 0)
   };
 
   const getStatusColor = (status) => {
@@ -167,33 +164,44 @@ const LoanTab = ({ customerId, onRefresh }) => {
 
   const getTypeColor = (type) => {
     switch (type) {
-      case 'given': return 'text-green-600';
-      case 'taken': return 'text-red-600';
+      case 'receivable': return 'text-red-600';
+      case 'payable': return 'text-green-600';
       default: return 'text-gray-600';
     }
   };
 
   const getTypeIcon = (type) => {
-    return type === 'given' ? ArrowUpRight : ArrowDownRight;
+    return type === 'receivable' ? TrendingUp : TrendingDown;
   };
 
   const handleView = (loan) => {
     const loanData = {
       customer: loan.customer,
-      loans: [loan]
+      loans: [loan],
+      totalOutstanding: loan.totalOutstanding,
+      interestDue: loan.interestDue,
+      type: loan.type
     };
     setLoanDetailData(loanData);
     setShowLoanDetail(true);
   };
 
   const handlePrincipalPayment = (loan) => {
-    setSelectedLoan(loan);
-    setShowPaymentModal(true);
+    if (loan && loan._id) {
+      setSelectedLoan(loan);
+      setShowPaymentModal(true);
+    } else {
+      setError('Cannot process payment: Invalid loan data');
+    }
   };
 
   const handleInterestPayment = (loan) => {
-    setSelectedLoan(loan);
-    setShowInterestModal(true);
+    if (loan && loan._id) {
+      setSelectedLoan(loan);
+      setShowInterestModal(true);
+    } else {
+      setError('Cannot process payment: Invalid loan data');
+    }
   };
 
   const handlePaymentSuccess = () => {
@@ -210,22 +218,31 @@ const LoanTab = ({ customerId, onRefresh }) => {
     setShowAddLoan(false);
   };
 
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0
+    }).format(amount);
+  };
+
   const LoanCard = ({ loan }) => {
     const TypeIcon = getTypeIcon(loan.type);
     const remainingAmount = loan.remainingAmount || 0;
-    const totalInterest = loan.type === 'given' ? (loan.interestReceived || 0) : (loan.interestPaid || 0);
+    const totalInterest = loan.interestDue || 0;
+    const isReceivable = loan.type === 'receivable';
     
     return (
       <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${loan.type === 'given' ? 'bg-green-50' : 'bg-red-50'}`}>
+            <div className={`p-2 rounded-lg ${isReceivable ? 'bg-red-50' : 'bg-green-50'}`}>
               <TypeIcon size={20} className={getTypeColor(loan.type)} />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">{loan.purpose || 'General Loan'}</h3>
               <p className="text-sm text-gray-500">
-                {loan.type === 'given' ? 'Loan Given to' : 'Loan Taken from'} {loan.customer?.name || 'Unknown'}
+                {isReceivable ? 'To Collect from' : 'To Pay to'} {loan.customer?.name || 'Unknown'}
               </p>
             </div>
           </div>
@@ -236,20 +253,22 @@ const LoanTab = ({ customerId, onRefresh }) => {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
-            <p className="text-sm text-gray-500">Principal Amount</p>
-            <p className="font-semibold text-gray-900">₹{loan.amount?.toLocaleString()}</p>
+            <p className="text-sm text-gray-500">Original Amount</p>
+            <p className="font-semibold text-gray-900">{formatCurrency(loan.amount)}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Interest Rate</p>
             <p className="font-semibold text-gray-900">{loan.interestRate}% /month</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Remaining</p>
-            <p className="font-semibold text-gray-900">₹{remainingAmount?.toLocaleString()}</p>
+            <p className="text-sm text-gray-500">Outstanding</p>
+            <p className={`font-semibold ${isReceivable ? 'text-red-600' : 'text-green-600'}`}>
+              {formatCurrency(remainingAmount)}
+            </p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Payments Made</p>
-            <p className="font-semibold text-gray-900">{loan.payments?.length || 0}</p>
+            <p className="text-sm text-gray-500">Interest Due</p>
+            <p className="font-semibold text-purple-600">{formatCurrency(totalInterest)}</p>
           </div>
         </div>
 
@@ -286,21 +305,23 @@ const LoanTab = ({ customerId, onRefresh }) => {
                 <button
                   onClick={() => handlePrincipalPayment(loan)}
                   className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                    loan.type === 'given' 
-                      ? 'text-green-600 hover:bg-green-50'
-                      : 'text-red-600 hover:bg-red-50'
+                    isReceivable
+                      ? 'text-red-600 hover:bg-red-50'
+                      : 'text-green-600 hover:bg-green-50'
                   }`}
                 >
                   <CreditCard size={14} />
-                  {loan.type === 'given' ? 'Collect' : 'Pay'}
+                  {isReceivable ? 'Collect' : 'Pay'}
                 </button>
-                <button
-                  onClick={() => handleInterestPayment(loan)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                >
-                  <Percent size={14} />
-                  Interest
-                </button>
+                {totalInterest > 0 && (
+                  <button
+                    onClick={() => handleInterestPayment(loan)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                  >
+                    <Percent size={14} />
+                    Interest
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -366,57 +387,59 @@ const LoanTab = ({ customerId, onRefresh }) => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-50 rounded-lg">
-              <ArrowUpRight size={20} className="text-green-600" />
+            <div className="p-2 bg-red-50 rounded-lg">
+              <TrendingUp size={20} className="text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Loans Given</p>
-              <p className="text-2xl font-bold text-gray-900">₹{summary.totalGiven.toLocaleString()}</p>
+              <p className="text-sm text-gray-500">To Collect</p>
+              <p className="text-2xl font-bold text-red-600">{formatCurrency(summary.totalToCollect)}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-600">Interest Earned: ₹{summary.totalInterestEarned.toLocaleString()}</p>
+          <p className="text-sm text-gray-600">Outstanding receivables</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-red-50 rounded-lg">
-              <ArrowDownRight size={20} className="text-red-600" />
+            <div className="p-2 bg-green-50 rounded-lg">
+              <TrendingDown size={20} className="text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Loans Taken</p>
-              <p className="text-2xl font-bold text-gray-900">₹{summary.totalTaken.toLocaleString()}</p>
+              <p className="text-sm text-gray-500">To Pay</p>
+              <p className="text-2xl font-bold text-green-600">{formatCurrency(summary.totalToPay)}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-600">Interest Paid: ₹{summary.totalInterestPaid.toLocaleString()}</p>
+          <p className="text-sm text-gray-600">Outstanding payables</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-50 rounded-lg">
-              <TrendingUp size={20} className="text-blue-600" />
+              <DollarSign size={20} className="text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Active Loans</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.activeLoans}</p>
+              <p className="text-sm text-gray-500">Net Position</p>
+              <p className={`text-2xl font-bold ${(summary.totalToCollect - summary.totalToPay) >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {formatCurrency(summary.totalToCollect - summary.totalToPay)}
+              </p>
             </div>
           </div>
-          <p className="text-sm text-gray-600">Completed: {summary.completedLoans}</p>
+          <p className="text-sm text-gray-600">Overall balance</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-yellow-50 rounded-lg">
-              <AlertCircle size={20} className="text-yellow-600" />
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <Percent size={20} className="text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Overdue</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.overdueLoans}</p>
+              <p className="text-sm text-gray-500">Interest Due</p>
+              <p className="text-2xl font-bold text-purple-600">{formatCurrency(summary.totalInterestDue)}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-600">Needs attention</p>
+          <p className="text-sm text-gray-600">Pending interest</p>
         </div>
       </div>
 
@@ -454,8 +477,8 @@ const LoanTab = ({ customerId, onRefresh }) => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Types</option>
-              <option value="given">Loans Given</option>
-              <option value="taken">Loans Taken</option>
+              <option value="receivable">To Collect</option>
+              <option value="payable">To Pay</option>
             </select>
           </div>
         </div>
@@ -516,13 +539,19 @@ const LoanTab = ({ customerId, onRefresh }) => {
         <LoanDetailModal 
           isOpen={showLoanDetail}
           loanData={loanDetailData}
-          loanType={loanDetailData.loans[0]?.type === 'given' ? 'receivable' : 'payable'}
+          loanType={loanDetailData.type}
           onClose={() => {
             setShowLoanDetail(false);
             setLoanDetailData(null);
           }}
-          onPrincipalPayment={handlePrincipalPayment}
-          onInterestPayment={handleInterestPayment}
+          onPrincipalPayment={(loan) => {
+            setShowLoanDetail(false);
+            handlePrincipalPayment(loan);
+          }}
+          onInterestPayment={(loan) => {
+            setShowLoanDetail(false);
+            handleInterestPayment(loan);
+          }}
         />
       )}
 
