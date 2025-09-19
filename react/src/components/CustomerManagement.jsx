@@ -5,6 +5,8 @@ import StatsCard from "./StatsCard";
 import AddCustomerModal from "./AddCustomerModal";
 import CustomerTableRow from "./CustomerTableRow";
 import CustomerDetailView from "./CustomerDetailView";
+import CustomerSearch from "./CustomerSearch"; 
+
 // Fix the import - add .js extension and ensure correct path
 import ApiService from "../services/api.js";
 import {
@@ -591,23 +593,6 @@ const CustomerManagement = () => {
 
 
 
-
-        {/* Search and Filter Bar */}
-        <SearchFilterBar
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          isSearching={isSearching}
-        />
-
-
-
-
         {/* Results Count */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-600">
@@ -624,8 +609,20 @@ const CustomerManagement = () => {
           )}
         </div>
 
-
-
+         {/* Customer Search Bar */}
+          <div className="md:block w-full">
+            <CustomerSearch
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              onCustomerSelect={(customer) => {
+                console.log("Selected customer:", customer);
+                // 👉 you can navigate or open modal with customer details here
+              }}
+              onCreateCustomer={() => {
+                 setShowAddModal(true)
+              }}
+            />
+          </div>
 
         {/* Customer Grid/Table View */}
         {filteredCustomers.length === 0 && !loading ? (

@@ -54,9 +54,9 @@ export const createGoldTransaction = async (req, res) => {
       }
 
       const weight = parseFloat(item.weight);
-      const ratePerGram = Math.round(parseFloat(item.ratePerGram) * 100); // Convert to paise
-      const makingCharges = Math.round(parseFloat(item.makingCharges || 0) * 100);
-      const taxAmount = Math.round(parseFloat(item.taxAmount || 0) * 100);
+      const ratePerGram = Math.round(parseFloat(item.ratePerGram)  ); // Convert to paise
+      const makingCharges = Math.round(parseFloat(item.makingCharges || 0)  );
+      const taxAmount = Math.round(parseFloat(item.taxAmount || 0)  );
       
       // Calculate item total amount (all in paise)
       const itemTotalAmount = (weight * ratePerGram) + makingCharges + taxAmount;
@@ -95,7 +95,7 @@ export const createGoldTransaction = async (req, res) => {
       customer: customer || null,
       supplier: transactionType === "BUY" && !customer ? supplier : null,
       items: processedItems,
-      advanceAmount: Math.round(advanceAmount * 100),
+      advanceAmount: Math.round(advanceAmount  ),
       paymentMode,
       notes,
       billNumber,
@@ -219,7 +219,7 @@ export const getGoldTransactions = async (req, res) => {
     ]);
 
     const totalPages = Math.ceil(totalCount / parseInt(limit));
-
+    console.log(transactions);
     res.json({
       success: true,
       data: transactions.map(t => t.formatForDisplay()),
@@ -303,13 +303,13 @@ export const updateGoldTransaction = async (req, res) => {
         return {
           ...item,
           weight: parseFloat(item.weight),
-          ratePerGram: Math.round(parseFloat(item.ratePerGram) * 100),
-          makingCharges: Math.round(parseFloat(item.makingCharges || 0) * 100),
+          ratePerGram: Math.round(parseFloat(item.ratePerGram)  ),
+          makingCharges: Math.round(parseFloat(item.makingCharges || 0)  ),
           wastage: parseFloat(item.wastage || 0),
-          taxAmount: Math.round(parseFloat(item.taxAmount || 0) * 100),
-          itemTotalAmount: Math.round((parseFloat(item.weight) * Math.round(parseFloat(item.ratePerGram) * 100)) + 
-                                     Math.round(parseFloat(item.makingCharges || 0) * 100) + 
-                                     Math.round(parseFloat(item.taxAmount || 0) * 100))
+          taxAmount: Math.round(parseFloat(item.taxAmount || 0)  ),
+          itemTotalAmount: Math.round((parseFloat(item.weight) * Math.round(parseFloat(item.ratePerGram)  )) + 
+                                     Math.round(parseFloat(item.makingCharges || 0)  ) + 
+                                     Math.round(parseFloat(item.taxAmount || 0) ))
         };
       });
 
@@ -471,14 +471,14 @@ export const getDailyAnalytics = async (req, res) => {
       const type = item._id.toLowerCase();
       if (processedData[type]) {
         processedData[type] = {
-          totalAmount: item.totalAmount / 100,
+          totalAmount: item.totalAmount ,
           totalWeight: item.totalWeight,
           transactionCount: item.transactionCount,
-          avgRate: (item.avgRate || 0) / 100,
+          avgRate: (item.avgRate || 0) ,
           totalItems: item.items,
-          formattedAmount: `₹${(item.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+          formattedAmount: `₹${(item.totalAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
           formattedWeight: `${item.totalWeight}g`,
-          formattedAvgRate: `₹${((item.avgRate || 0) / 100).toFixed(2)}/g`
+          formattedAvgRate: `₹${((item.avgRate || 0) ).toFixed(2)}/g`
         };
 
         // Process purity breakdown
@@ -501,12 +501,12 @@ export const getDailyAnalytics = async (req, res) => {
           const data = purityMap[purity];
           acc[purity] = {
             weight: data.weight,
-            amount: data.amount / 100,
+            amount: data.amount,
             count: data.count,
-            avgRate: data.weight > 0 ? (data.amount / data.weight) / 100 : 0,
-            formattedAmount: `₹${(data.amount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+            avgRate: data.weight > 0 ? (data.amount / data.weight)  : 0,
+            formattedAmount: `₹${(data.amount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
             formattedWeight: `${data.weight}g`,
-            formattedAvgRate: `₹${(data.weight > 0 ? (data.amount / data.weight) / 100 : 0).toFixed(2)}/g`
+            formattedAvgRate: `₹${(data.weight > 0 ? (data.amount / data.weight)  : 0).toFixed(2)}/g`
           };
           return acc;
         }, {});
@@ -619,10 +619,10 @@ export const getWeeklyAnalytics = async (req, res) => {
       
       if (weeklyAnalytics[dayName] && weeklyAnalytics[dayName][type]) {
         weeklyAnalytics[dayName][type] = {
-          totalAmount: item.totalAmount / 100,
+          totalAmount: item.totalAmount ,
           totalWeight: item.totalWeight,
           transactionCount: item.transactionCount,
-          formattedAmount: `₹${(item.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+          formattedAmount: `₹${(item.totalAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
         };
       }
     });
@@ -678,7 +678,7 @@ export const getProfitLossAnalysis = async (req, res) => {
     const purityAnalysis = {};
 
     transactions.forEach(transaction => {
-      const amount = transaction.totalAmount / 100;
+      const amount = transaction.totalAmount;
       const weight = transaction.totalWeight;
 
       if (transaction.transactionType === 'BUY') {
@@ -719,7 +719,7 @@ export const getProfitLossAnalysis = async (req, res) => {
           };
         }
 
-        const itemAmount = item.itemTotalAmount / 100;
+        const itemAmount = item.itemTotalAmount;
         if (transaction.transactionType === 'BUY') {
           purityAnalysis[item.purity].buyAmount += itemAmount;
           purityAnalysis[item.purity].buyWeight += item.weight;
@@ -843,20 +843,20 @@ export const getDailySummary = async (req, res) => {
     // Transform data for better readability
     const formattedSummary = summary.map(item => ({
       transactionType: item._id,
-      overallAmount: item.overallAmount / 100,
+      overallAmount: item.overallAmount ,
       overallWeight: item.overallWeight,
       overallTransactions: item.overallTransactions,
       purities: item.purities.map(p => ({
         purity: p.purity,
-        totalAmount: p.totalAmount / 100,
+        totalAmount: p.totalAmount ,
         totalWeight: p.totalWeight,
-        avgRate: p.avgRate / 100,
+        avgRate: p.avgRate ,
         transactionCount: p.transactionCount,
-        formattedAmount: `₹${(p.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+        formattedAmount: `₹${(p.totalAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
         formattedWeight: `${p.totalWeight}g`,
-        formattedAvgRate: `₹${(p.avgRate / 100).toFixed(2)}/g`
+        formattedAvgRate: `₹${(p.avgRate ).toFixed(2)}/g`
       })),
-      formattedAmount: `₹${(item.overallAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+      formattedAmount: `₹${(item.overallAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
       formattedWeight: `${item.overallWeight}g`
     }));
 
@@ -889,14 +889,14 @@ export const getMonthlySummary = async (req, res) => {
     const formattedSummary = summary.map(item => ({
       type: item._id.type,
       purity: item._id.purity,
-      totalAmount: item.totalAmount / 100,
+      totalAmount: item.totalAmount ,
       totalWeight: item.totalWeight,
       totalTransactions: item.totalTransactions,
-      formattedAmount: `₹${(item.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+      formattedAmount: `₹${(item.totalAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
       formattedWeight: `${item.totalWeight}g`,
       dailyBreakdown: item.dailyBreakdown.map(day => ({
         ...day,
-        formattedAmount: `₹${(day.amount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+        formattedAmount: `₹${(day.amount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
         formattedWeight: `${day.weight}g`
       }))
     }));
@@ -970,18 +970,18 @@ export const getGoldAnalytics = async (req, res) => {
 
     const formattedAnalytics = analytics.map(item => ({
       transactionType: item._id,
-      overallAmount: item.overallAmount / 100,
+      overallAmount: item.overallAmount ,
       overallWeight: item.overallWeight,
       overallTransactions: item.overallTransactions,
       purities: item.purities.map(p => ({
         ...p,
-        totalAmount: p.totalAmount / 100,
-        avgRate: p.avgRate / 100,
-        minRate: p.minRate / 100,
-        maxRate: p.maxRate / 100,
-        formattedAmount: `₹${(p.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+        totalAmount: p.totalAmount ,
+        avgRate: p.avgRate ,
+        minRate: p.minRate ,
+        maxRate: p.maxRate ,
+        formattedAmount: `₹${(p.totalAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
         formattedWeight: `${p.totalWeight}g`,
-        formattedAvgRate: `₹${(p.avgRate / 100).toFixed(2)}/g`
+        formattedAvgRate: `₹${(p.avgRate ).toFixed(2)}/g`
       }))
     }));
 

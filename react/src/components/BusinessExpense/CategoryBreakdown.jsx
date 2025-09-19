@@ -12,7 +12,8 @@ const CategoryBreakdown = ({ categoryExpenses, expenses, totalAmount }) => {
                     .sort(([,a], [,b]) => b - a)
                     .map(([category, amount], index) => {
                         const transactionCount = expenses.filter(e => e.category === category).length;
-                        const percentage = totalAmount > 0 ? ((amount / totalAmount) * 100).toFixed(1) : 0;
+                        const percentage = totalAmount > 0 ? ((amount / totalAmount) * 
+                        100).toFixed(1) : 0;
                         
                         return (
                             <div key={`${category}-${index}`} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-xl border border-slate-100">

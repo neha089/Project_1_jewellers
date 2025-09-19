@@ -661,8 +661,8 @@ async getInterestPayments(loanId, filters = {}) {
       customer: saleData.customerId,
       metal: saleData.metal.toUpperCase(),
       weightGram: parseFloat(saleData.weight),
-      amountPaise: Math.round(parseFloat(saleData.amount) * 100),
-      ratePerGramPaise: Math.round(parseFloat(saleData.rate) * 100),
+      amountPaise: Math.round(parseFloat(saleData.amount)),
+      ratePerGramPaise: Math.round(parseFloat(saleData.rate)),
       purityK: parseInt(saleData.purity),
       date: saleData.date,
     });
@@ -673,7 +673,7 @@ async getInterestPayments(loanId, filters = {}) {
     return this.post("/api/loans/", {
       customer: loanData.customerId,
       loanType: direction === -1 ? 'GIVEN' : 'TAKEN',
-      principalPaise: Math.round(parseFloat(loanData.amount) * 100),
+      principalPaise: Math.round(parseFloat(loanData.amount)),
       interestRateMonthlyPct: parseFloat(loanData.interestRate),
       dueDate: this.calculateDueDate(loanData.date, loanData.durationMonths),
       direction: direction, // -1 for given, 1 for taken
@@ -687,7 +687,7 @@ async getInterestPayments(loanId, filters = {}) {
 
   async makeLoanInterestPayment(loanId, interestAmount, note = null) {
     return this.post(`/api/loans/${loanId}/interest-payment`, {
-      interestPaise: Math.round(parseFloat(interestAmount) * 100),
+      interestPaise: Math.round(parseFloat(interestAmount)  ),
       forMonth: this.getCurrentMonth(),
       note: note,
     });
@@ -695,7 +695,7 @@ async getInterestPayments(loanId, filters = {}) {
 
   async makeLoanPrincipalPayment(loanId, principalAmount, note = null) {
     return this.post(`/api/loans/${loanId}/principal-payment`, {
-      principalPaise: Math.round(parseFloat(principalAmount) * 100),
+      principalPaise: Math.round(parseFloat(principalAmount)  ),
       note: note,
     });
   }
@@ -745,7 +745,7 @@ async getInterestPayments(loanId, filters = {}) {
   async giveUdhari(udhariData) {
     return this.post("/api/udhari/give", {
       customer: udhariData.customerId,
-      principalPaise: Math.round(parseFloat(udhariData.amount) * 100),
+      principalPaise: Math.round(parseFloat(udhariData.amount)  ),
       note: udhariData.description,
       totalInstallments: parseInt(udhariData.installments || 1),
     });
@@ -765,20 +765,20 @@ async getInterestPayments(loanId, filters = {}) {
         goldDetails: {
           purity: transactionData.purity || "22K",
           weight: parseFloat(transactionData.weight),
-          ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
-          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+          ratePerGram: Math.round(parseFloat(transactionData.rate)  ), // Convert to paise
+          makingCharges: Math.round((transactionData.makingCharges || 0)  ),
           wastage: parseFloat(transactionData.wastage || 0),
-          taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
+          taxAmount: Math.round((transactionData.taxAmount || 0)  )
         },
-        advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+        advanceAmount: Math.round((transactionData.advanceAmount || 0)  ),
         paymentMode: transactionData.paymentMode || "CASH",
         items: transactionData.items || [{
           name: transactionData.itemName || "Gold Item",
           description: transactionData.description || "",
           weight: parseFloat(transactionData.weight),
           purity: transactionData.purity || "22K",
-          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
-          itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
+          makingCharges: Math.round((transactionData.makingCharges || 0)  ),
+          itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate)  ),
           photos: transactionData.photos || []
         }],
         notes: transactionData.description || "",
@@ -800,20 +800,20 @@ async getInterestPayments(loanId, filters = {}) {
         silverDetails: {
           purity: transactionData.purity || "999",
           weight: parseFloat(transactionData.weight),
-          ratePerGram: Math.round(parseFloat(transactionData.rate) * 100), // Convert to paise
-          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
+          ratePerGram: Math.round(parseFloat(transactionData.rate)  ), // Convert to paise
+          makingCharges: Math.round((transactionData.makingCharges || 0)  ),
           wastage: parseFloat(transactionData.wastage || 0),
-          taxAmount: Math.round((transactionData.taxAmount || 0) * 100)
+          taxAmount: Math.round((transactionData.taxAmount || 0)  )
         },
-        advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+        advanceAmount: Math.round((transactionData.advanceAmount || 0)  ),
         paymentMode: transactionData.paymentMode || "CASH",
         items: transactionData.items || [{
           name: transactionData.itemName || "Silver Item",
           description: transactionData.description || "",
           weight: parseFloat(transactionData.weight),
           purity: transactionData.purity || "999",
-          makingCharges: Math.round((transactionData.makingCharges || 0) * 100),
-          itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate) * 100),
+          makingCharges: Math.round((transactionData.makingCharges || 0)  ),
+          itemValue: Math.round(parseFloat(transactionData.weight) * parseFloat(transactionData.rate)  ),
           photos: transactionData.photos || []
         }],
         notes: transactionData.description || "",
@@ -840,7 +840,7 @@ async getInterestPayments(loanId, filters = {}) {
         goldDetails: {
           purity: transactionData.goldType || "22K",
           weight: parseFloat(transactionData.goldWeight),
-          ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
+          ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight)  ),
           makingCharges: 0,
           wastage: 0,
           taxAmount: 0
@@ -853,7 +853,7 @@ async getInterestPayments(loanId, filters = {}) {
           weight: parseFloat(transactionData.goldWeight),
           purity: transactionData.goldType || "22K",
           makingCharges: 0,
-          itemValue: Math.round(parseFloat(transactionData.amount) * 100),
+          itemValue: Math.round(parseFloat(transactionData.amount)  ),
           photos: transactionData.photos || []
         }],
         notes: transactionData.description || "",
@@ -880,7 +880,7 @@ async getInterestPayments(loanId, filters = {}) {
         silverDetails: {
           purity: transactionData.goldType || "999", // Using goldType field but for silver
           weight: parseFloat(transactionData.goldWeight), // Using goldWeight field but for silver
-          ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight) * 100),
+          ratePerGram: Math.round(parseFloat(transactionData.rate || transactionData.amount / transactionData.goldWeight)  ),
           makingCharges: 0,
           wastage: 0,
           taxAmount: 0
@@ -893,7 +893,7 @@ async getInterestPayments(loanId, filters = {}) {
           weight: parseFloat(transactionData.goldWeight),
           purity: transactionData.goldType || "999",
           makingCharges: 0,
-          itemValue: Math.round(parseFloat(transactionData.amount) * 100),
+          itemValue: Math.round(parseFloat(transactionData.amount)  ),
           photos: transactionData.photos || []
         }],
         notes: transactionData.description || "",
@@ -933,14 +933,14 @@ async updateSilverTransaction(id, transactionData) {
       silverDetails: transactionData.silverDetails || {
         purity: transactionData.items?.[0]?.purity || "925",
         weight: transactionData.items?.reduce((sum, item) => sum + parseFloat(item.weight || 0), 0) || 0,
-        ratePerGram: transactionData.items?.[0] ? Math.round(parseFloat(transactionData.items[0].ratePerGram || 0) * 100) : 0,
-        makingCharges: Math.round(transactionData.items?.reduce((sum, item) => sum + parseFloat(item.makingCharges || 0), 0) * 100) || 0,
+        ratePerGram: transactionData.items?.[0] ? Math.round(parseFloat(transactionData.items[0].ratePerGram || 0)  ) : 0,
+        makingCharges: Math.round(transactionData.items?.reduce((sum, item) => sum + parseFloat(item.makingCharges || 0), 0)  ) || 0,
         wastage: parseFloat(transactionData.items?.[0]?.wastage || 0),
-        taxAmount: Math.round(transactionData.items?.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0) * 100) || 0
+        taxAmount: Math.round(transactionData.items?.reduce((sum, item) => sum + parseFloat(item.taxAmount || 0), 0)  ) || 0
       },
       
       // Payment handling - total advance amount (original + additional)
-      advanceAmount: Math.round((transactionData.advanceAmount || 0) * 100),
+      advanceAmount: Math.round((transactionData.advanceAmount || 0)  ),
       paymentMode: transactionData.paymentMode || "CASH",
       
       // Items array with proper structure
@@ -949,11 +949,11 @@ async updateSilverTransaction(id, transactionData) {
         description: item.description || "",
         weight: parseFloat(item.weight || 0),
         purity: item.purity || "925",
-        ratePerGram: Math.round(parseFloat(item.ratePerGram || 0) * 100), // Convert to paise
-        makingCharges: Math.round(parseFloat(item.makingCharges || 0) * 100),
+        ratePerGram: Math.round(parseFloat(item.ratePerGram || 0)  ), // Convert to paise
+        makingCharges: Math.round(parseFloat(item.makingCharges || 0)  ),
         wastage: parseFloat(item.wastage || 0),
-        taxAmount: Math.round(parseFloat(item.taxAmount || 0) * 100),
-        itemValue: Math.round(parseFloat(item.weight || 0) * parseFloat(item.ratePerGram || 0) * 100),
+        taxAmount: Math.round(parseFloat(item.taxAmount || 0)  ),
+        itemValue: Math.round(parseFloat(item.weight || 0) * parseFloat(item.ratePerGram || 0)  ),
         photos: item.photos || [],
         hallmarkNumber: item.hallmarkNumber || '',
         certificateNumber: item.certificateNumber || ''
@@ -965,7 +965,7 @@ async updateSilverTransaction(id, transactionData) {
       
       // Additional payment tracking (if your backend supports it)
       ...(transactionData.additionalPayment && {
-        additionalPayment: Math.round(parseFloat(transactionData.additionalPayment) * 100),
+        additionalPayment: Math.round(parseFloat(transactionData.additionalPayment)  ),
         additionalPaymentMode: transactionData.additionalPaymentMode
       })
     };
@@ -1009,15 +1009,15 @@ async getGoldTransactions(params = {}) {
         contact: data.vendor.contact || {},
         gstNumber: data.vendor.gstNumber || undefined
       },
-      grossAmount: Math.round(data.grossAmount * 100), // Convert to paise
+      grossAmount: Math.round(data.grossAmount  ), // Convert to paise
       taxDetails: {
-        totalTax: Math.round((data.taxDetails?.totalTax || 0) * 100), // Convert to paise
-        cgst: Math.round((data.taxDetails?.cgst || 0) * 100),
-        sgst: Math.round((data.taxDetails?.sgst || 0) * 100),
-        igst: Math.round((data.taxDetails?.igst || 0) * 100),
-        cess: Math.round((data.taxDetails?.cess || 0) * 100)
+        totalTax: Math.round((data.taxDetails?.totalTax || 0)  ), // Convert to paise
+        cgst: Math.round((data.taxDetails?.cgst || 0)  ),
+        sgst: Math.round((data.taxDetails?.sgst || 0)  ),
+        igst: Math.round((data.taxDetails?.igst || 0)  ),
+        cess: Math.round((data.taxDetails?.cess || 0)  )
       },
-      netAmount: Math.round((data.grossAmount - (data.taxDetails?.totalTax || 0)) * 100), // Convert to paise
+      netAmount: Math.round((data.grossAmount - (data.taxDetails?.totalTax || 0))  ), // Convert to paise
       paymentMethod: data.paymentMethod,
       expenseDate: data.expenseDate,
       referenceNumber: data.referenceNumber || undefined,
@@ -1073,7 +1073,7 @@ async updateExpense(id, data) {
     try {
       const response = await axiosInstance.post('/api/udhari/give', {
         customer: data.customerId,
-        principalPaise: Math.round(parseFloat(data.amount) * 100), // Convert to paise
+        principalPaise: Math.round(parseFloat(data.amount)  ), // Convert to paise
         note: data.description,
         totalInstallments: data.totalInstallments || 1,
         returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
@@ -1090,7 +1090,7 @@ async updateExpense(id, data) {
     try {
       const response = await axiosInstance.post('/api/udhari/take', {
         customer: data.customerId,
-        principalPaise: Math.round(parseFloat(data.amount) * 100),
+        principalPaise: Math.round(parseFloat(data.amount)  ),
         note: data.description,
         totalInstallments: data.totalInstallments || 1,
         returnDate: data.returnDate ? new Date(data.returnDate).toISOString() : null
@@ -1108,7 +1108,7 @@ async updateExpense(id, data) {
     try {
       const response = await axiosInstance.post('/api/udhari/receive-payment', {
         customer: data.customerId,
-        principalPaise: Math.round(parseFloat(data.amount) * 100),
+        principalPaise: Math.round(parseFloat(data.amount)  ),
         sourceRef: data.sourceRef, // Original udhari transaction ID
         note: data.description,
         installmentNumber: data.installmentNumber || 1
@@ -1125,7 +1125,7 @@ async updateExpense(id, data) {
     try {
       const response = await axiosInstance.post('/api/udhari/make-payment', {
         customer: data.customerId,
-        principalPaise: Math.round(parseFloat(data.amount) * 100),
+        principalPaise: Math.round(parseFloat(data.amount)  ),
         sourceRef: data.sourceRef,
         note: data.description,
         installmentNumber: data.installmentNumber || 1
@@ -1202,11 +1202,11 @@ async updateExpense(id, data) {
   }
 
   paiseToRupees(paise) {
-    return paise / 100;
+    return paise  ;
   }
 
   rupeesToPaise(rupees) {
-    return Math.round(parseFloat(rupees) * 100);
+    return Math.round(parseFloat(rupees)  );
   }
 }
 

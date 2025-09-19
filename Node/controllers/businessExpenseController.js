@@ -45,8 +45,8 @@ export const createExpense = async (req, res) => {
 
     // Calculate tax amounts (convert to paise)
     const totalTax = taxDetails.totalTax || 0;
-    const grossAmountPaise = Math.round(grossAmount * 100);
-    const totalTaxPaise = Math.round(totalTax * 100);
+    const grossAmountPaise = Math.round(grossAmount);
+    const totalTaxPaise = Math.round(totalTax);
     const netAmountPaise = grossAmountPaise - totalTaxPaise;
 
     if (totalTaxPaise > grossAmountPaise) {
@@ -92,10 +92,10 @@ export const createExpense = async (req, res) => {
       vendor: vendorData,
       grossAmount: grossAmountPaise,
       taxDetails: {
-        cgst: Math.round((taxDetails.cgst || 0) * 100),
-        sgst: Math.round((taxDetails.sgst || 0) * 100),
-        igst: Math.round((taxDetails.igst || 0) * 100),
-        cess: Math.round((taxDetails.cess || 0) * 100),
+        cgst: Math.round(taxDetails.cgst || 0),
+        sgst: Math.round(taxDetails.sgst || 0),
+        igst: Math.round(taxDetails.igst || 0),
+        cess: Math.round(taxDetails.cess || 0),
         totalTax: totalTaxPaise
       },
       netAmount: netAmountPaise,
@@ -250,13 +250,13 @@ export const updateExpense = async (req, res) => {
 
     // Update financial details
     if (grossAmount !== undefined || taxDetails !== undefined) {
-      const newGrossAmount = grossAmount !== undefined ? grossAmount : expense.grossAmount / 100;
+      const newGrossAmount = grossAmount !== undefined ? grossAmount : expense.grossAmount;
       const newTaxDetails = taxDetails || {
-        totalTax: expense.taxDetails.totalTax / 100
+        totalTax: expense.taxDetails.totalTax
       };
 
-      const grossAmountPaise = Math.round(newGrossAmount * 100);
-      const totalTaxPaise = Math.round((newTaxDetails.totalTax || 0) * 100);
+      const grossAmountPaise = Math.round(newGrossAmount);
+      const totalTaxPaise = Math.round(newTaxDetails.totalTax || 0);
       const netAmountPaise = grossAmountPaise - totalTaxPaise;
 
       if (totalTaxPaise > grossAmountPaise) {
@@ -268,10 +268,10 @@ export const updateExpense = async (req, res) => {
 
       expense.grossAmount = grossAmountPaise;
       expense.taxDetails = {
-        cgst: Math.round((newTaxDetails.cgst || 0) * 100),
-        sgst: Math.round((newTaxDetails.sgst || 0) * 100),
-        igst: Math.round((newTaxDetails.igst || 0) * 100),
-        cess: Math.round((newTaxDetails.cess || 0) * 100),
+        cgst: Math.round(newTaxDetails.cgst || 0),
+        sgst: Math.round(newTaxDetails.sgst || 0),
+        igst: Math.round(newTaxDetails.igst || 0),
+        cess: Math.round(newTaxDetails.cess || 0),
         totalTax: totalTaxPaise
       };
       expense.netAmount = netAmountPaise;
@@ -396,11 +396,11 @@ export const getExpenses = async (req, res) => {
     ]);
 
     const summaryData = summary[0] ? {
-      totalGrossAmount: Math.round(summary[0].totalGrossAmount / 100),
-      totalNetAmount: Math.round(summary[0].totalNetAmount / 100),
-      totalPaidAmount: Math.round(summary[0].totalPaidAmount / 100),
-      totalPendingAmount: Math.round(summary[0].totalPendingAmount / 100),
-      totalTaxAmount: Math.round(summary[0].totalTaxAmount / 100),
+      totalGrossAmount: Math.round(summary[0].totalGrossAmount),
+      totalNetAmount: Math.round(summary[0].totalNetAmount),
+      totalPaidAmount: Math.round(summary[0].totalPaidAmount),
+      totalPendingAmount: Math.round(summary[0].totalPendingAmount),
+      totalTaxAmount: Math.round(summary[0].totalTaxAmount),
       paidExpenses: summary[0].paidExpenses,
       pendingExpenses: summary[0].pendingExpenses
     } : {
@@ -423,17 +423,17 @@ export const getExpenses = async (req, res) => {
         title: expense.title,
         description: expense.description,
         vendor: expense.vendor,
-        grossAmount: expense.grossAmount / 100,
-        netAmount: expense.netAmount / 100,
+        grossAmount: expense.grossAmount,
+        netAmount: expense.netAmount,
         taxDetails: {
-          totalTax: expense.taxDetails.totalTax / 100,
-          cgst: expense.taxDetails.cgst / 100,
-          sgst: expense.taxDetails.sgst / 100,
-          igst: expense.taxDetails.igst / 100,
-          cess: expense.taxDetails.cess / 100
+          totalTax: expense.taxDetails.totalTax,
+          cgst: expense.taxDetails.cgst  ,
+          sgst: expense.taxDetails.sgst  ,
+          igst: expense.taxDetails.igst  ,
+          cess: expense.taxDetails.cess  
         },
-        paidAmount: expense.paidAmount / 100,
-        pendingAmount: expense.pendingAmount / 100,
+        paidAmount: expense.paidAmount  ,
+        pendingAmount: expense.pendingAmount  ,
         paymentStatus: expense.paymentStatus,
         paymentMethod: expense.paymentMethod,
         expenseDate: expense.expenseDate,
@@ -561,15 +561,15 @@ export const getExpenseDashboard = async (req, res) => {
     ]);
 
     const overview = overviewData[0] ? {
-      totalGrossAmount: Math.round(overviewData[0].totalGrossAmount / 100),
-      totalNetAmount: Math.round(overviewData[0].totalNetAmount / 100),
-      totalPaidAmount: Math.round(overviewData[0].totalPaidAmount / 100),
-      totalPendingAmount: Math.round(overviewData[0].totalPendingAmount / 100),
-      totalTaxAmount: Math.round(overviewData[0].totalTaxAmount / 100),
+      totalGrossAmount: Math.round(overviewData[0].totalGrossAmount  ),
+      totalNetAmount: Math.round(overviewData[0].totalNetAmount  ),
+      totalPaidAmount: Math.round(overviewData[0].totalPaidAmount  ),
+      totalPendingAmount: Math.round(overviewData[0].totalPendingAmount  ),
+      totalTaxAmount: Math.round(overviewData[0].totalTaxAmount  ),
       paidExpenses: overviewData[0].paidExpenses,
       pendingExpenses: overviewData[0].pendingExpenses,
       thisMonth: thisMonthData[0] ? {
-        totalAmount: Math.round(thisMonthData[0].totalAmount / 100),
+        totalAmount: Math.round(thisMonthData[0].totalAmount  ),
         totalExpenses: thisMonthData[0].totalExpenses
       } : { totalAmount: 0, totalExpenses: 0 }
     } : {
@@ -628,13 +628,13 @@ export const updateExpensePayment = async (req, res) => {
       });
     }
 
-    const paidAmountPaise = Math.round(paidAmount * 100);
+    const paidAmountPaise = Math.round(paidAmount  );
     const totalPaidAmount = expense.paidAmount + paidAmountPaise;
 
     if (totalPaidAmount > expense.grossAmount) {
       return res.status(400).json({
         success: false,
-        error: `Payment amount exceeds remaining balance. Maximum payable: ₹${((expense.grossAmount - expense.paidAmount) / 100).toFixed(2)}`
+        error: `Payment amount exceeds remaining balance. Maximum payable: ₹${((expense.grossAmount - expense.paidAmount)  ).toFixed(2)}`
       });
     }
 
@@ -676,7 +676,7 @@ export const updateExpensePayment = async (req, res) => {
       data: expense.formatForDisplay(),
       message: expense.paymentStatus === 'PAID' ? 
         'Expense fully paid!' : 
-        `Partial payment recorded. Remaining: ₹${(expense.pendingAmount / 100).toFixed(2)}`
+        `Partial payment recorded. Remaining: ₹${(expense.pendingAmount  ).toFixed(2)}`
     });
   } catch (error) {
     res.status(400).json({

@@ -25,109 +25,109 @@ const Dashboard = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
- const statsData = [
-  {
-    title: "Today's Cash Flow",
-    value: "₹45,320",
-    change: "+12.5%",
-    icon: DollarSign, // Use DollarSign icon
-    color: "green",
-    changeType: "positive"
-  },
-  {
-    title: "Total Customers",
-    value: "847",
-    change: "23 new",
-    icon: Users,
-    color: "blue",
-    changeType: "positive"
-  },
-  {
-    title: "Active Loans",
-    value: "156",
-    change: "5 overdue",
-    icon: Handshake,
-    color: "yellow",
-    changeType: "negative"
-  },
-  {
-    title: "Gold Portfolio",
-    value: "₹12.4L",
-    change: "Total value",
-    icon: Coins,
-    color: "gray",
-    changeType: "neutral"
-  }
-];
-  const recentTransactions = [
-    {
-      icon: ArrowDown,
-      iconBg: "bg-green-600",
-      primary: "Payment from Priya Sharma",
-      secondary: "Loan Interest Payment",
-      amount: "₹5,000",
-      time: "2 hours ago"
-    },
-    {
-      icon: Handshake,
-      iconBg: "bg-yellow-500",
-      primary: "New Loan - Amit Patel",
-      secondary: "15g Gold Chain",
-      amount: "₹25,000",
-      time: "4 hours ago"
-    },
-    {
-      icon: UserPlus,
-      iconBg: "bg-blue-500",
-      primary: "New Customer Added",
-      secondary: "Meera Gupta - +91 9876543210",
-      amount: "-",
-      time: "6 hours ago"
-    },
-    {
-      icon: CheckCircle,
-      iconBg: "bg-green-600",
-      primary: "Loan Closed - Ravi Kumar",
-      secondary: "Full Repayment",
-      amount: "₹18,000",
-      time: "1 day ago"
-    }
-  ];
+//  const statsData = [
+//   {
+//     title: "Today's Cash Flow",
+//     value: "₹45,320",
+//     change: "+12.5%",
+//     icon: DollarSign, // Use DollarSign icon
+//     color: "green",
+//     changeType: "positive"
+//   },
+//   {
+//     title: "Total Customers",
+//     value: "847",
+//     change: "23 new",
+//     icon: Users,
+//     color: "blue",
+//     changeType: "positive"
+//   },
+//   {
+//     title: "Active Loans",
+//     value: "156",
+//     change: "5 overdue",
+//     icon: Handshake,
+//     color: "yellow",
+//     changeType: "negative"
+//   },
+//   {
+//     title: "Gold Portfolio",
+//     value: "₹12.4L",
+//     change: "Total value",
+//     icon: Coins,
+//     color: "gray",
+//     changeType: "neutral"
+//   }
+// ];
+  // const recentTransactions = [
+  //   {
+  //     icon: ArrowDown,
+  //     iconBg: "bg-green-600",
+  //     primary: "Payment from Priya Sharma",
+  //     secondary: "Loan Interest Payment",
+  //     amount: "₹5,000",
+  //     time: "2 hours ago"
+  //   },
+  //   {
+  //     icon: Handshake,
+  //     iconBg: "bg-yellow-500",
+  //     primary: "New Loan - Amit Patel",
+  //     secondary: "15g Gold Chain",
+  //     amount: "₹25,000",
+  //     time: "4 hours ago"
+  //   },
+  //   {
+  //     icon: UserPlus,
+  //     iconBg: "bg-blue-500",
+  //     primary: "New Customer Added",
+  //     secondary: "Meera Gupta - +91 9876543210",
+  //     amount: "-",
+  //     time: "6 hours ago"
+  //   },
+  //   {
+  //     icon: CheckCircle,
+  //     iconBg: "bg-green-600",
+  //     primary: "Loan Closed - Ravi Kumar",
+  //     secondary: "Full Repayment",
+  //     amount: "₹18,000",
+  //     time: "1 day ago"
+  //   }
+  // ];
 
-  const overdueLoans = [
-    {
-      icon: AlertTriangle,
-      iconBg: "bg-red-600",
-      primary: "Sita Devi",
-      secondary: "Due: 12 days ago",
-      amount: "₹8,500",
-      badge: { type: "overdue", text: "Overdue" }
-    },
-    {
-      icon: AlertTriangle,
-      iconBg: "bg-red-600",
-      primary: "Ramesh Gupta",
-      secondary: "Due: 8 days ago",
-      amount: "₹12,300",
-      badge: { type: "overdue", text: "Overdue" }
-    },
-    {
-      icon: AlertTriangle,
-      iconBg: "bg-red-600",
-      primary: "Anita Sharma",
-      secondary: "Due: 5 days ago",
-      amount: "₹6,750",
-      badge: { type: "overdue", text: "Overdue" }
-    },
-    {
-      icon: Clock,
-      iconBg: "bg-yellow-500",
-      primary: "Vikash Patel",
-      secondary: "Due: Tomorrow",
-      amount: "₹4,200",
-      badge: { type: "active", text: "Due Soon" }
-    }
-  ];
+  // const overdueLoans = [
+  //   {
+  //     icon: AlertTriangle,
+  //     iconBg: "bg-red-600",
+  //     primary: "Sita Devi",
+  //     secondary: "Due: 12 days ago",
+  //     amount: "₹8,500",
+  //     badge: { type: "overdue", text: "Overdue" }
+  //   },
+  //   {
+  //     icon: AlertTriangle,
+  //     iconBg: "bg-red-600",
+  //     primary: "Ramesh Gupta",
+  //     secondary: "Due: 8 days ago",
+  //     amount: "₹12,300",
+  //     badge: { type: "overdue", text: "Overdue" }
+  //   },
+  //   {
+  //     icon: AlertTriangle,
+  //     iconBg: "bg-red-600",
+  //     primary: "Anita Sharma",
+  //     secondary: "Due: 5 days ago",
+  //     amount: "₹6,750",
+  //     badge: { type: "overdue", text: "Overdue" }
+  //   },
+  //   {
+  //     icon: Clock,
+  //     iconBg: "bg-yellow-500",
+  //     primary: "Vikash Patel",
+  //     secondary: "Due: Tomorrow",
+  //     amount: "₹4,200",
+  //     badge: { type: "active", text: "Due Soon" }
+  //   }
+  // ];
 
   return (
     

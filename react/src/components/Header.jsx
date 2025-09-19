@@ -1,9 +1,12 @@
 import React from 'react';
 import { Search, User, Menu, Bell, ChevronDown } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import CustomerSearch from "./CustomerSearch"; 
+import { useState } from "react";
 
 const Header = ({ toggleSidebar, isMobile, onNotificationClick }) => {
   const location = useLocation();
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Get page title from current route
   const getPageTitle = () => {
@@ -97,18 +100,23 @@ const Header = ({ toggleSidebar, isMobile, onNotificationClick }) => {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Search Bar */}
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-80 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+         {/* Customer Search Bar */}
+          <div className="hidden md:block w-96">
+            <CustomerSearch
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              onCustomerSelect={(customer) => {
+                console.log("Selected customer:", customer);
+                // 👉 you can navigate or open modal with customer details here
+              }}
+              onCreateCustomer={() => {
+                console.log("Create new customer clicked");
+                // 👉 redirect to add-customer page or open modal
+              }}
             />
           </div>
-
           {/* Notification Bell */}
-          <button 
+          {/* <button 
             onClick={onNotificationClick}
             className={`relative p-2 rounded-lg transition-all duration-200 ${
               hasPendingBalances 
@@ -128,7 +136,7 @@ const Header = ({ toggleSidebar, isMobile, onNotificationClick }) => {
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full animate-ping"></span>
               </>
             )}
-          </button>
+          </button> */}
           
           {/* User Profile */}
           <div className="flex items-center gap-3">

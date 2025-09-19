@@ -29,11 +29,7 @@ export const PAYMENT_METHODS = [
 ];
 
 export const PAYMENT_STATUS_OPTIONS = [
-    { value: 'PENDING', label: '⏳ Pending', color: 'amber' },
-    { value: 'PAID', label: '✅ Paid', color: 'emerald' },
-    { value: 'PARTIAL', label: '🔄 Partial', color: 'blue' },
-    { value: 'OVERDUE', label: '⚠️ Overdue', color: 'red' },
-    { value: 'CANCELLED', label: '❌ Cancelled', color: 'gray' }
+    { value: 'PAID', label: '✅ Paid', color: 'emerald' }
 ];
 
 export const DATE_RANGE_OPTIONS = [

@@ -7,11 +7,11 @@ export const formatIndianAmount = (amount) => {
     const num = Number(amount);
     
     if (num >= 10000000) { // Crore
-        return `₹${(num / 10000000).toFixed(2)} Cr`;
+        return `₹${(num / 10000000)} Cr`;
     } else if (num >= 100000) { // Lakh
-        return `₹${(num / 100000).toFixed(2)} L`;
+        return `₹${(num / 100000)} L`;
     } else if (num >= 1000) { // Thousand
-        return `₹${(num / 1000).toFixed(2)} K`;
+        return `₹${(num / 1000)} K`;
     }
     return `₹${num.toLocaleString('en-IN')}`;
 };

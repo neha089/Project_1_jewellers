@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, TrendingUp, TrendingDown, DollarSign, RefreshCw, Loader2, AlertCircle, Building } from 'lucide-react';
 import ApiService from '../services/api.js';
@@ -6,6 +5,7 @@ import AddUdharModal from '../components/AddUdhariModal';
 import UdhariCard from '../components/UdhariCard';
 import UdhariDetailModal from '../components/UdhariDetailModal';
 import UdhariPaymentModal from '../components/UdhariPaymentModal';
+import CustomerSearch from "../components/CustomerSearch";
 
 const Udhaar = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -133,8 +133,8 @@ const Udhaar = () => {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="flex flex-row flex-wrap gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="flex-1 min-w-[250px] max-w-[33.33%] bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-lg flex items-center justify-center">
                 <TrendingUp size={20} className="text-red-600" />
@@ -147,7 +147,7 @@ const Udhaar = () => {
             <p className="text-xs sm:text-sm text-gray-500">{filteredReceivableUdharis.length} customers</p>
           </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex-1 min-w-[250px] max-w-[33.33%] bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <TrendingDown size={20} className="text-green-600" />
@@ -160,7 +160,7 @@ const Udhaar = () => {
             <p className="text-xs sm:text-sm text-gray-500">{filteredPayableUdharis.length} customers</p>
           </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex-1 min-w-[250px] max-w-[33.33%] bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <DollarSign size={20} className="text-blue-600" />
@@ -178,22 +178,27 @@ const Udhaar = () => {
 
         {/* Search and Filter */}
         <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mb-6">
-          <div className="relative w-full">
-            <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <input
-              type="text"
-              placeholder="Search by customer name or phone..."
-              className="w-full pl-10 sm:pl-12 pr-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm sm:text-base"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+          <div className="w-full sm:w-96">
+            <CustomerSearch
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              onCustomerSelect={(customer) => {
+                console.log("Selected customer:", customer);
+                // Optionally open details modal
+              }}
+              onCreateCustomer={() => {
+                console.log("Create new customer clicked");
+                // Optionally open Add Customer modal
+              }}
             />
           </div>
+
           <button
             onClick={loadUdharis}
             className="p-2 sm:p-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             disabled={loading}
           >
-            <RefreshCw size={20} className={`text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw size={20} className={`text-gray-600 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -226,7 +231,7 @@ const Udhaar = () => {
         </div>
 
         {/* Content */}
-        <div className="space-y-4 sm:space-y-6">
+        <div>
           {loading ? (
             <div className="text-center py-12">
               <Loader2 className="animate-spin h-10 w-10 sm:h-12 sm:w-12 text-blue-600 mx-auto" />
@@ -255,15 +260,16 @@ const Udhaar = () => {
                         </div>
                         To Collect ({filteredReceivableUdharis.length})
                       </h2>
-                      <div className="space-y-4">
+                      <div className="flex flex-row flex-wrap gap-4">
                         {filteredReceivableUdharis.map((customerData, index) => (
-                          <UdhariCard
-                            key={`receivable-${customerData.customer._id}-${index}`}
-                            udhari={customerData}
-                            type="receivable"
-                            onView={() => handleViewUdhari(customerData)}
-                            onPayment={() => handleDirectPayment(customerData)}
-                          />
+                          <div key={`receivable-${customerData.customer._id}-${index}`} className="flex-1 min-w-[250px] max-w-[400px]">
+                            <UdhariCard
+                              udhari={customerData}
+                              type="receivable"
+                              onView={() => handleViewUdhari(customerData)}
+                              onPayment={() => handleDirectPayment(customerData)}
+                            />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -277,15 +283,16 @@ const Udhaar = () => {
                         </div>
                         To Pay ({filteredPayableUdharis.length})
                       </h2>
-                      <div className="space-y-4">
+                      <div className="flex flex-row flex-wrap gap-4">
                         {filteredPayableUdharis.map((customerData, index) => (
-                          <UdhariCard
-                            key={`payable-${customerData.customer._id}-${index}`}
-                            udhari={customerData}
-                            type="payable"
-                            onView={() => handleViewUdhari(customerData)}
-                            onPayment={() => handleDirectPayment(customerData)}
-                          />
+                          <div key={`payable-${customerData.customer._id}-${index}`} className="flex-1 min-w-[250px] max-w-[400px]">
+                            <UdhariCard
+                              udhari={customerData}
+                              type="payable"
+                              onView={() => handleViewUdhari(customerData)}
+                              onPayment={() => handleDirectPayment(customerData)}
+                            />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -309,17 +316,20 @@ const Udhaar = () => {
               )}
 
               {activeTab === 'receivable' && (
-                <div className="space-y-4">
+                <div>
                   {filteredReceivableUdharis.length > 0 ? (
-                    filteredReceivableUdharis.map((customerData, index) => (
-                      <UdhariCard
-                        key={`receivable-${customerData.customer._id}-${index}`}
-                        udhari={customerData}
-                        type="receivable"
-                        onView={() => handleViewUdhari(customerData)}
-                        onPayment={() => handleDirectPayment(customerData)}
-                      />
-                    ))
+                    <div className="flex flex-row flex-wrap gap-4">
+                      {filteredReceivableUdharis.map((customerData, index) => (
+                        <div key={`receivable-${customerData.customer._id}-${index}`} className="flex-1 min-w-[250px] max-w-[400px]">
+                          <UdhariCard
+                            udhari={customerData}
+                            type="receivable"
+                            onView={() => handleViewUdhari(customerData)}
+                            onPayment={() => handleDirectPayment(customerData)}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-center py-12">
                       <TrendingUp size={40} className="text-gray-300 mx-auto mb-4" />
@@ -331,17 +341,20 @@ const Udhaar = () => {
               )}
 
               {activeTab === 'payable' && (
-                <div className="space-y-4">
+                <div>
                   {filteredPayableUdharis.length > 0 ? (
-                    filteredPayableUdharis.map((customerData, index) => (
-                      <UdhariCard
-                        key={`payable-${customerData.customer._id}-${index}`}
-                        udhari={customerData}
-                        type="payable"
-                        onView={() => handleViewUdhari(customerData)}
-                        onPayment={() => handleDirectPayment(customerData)}
-                      />
-                    ))
+                    <div className="flex flex-row flex-wrap gap-4">
+                      {filteredPayableUdharis.map((customerData, index) => (
+                        <div key={`payable-${customerData.customer._id}-${index}`} className="flex-1 min-w-[250px] max-w-[400px]">
+                          <UdhariCard
+                            udhari={customerData}
+                            type="payable"
+                            onView={() => handleViewUdhari(customerData)}
+                            onPayment={() => handleDirectPayment(customerData)}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-center py-12">
                       <TrendingDown size={40} className="text-gray-300 mx-auto mb-4" />

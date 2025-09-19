@@ -148,8 +148,8 @@ export const exportCustomers = async (req, res) => {
         "Adhaar Number": customer.adhaarNumber,
         Status: customer.status,
         "Total Amount Taken From Jewellers":
-          customer.totalAmountTakenFromJewellers / 100,
-        "Total Amount Taken By Us": customer.totalAmountTakenByUs / 100,
+          customer.totalAmountTakenFromJewellers,
+        "Total Amount Taken By Us": customer.totalAmountTakenByUs,
         "Created At": customer.createdAt,
       }))
     );

@@ -8,7 +8,8 @@ import GStatsCards from '../components/GStatsCards';
 import MetalRatesDisplay from '../components/MetalRatesDisplay';
 import TransactionTable from '../components/TransactionTable';
 import EmptyState from '../components/EmptyState';
-
+import CustomerSearch
+ from '../components/CustomerSearch';
 const GoldBuySell = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +32,7 @@ const GoldBuySell = () => {
   // Load transactions when filters change
   useEffect(() => {
     loadTransactions();
-  }, [searchTerm, filterBy, currentPage]);
+  }, [filterBy, currentPage]);
 
   const loadInitialData = async () => {
     try {
@@ -57,7 +58,7 @@ const GoldBuySell = () => {
       };
 
       const response = await ApiService.getGoldTransactions(params);
-      
+      console.log(response);
       if (response.success) {
         setTransactions(response.data);
         setTotalPages(response.pagination?.totalPages || 1);
@@ -77,7 +78,7 @@ const GoldBuySell = () => {
       if (priceData && priceData.gold) {
         const goldRatesFormatted = {};
         Object.entries(priceData.gold.rates).forEach(([purity, rate]) => {
-          goldRatesFormatted[`${purity} Gold`] = Math.round(rate / 100); // Convert from paise to rupees
+          goldRatesFormatted[`${purity} Gold`] = Math.round(rate); // Convert from paise to rupees
         });
         setGoldRates(goldRatesFormatted);
         return;
@@ -215,13 +216,15 @@ const GoldBuySell = () => {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by customer name, bill number..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-transparent"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+              <CustomerSearch
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                onCustomerSelect={(customer) => {
+                  console.log("Selected customer:", customer);
+                }}
+                onCreateCustomer={() => {
+                  console.log("Create new customer clicked");
+                }}
               />
             </div>
             <div className="flex items-center gap-2">

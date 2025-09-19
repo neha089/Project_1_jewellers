@@ -15,7 +15,7 @@ const TransactionTable = ({
   const formatCurrency = (amount) => {
     // Handle amount conversion from paise to rupees if needed
     const numericAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
-    const displayAmount = numericAmount > 10000 ? numericAmount / 100 : numericAmount;
+    const displayAmount = numericAmount > 10000 ? numericAmount : numericAmount;
     return `₹${displayAmount.toFixed(2)}`;
   };
 

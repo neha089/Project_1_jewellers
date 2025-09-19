@@ -17,6 +17,7 @@ import LoanCard from '../components/LoanCard';
 import LoanDetailModal from '../components/LoanDetailModal';
 import LoanPaymentModal from '../components/LoanPaymentModal';
 import InterestPaymentModal from '../components/InterestPaymentModal';
+import CustomerSearch from '../components/CustomerSearch.jsx';
 
 const Loan = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -149,8 +150,8 @@ const handlePrincipalPayment = (loan) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex flex-row flex-wrap gap-6 mb-8">
+          <div className="flex-1 min-w-[250px] max-w-[25%] bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
                 <TrendingUp size={20} className="text-red-600" />
@@ -163,7 +164,7 @@ const handlePrincipalPayment = (loan) => {
             <p className="text-sm text-slate-500">{filteredReceivableLoans.length} customers</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex-1 min-w-[250px] max-w-[25%] bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                 <TrendingDown size={20} className="text-green-600" />
@@ -176,7 +177,7 @@ const handlePrincipalPayment = (loan) => {
             <p className="text-sm text-slate-500">{filteredPayableLoans.length} customers</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex-1 min-w-[250px] max-w-[25%] bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Percent size={20} className="text-purple-600" />
@@ -189,7 +190,7 @@ const handlePrincipalPayment = (loan) => {
             <p className="text-sm text-slate-500">Pending interest payments</p>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex-1 min-w-[250px] max-w-[25%] bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                 <DollarSign size={20} className="text-blue-600" />
@@ -206,16 +207,18 @@ const handlePrincipalPayment = (loan) => {
         </div>
 
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
-            <input
-              type="text"
-              placeholder="Search by customer name or phone..."
-              className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          <div className="flex-1">
+              <CustomerSearch
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                onCustomerSelect={(customer) => {
+                  console.log("Selected customer:", customer);
+                }}
+                onCreateCustomer={() => {
+                  console.log("Create new customer clicked");
+                }}
+              />
+            </div>
           <button
             onClick={loadLoans}
             className="p-3 border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
@@ -287,16 +290,17 @@ const handlePrincipalPayment = (loan) => {
                         </div>
                         To Collect ({filteredReceivableLoans.length})
                       </h2>
-                      <div className="space-y-4">
+                      <div className="flex flex-row flex-wrap gap-4">
                         {filteredReceivableLoans.map((loan, index) => (
-                          <LoanCard
-                            key={`receivable-${index}`}
-                            loan={loan}
-                            type="receivable"
-                            onView={() => handleViewLoan(loan)}
-                            onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
-                            onInterestPayment={() => handleInterestPayment(loan.loans[0])}
-                          />
+                          <div key={`receivable-${index}`} className="flex-1 min-w-[250px] max-w-[33.33%]">
+                            <LoanCard
+                              loan={loan}
+                              type="receivable"
+                              onView={() => handleViewLoan(loan)}
+                              onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                              onInterestPayment={() => handleInterestPayment(loan.loans[0])}
+                            />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -310,16 +314,17 @@ const handlePrincipalPayment = (loan) => {
                         </div>
                         To Pay ({filteredPayableLoans.length})
                       </h2>
-                      <div className="space-y-4">
+                      <div className="flex flex-row flex-wrap gap-4">
                         {filteredPayableLoans.map((loan, index) => (
-                          <LoanCard
-                            key={`payable-${index}`}
-                            loan={loan}
-                            type="payable"
-                            onView={() => handleViewLoan(loan)}
-                            onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
-                            onInterestPayment={() => handleInterestPayment(loan.loans[0])}
-                          />
+                          <div key={`payable-${index}`} className="flex-1 min-w-[250px] max-w-[33.33%]">
+                            <LoanCard
+                              loan={loan}
+                              type="payable"
+                              onView={() => handleViewLoan(loan)}
+                              onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                              onInterestPayment={() => handleInterestPayment(loan.loans[0])}
+                            />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -345,16 +350,19 @@ const handlePrincipalPayment = (loan) => {
               {activeTab === 'receivable' && (
                 <div className="space-y-4">
                   {filteredReceivableLoans.length > 0 ? (
-                    filteredReceivableLoans.map((loan, index) => (
-                      <LoanCard
-                        key={`receivable-${index}`}
-                        loan={loan}
-                        type="receivable"
-                        onView={() => handleViewLoan(loan)}
-                        onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
-                        onInterestPayment={() => handleInterestPayment(loan.loans[0])}
-                      />
-                    ))
+                    <div className="flex flex-row flex-wrap gap-4">
+                      {filteredReceivableLoans.map((loan, index) => (
+                        <div key={`receivable-${index}`} className="flex-1 min-w-[250px] max-w-[33.33%]">
+                          <LoanCard
+                            loan={loan}
+                            type="receivable"
+                            onView={() => handleViewLoan(loan)}
+                            onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                            onInterestPayment={() => handleInterestPayment(loan.loans[0])}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-center py-12">
                       <TrendingUp size={48} className="text-slate-300 mx-auto mb-4" />
@@ -368,16 +376,19 @@ const handlePrincipalPayment = (loan) => {
               {activeTab === 'payable' && (
                 <div className="space-y-4">
                   {filteredPayableLoans.length > 0 ? (
-                    filteredPayableLoans.map((loan, index) => (
-                      <LoanCard
-                        key={`payable-${index}`}
-                        loan={loan}
-                        type="payable"
-                        onView={() => handleViewLoan(loan)}
-                        onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
-                        onInterestPayment={() => handleInterestPayment(loan.loans[0])}
-                      />
-                    ))
+                    <div className="flex flex-row flex-wrap gap-4">
+                      {filteredPayableLoans.map((loan, index) => (
+                        <div key={`payable-${index}`} className="flex-1 min-w-[250px] max-w-[33.33%]">
+                          <LoanCard
+                            loan={loan}
+                            type="payable"
+                            onView={() => handleViewLoan(loan)}
+                            onPrincipalPayment={() => handlePrincipalPayment(loan.loans[0])}
+                            onInterestPayment={() => handleInterestPayment(loan.loans[0])}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-center py-12">
                       <TrendingDown size={48} className="text-slate-300 mx-auto mb-4" />
