@@ -18,6 +18,7 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
     amount: '',
     interestRate: '',
     note: '',
+    startDate: '',
     returnDate: '',
     totalInstallments: 1,
     paymentMethod: 'CASH'
@@ -134,6 +135,7 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
         interestRateMonthlyPct: parseFloat(formData.interestRate),
         note: formData.note.trim() || '',
         totalInstallments: parseInt(formData.totalInstallments) || 1,
+        takenDate: formData.startDate ? new Date(formData.startDate) : new Date(), // 👈 add this
         dueDate: formData.returnDate || null,
         paymentMethod: formData.paymentMethod || 'CASH'
       };
@@ -480,7 +482,21 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
                   placeholder="Enter loan details..."
                 />
               </div>
-
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Loan Start Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  className="w-full px-4 py-3 border border-slate-300 rounded-xl 
+                            focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={formData.startDate}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, startDate: e.target.value }))
+                  }
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Expected Return Date (Optional)</label>
                 <input

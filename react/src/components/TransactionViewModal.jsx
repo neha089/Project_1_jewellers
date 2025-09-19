@@ -1,5 +1,3 @@
-// The provided TransactionViewModal.js is already reusable.
-// No changes needed.
 import React from 'react';
 import { X, Edit, Eye } from 'lucide-react';
 
@@ -161,7 +159,6 @@ const TransactionViewModal = ({ transaction, onClose, onEdit }) => {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Purity</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Weight (g)</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate (₹/g)</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -170,10 +167,7 @@ const TransactionViewModal = ({ transaction, onClose, onEdit }) => {
                           <td className="px-4 py-3 text-sm text-gray-900">{item.itemName || 'Gold Item'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{item.purity || 'N/A'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{item.weight || 0}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">₹{item.rate || 0}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-right">
-                            {formatCurrency((item.weight || 0) * (item.rate || 0))}
-                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">₹{item.ratePerGram*100 || 0}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -186,12 +180,6 @@ const TransactionViewModal = ({ transaction, onClose, onEdit }) => {
             <div className="border-t pt-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Financial Summary</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-500">Subtotal</div>
-                  <div className="text-xl font-semibold text-gray-900">
-                    {formatCurrency(transaction.subtotal || transaction.totalAmount || 0)}
-                  </div>
-                </div>
                 
                 {transaction.tax && transaction.tax > 0 && (
                   <div className="bg-gray-50 p-4 rounded-lg">
@@ -222,7 +210,7 @@ const TransactionViewModal = ({ transaction, onClose, onEdit }) => {
                       ? 'text-green-800' 
                       : 'text-blue-800'
                   }`}>
-                    {formatCurrency(transaction.totalAmount || 0)}
+                    {formatCurrency(transaction.totalAmount*100 || 0)}
                   </div>
                 </div>
               </div>

@@ -32,7 +32,7 @@ const GoldLoanManagement = () => {
   const [filteredLoans, setFilteredLoans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortBy, setSortBy] = useState('loanId');
   const [viewMode, setViewMode] = useState('grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
@@ -470,12 +470,13 @@ const GoldLoanManagement = () => {
         {/* Main Content Area */}
         {activeTab === 'loans' && (
           <>
-            <GoldLoanSearchFilterBar
+<GoldLoanSearchFilterBar
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               statusFilter={statusFilter}
               onStatusFilterChange={setStatusFilter}
-              setGoldTypeFilter={setGoldTypeFilter}
+              goldTypeFilter={goldTypeFilter}
+              onGoldTypeFilterChange={setGoldTypeFilter}
               sortBy={sortBy}
               onSortChange={setSortBy}
               viewMode={viewMode}

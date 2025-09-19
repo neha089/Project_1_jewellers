@@ -14,7 +14,7 @@ const TransactionTable = ({
 }) => {
   const formatCurrency = (amount) => {
     // Handle amount conversion from paise to rupees if needed
-    const numericAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+    const numericAmount = typeof amount === 'number' ? amount * 100 : parseFloat(amount) || 0;
     const displayAmount = numericAmount > 10000 ? numericAmount : numericAmount;
     return `₹${displayAmount.toFixed(2)}`;
   };
@@ -84,23 +84,6 @@ const TransactionTable = ({
     return formatCurrency(total);
   };
 
-  const getAdvanceAmount = (transaction) => {
-    const advance = transaction.advanceAmount || 0;
-    return formatCurrency(advance);
-  };
-
-  const getTransactionStatus = (transaction) => {
-    const totalAmount = transaction.totalAmount || 0;
-    const advanceAmount = transaction.advanceAmount || 0;
-    
-    if (advanceAmount >= totalAmount) {
-      return { status: 'Paid', className: 'bg-green-100 text-green-800' };
-    } else if (advanceAmount > 0) {
-      return { status: 'Partial', className: 'bg-yellow-100 text-yellow-800' };
-    } else {
-      return { status: 'Pending', className: 'bg-red-100 text-red-800' };
-    }
-  };
 
   if (loading) {
     return (
@@ -153,9 +136,6 @@ const TransactionTable = ({
                 Total Amount
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Advance
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -199,9 +179,6 @@ const TransactionTable = ({
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {getTotalAmount(transaction)}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {getAdvanceAmount(transaction)}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.className}`}>
