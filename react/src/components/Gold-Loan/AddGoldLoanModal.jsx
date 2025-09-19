@@ -173,25 +173,18 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
         notes: formData.notes || '' // Optional notes
       };
 
-      console.log("Sending loan data to API:", loanData);
+      console.log("Sending loan data to onSave:", loanData);
      
-      const response = await ApiService.createGoldLoan(loanData);
-      console.log("API response:", response);
-
-      if (response.success) {
-        // Calculate totals for UI feedback
-        const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
-        const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
-       
-        handleReset();
-        
-        // Close modal immediately after success - parent will handle refresh
-        onClose();
-        
-        alert(`Gold loan created successfully! Total amount: ₹${totalAmount.toLocaleString()}`);
-      } else {
-        setErrors({ submit: response.error || 'Failed to create gold loan' });
-      }
+      await onSave(loanData); // Call parent handler for API and refresh
+      
+      // Calculate totals for UI feedback
+      const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
+      const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
+     
+      handleReset();
+      
+      onClose();
+      
     } catch (error) {
       console.error('Error creating gold loan:', error);
       setErrors({ submit: `Failed to create gold loan: ${error.message}` });
