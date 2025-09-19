@@ -1,304 +1,247 @@
-// SilverTransactionTab.jsx - Complete File
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  Eye, 
-  Plus,
-  Search,
-  Filter,
-  Calendar,
+  Plus, 
+  RefreshCw, 
+  AlertCircle,
+  CircleDot,
   Weight,
-  Receipt,
   ArrowUpRight,
   ArrowDownRight,
-  CircleDot,
-  BarChart3,
-  Zap,
-  Download,
-  FileText
+  BarChart3
 } from 'lucide-react';
+import ApiService from '../services/api';
+import MetalPriceService from '../services/metalPriceService';
+import SilverTransactionForm from './SilverBuySell/SilverTransactionForm';
+import TransactionViewModal from './TransactionViewModal';
+import TransactionTable from './TransactionTable';
 
-const SilverTransactionTab = ({ transactions = [], customerId, onRefresh }) => {
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [showAddTransaction, setShowAddTransaction] = useState(false);
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState('all');
-
-  // Filter transactions
-  const filteredTransactions = transactions.filter(transaction => {
-    const typeMatch = typeFilter === 'all' || transaction.type === typeFilter;
-    const searchMatch = searchTerm === '' || 
-      transaction.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    let dateMatch = true;
-    if (dateRange !== 'all') {
-      const transactionDate = new Date(transaction.date);
-      const today = new Date();
-      
-      switch (dateRange) {
-        case '7days':
-          dateMatch = (today - transactionDate) <= 7 * 24 * 60 * 60 * 1000;
-          break;
-        case '30days':
-          dateMatch = (today - transactionDate) <= 30 * 24 * 60 * 60 * 1000;
-          break;
-        case '90days':
-          dateMatch = (today - transactionDate) <= 90 * 24 * 60 * 60 * 1000;
-          break;
-      }
-    }
-    
-    return typeMatch && searchMatch && dateMatch;
+const SilverTransactionTab = ({ customerId, onRefresh }) => {
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [viewingTransaction, setViewingTransaction] = useState(null);
+  const [silverRates, setSilverRates] = useState({});
+  const [summary, setSummary] = useState({
+    totalBought: 0,
+    totalSold: 0,
+    totalWeight: 0,
+    netProfit: 0,
+    transactionCount: 0,
+    netWeight: 0
   });
 
-  // Calculate summary statistics
-  const summary = {
-    totalBought: transactions.filter(t => t.type === 'buy').reduce((sum, t) => sum + t.weight, 0),
-    totalSold: transactions.filter(t => t.type === 'sell').reduce((sum, t) => sum + t.weight, 0),
-    totalBuyAmount: transactions.filter(t => t.type === 'buy').reduce((sum, t) => sum + t.amount, 0),
-    totalSellAmount: transactions.filter(t => t.type === 'sell').reduce((sum, t) => sum + t.amount, 0),
-    netWeight: transactions.filter(t => t.type === 'buy').reduce((sum, t) => sum + t.weight, 0) - 
-               transactions.filter(t => t.type === 'sell').reduce((sum, t) => sum + t.weight, 0),
-    transactionCount: transactions.length,
-    avgBuyRate: transactions.filter(t => t.type === 'buy').length > 0 ? 
-                transactions.filter(t => t.type === 'buy').reduce((sum, t) => sum + t.rate, 0) / 
-                transactions.filter(t => t.type === 'buy').length : 0,
-    avgSellRate: transactions.filter(t => t.type === 'sell').length > 0 ? 
-                 transactions.filter(t => t.type === 'sell').reduce((sum, t) => sum + t.rate, 0) / 
-                 transactions.filter(t => t.type === 'sell').length : 0
-  };
+  useEffect(() => {
+    loadData();
+  }, [customerId]);
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'buy': return 'text-green-600';
-      case 'sell': return 'text-red-600';
-      default: return 'text-gray-600';
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await Promise.all([
+        loadTransactions(),
+        loadSilverRates(),
+        loadSummary()
+      ]);
+    } catch (error) {
+      setError('Failed to load silver transaction data');
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getTypeIcon = (type) => {
-    return type === 'buy' ? ArrowDownRight : ArrowUpRight;
+  const loadTransactions = async () => {
+    try {
+      const params = customerId ? { customerId } : {};
+      const response = await ApiService.getSilverTransactions(params);
+      
+      if (response.success) {
+        setTransactions(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading transactions:', error);
+      throw error;
+    }
   };
 
-  const TransactionCard = ({ transaction }) => {
-    const TypeIcon = getTypeIcon(transaction.type);
-    const profit = transaction.type === 'sell' ? 
-      transaction.amount - (transaction.costPrice || transaction.amount * 0.95) : 0;
-    
+  const loadSilverRates = async () => {
+    try {
+      const priceData = await MetalPriceService.getCurrentPrices();
+      if (priceData && priceData.silver) {
+        const silverRatesFormatted = {};
+        Object.entries(priceData.silver.rates).forEach(([purity, rate]) => {
+          silverRatesFormatted[`${purity} Silver`] = Math.round(rate / 100);
+        });
+        setSilverRates(silverRatesFormatted);
+      }
+    } catch (error) {
+      console.error('Error loading silver rates:', error);
+    }
+  };
+
+  const loadSummary = async () => {
+    try {
+      let summaryData = { 
+        totalBought: 0, 
+        totalSold: 0, 
+        totalWeight: 0, 
+        netProfit: 0, 
+        transactionCount: 0,
+        netWeight: 0
+      };
+      
+      if (customerId) {
+        // Get customer-specific transactions for summary
+        const params = { customerId };
+        const response = await ApiService.getSilverTransactions(params);
+        
+        if (response.success && response.data) {
+          const customerTransactions = response.data;
+          summaryData = calculateSummaryFromTransactions(customerTransactions);
+        }
+      } else {
+        // Get global analytics
+        const response = await ApiService.getAnalytics_silver();
+        if (response && response.data) {
+          summaryData = {
+            totalBought: response.data.buy.totalAmount || 0,
+            totalSold: response.data.sell.totalAmount || 0,
+            totalWeight: response.data.buy.totalWeight + response.data.sell.totalWeight || 0,
+            netProfit: response.data?.netMetrics.netAmount || 0,
+            transactionCount: response.data.buy.count + response.data.sell.count || 0,
+            netWeight: response.data.buy.totalWeight - response.data.sell.totalWeight || 0
+          };
+        }
+      }
+      
+      setSummary(summaryData);
+    } catch (error) {
+      console.error('Error loading summary:', error);
+    }
+  };
+
+  const calculateSummaryFromTransactions = (transactions) => {
+    return transactions.reduce((acc, transaction) => {
+      const amount = transaction.totalAmount || 0;
+      const weight = transaction.items?.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0) || 0;
+      
+      if (transaction.transactionType === 'BUY') {
+        acc.totalBought += amount;
+        acc.netWeight += weight;
+      } else {
+        acc.totalSold += amount;
+        acc.netWeight -= weight;
+      }
+      
+      acc.totalWeight += weight;
+      acc.transactionCount += 1;
+      
+      return acc;
+    }, { 
+      totalBought: 0, 
+      totalSold: 0, 
+      totalWeight: 0, 
+      netProfit: 0, 
+      transactionCount: 0,
+      netWeight: 0
+    });
+  };
+
+  const handleView = (transaction) => {
+    setViewingTransaction(transaction);
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this silver transaction?')) {
+      try {
+        setLoading(true);
+        const response = await ApiService.deleteSilverTransaction(id);
+        
+        if (response.success) {
+          await loadData();
+          if (onRefresh) onRefresh();
+        }
+      } catch (error) {
+        setError('Failed to delete transaction');
+        console.error('Error deleting transaction:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleFormSuccess = async () => {
+    setShowForm(false);
+    await loadData();
+    if (onRefresh) onRefresh();
+  };
+
+  const handleFormClose = () => {
+    setShowForm(false);
+    setError(null);
+  };
+
+  if (loading && transactions.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${transaction.type === 'buy' ? 'bg-green-50' : 'bg-red-50'}`}>
-              <TypeIcon size={20} className={getTypeColor(transaction.type)} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">
-                {transaction.type === 'buy' ? 'Silver Purchase' : 'Silver Sale'}
-              </h3>
-              <p className="text-sm text-gray-500">
-                Invoice: {transaction.invoiceNumber}
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-800">
-              Silver 999
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div>
-            <p className="text-sm text-gray-500">Weight</p>
-            <p className="font-semibold text-gray-900">{transaction.weight}g</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Rate per gram</p>
-            <p className="font-semibold text-gray-900">₹{transaction.rate?.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Total Amount</p>
-            <p className="font-semibold text-gray-900">₹{transaction.amount?.toLocaleString()}</p>
-          </div>
-          {transaction.type === 'sell' && profit > 0 && (
-            <div>
-              <p className="text-sm text-gray-500">Profit/Loss</p>
-              <p className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ₹{Math.abs(profit)?.toLocaleString()}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-          <div className="flex items-center gap-1">
-            <Calendar size={14} />
-            {new Date(transaction.date).toLocaleDateString()}
-          </div>
-          <div className="flex items-center gap-1">
-            <Receipt size={14} />
-            {transaction.invoiceNumber}
-          </div>
-        </div>
-
-        {transaction.notes && (
-          <div className="mb-4">
-            <p className="text-sm text-gray-500">Notes</p>
-            <p className="text-sm text-gray-900">{transaction.notes}</p>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Weight size={14} className="text-gray-400" />
-            <span className="text-sm text-gray-600">
-              {transaction.weight}g of Pure Silver
-            </span>
-          </div>
-          <button
-            onClick={() => setSelectedTransaction(transaction)}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-          >
-            <Eye size={14} />
-            View Details
-          </button>
+      <div className="flex items-center justify-center py-12">
+        <div className="flex items-center space-x-3">
+          <RefreshCw className="w-6 h-6 animate-spin text-gray-600" />
+          <span className="text-gray-600">Loading silver transactions...</span>
         </div>
       </div>
     );
-  };
-
-  const TransactionDetailModal = ({ transaction, onClose }) => {
-    if (!transaction) return null;
-
-    const profit = transaction.type === 'sell' ? 
-      transaction.amount - (transaction.costPrice || transaction.amount * 0.95) : 0;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${transaction.type === 'buy' ? 'bg-green-50' : 'bg-red-50'}`}>
-                  {React.createElement(getTypeIcon(transaction.type), { 
-                    size: 20, 
-                    className: getTypeColor(transaction.type) 
-                  })}
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    {transaction.type === 'buy' ? 'Silver Purchase' : 'Silver Sale'}
-                  </h2>
-                  <p className="text-gray-600">Invoice: {transaction.invoiceNumber}</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <div className="p-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-1">Weight</p>
-                <p className="text-2xl font-bold text-gray-900">{transaction.weight}g</p>
-              </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-1">Purity</p>
-                <p className="text-2xl font-bold text-gray-600">999</p>
-                <p className="text-xs text-gray-500">Silver</p>
-              </div>
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-1">Rate/gram</p>
-                <p className="text-2xl font-bold text-blue-600">₹{transaction.rate?.toLocaleString()}</p>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-1">Total Amount</p>
-                <p className="text-2xl font-bold text-green-600">₹{transaction.amount?.toLocaleString()}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">Transaction Details</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Date:</span>
-                    <span className="text-gray-900">{new Date(transaction.date).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Type:</span>
-                    <span className={`font-medium ${getTypeColor(transaction.type)}`}>
-                      {transaction.type === 'buy' ? 'Purchase' : 'Sale'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Invoice Number:</span>
-                    <span className="text-gray-900">{transaction.invoiceNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Silver Type:</span>
-                    <span className="text-gray-900">999 Fine Silver</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-3">Financial Summary</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Base Amount:</span>
-                    <span className="text-gray-900">₹{transaction.amount?.toLocaleString()}</span>
-                  </div>
-                  {transaction.makingCharges && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Making Charges:</span>
-                      <span className="text-gray-900">₹{transaction.makingCharges?.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {transaction.tax && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Tax:</span>
-                      <span className="text-gray-900">₹{transaction.tax?.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {transaction.type === 'sell' && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Profit/Loss:</span>
-                      <span className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {profit >= 0 ? '+' : ''}₹{profit?.toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {transaction.notes && (
-              <div className="mb-6">
-                <h4 className="font-semibold text-gray-900 mb-3">Notes</h4>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-900">{transaction.notes}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  }
 
   return (
     <div className="space-y-6">
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <AlertCircle className="w-5 h-5 text-red-600 mr-3" />
+            <span className="text-red-700">{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-600 hover:text-red-800"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Header with Action Button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium text-gray-900">Silver Transactions</h3>
+          <p className="text-sm text-gray-500">
+            {customerId ? 'Customer silver buy/sell history' : 'All silver transactions'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Transaction
+          </button>
+        </div>
+      </div>
+
       {/* Summary Cards */}
-      <div className="grid grid-cols md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-green-50 rounded-lg">
@@ -306,10 +249,10 @@ const SilverTransactionTab = ({ transactions = [], customerId, onRefresh }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Bought</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.totalBought.toFixed(2)}g</p>
+              <p className="text-2xl font-bold text-gray-900">₹{summary.totalBought.toLocaleString()}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-600">Amount: ₹{summary.totalBuyAmount.toLocaleString()}</p>
+          <p className="text-sm text-gray-600">Total purchases</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -319,10 +262,10 @@ const SilverTransactionTab = ({ transactions = [], customerId, onRefresh }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Sold</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.totalSold.toFixed(2)}g</p>
+              <p className="text-2xl font-bold text-gray-900">₹{summary.totalSold.toLocaleString()}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-600">Amount: ₹{summary.totalSellAmount.toLocaleString()}</p>
+          <p className="text-sm text-gray-600">Total sales</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -335,7 +278,7 @@ const SilverTransactionTab = ({ transactions = [], customerId, onRefresh }) => {
               <p className="text-2xl font-bold text-gray-900">{summary.netWeight.toFixed(2)}g</p>
             </div>
           </div>
-          <p className="text-sm text-gray-600">Current Holdings</p>
+          <p className="text-sm text-gray-600">Current holdings</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -352,81 +295,69 @@ const SilverTransactionTab = ({ transactions = [], customerId, onRefresh }) => {
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by invoice number..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
-          
-          <div className="flex gap-3">
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Types</option>
-              <option value="buy">Purchase</option>
-              <option value="sell">Sale</option>
-            </select>
-            
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Time</option>
-              <option value="7days">Last 7 Days</option>
-              <option value="30days">Last 30 Days</option>
-              <option value="90days">Last 90 Days</option>
-            </select>
-            
-            <button
-              onClick={() => setShowAddTransaction(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Plus size={20} />
-              Add Transaction
-            </button>
+      {/* Current Silver Rates */}
+      {Object.keys(silverRates).length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h4 className="text-lg font-medium text-gray-900 mb-4">Current Silver Rates</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Object.entries(silverRates).map(([type, rate]) => (
+              <div key={type} className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">{type}</p>
+                <p className="text-lg font-bold text-gray-700">₹{rate}/g</p>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Transactions List */}
-      <div className="space-y-4">
-        {filteredTransactions.length > 0 ? (
-          filteredTransactions.map((transaction, index) => (
-            <TransactionCard key={index} transaction={transaction} />
-          ))
+      {/* Transactions Table */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {transactions.length > 0 ? (
+          <TransactionTable
+            transactions={transactions}
+            onView={handleView}
+            onDelete={handleDelete}
+            loading={loading}
+            currentPage={1}
+            totalPages={1}
+            onPageChange={() => {}}
+          />
         ) : (
-          <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+          <div className="p-12 text-center">
             <CircleDot size={48} className="text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Silver Transactions</h3>
-            <p className="text-gray-500 mb-6">Get started by adding your first silver transaction</p>
+            <p className="text-gray-500 mb-6">
+              {customerId 
+                ? "This customer hasn't made any silver transactions yet" 
+                : "Get started by creating your first silver transaction"
+              }
+            </p>
             <button
-              onClick={() => setShowAddTransaction(true)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              onClick={() => setShowForm(true)}
+              className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
             >
-              Add First Transaction
+              Create First Transaction
             </button>
           </div>
         )}
       </div>
 
-      {/* Transaction Detail Modal */}
-      {selectedTransaction && (
-        <TransactionDetailModal 
-          transaction={selectedTransaction} 
-          onClose={() => setSelectedTransaction(null)} 
+      {/* Modals */}
+      {showForm && (
+        <SilverTransactionForm
+          editingTransaction={null}
+          silverRates={silverRates}
+          onClose={handleFormClose}
+          onSuccess={handleFormSuccess}
+          onError={setError}
+        />
+      )}
+
+      {viewingTransaction && (
+        <TransactionViewModal
+          transaction={viewingTransaction}
+          onClose={() => setViewingTransaction(null)}
+          onEdit={null} // Remove edit functionality
         />
       )}
     </div>
