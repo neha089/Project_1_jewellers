@@ -1,67 +1,56 @@
-// routes/silverLoanRoutes.js
 import express from 'express';
 import * as silverLoanController from '../controllers/silverLoanController.js';
-import * as reportController from '../controllers/reportController.js';
+// import * as reportController from '../controllers/reportController.js'; // Assume this exists or add if needed
 
 const router = express.Router();
+// const authenticateToken = (req, res, next) => { next(); }; // Placeholder for auth
 
-// GOLD PRICE MANAGEMENT (Before /:id routes)
-router.get('/current-silver-prices', silverLoanController.getCurrentGoldPrices);
-router.post('/update-silver-prices', silverLoanController.updateGoldPrices);
-router.get('/calculate-amount', silverLoanController.calculateLoanAmount);
-
-// INTEREST CALCULATION AND MANAGEMENT
-router.get('/calculate/interest', silverLoanController.calculateInterest);
-
-// ANALYTICS AND REPORTS
-router.get('/analytics/pending-interest', silverLoanController.getPendingInterest);
+// Dashboard and analytics
 router.get('/analytics/dashboard', silverLoanController.getDashboardStats);
-router.get('/analytics/business', reportController.getBusinessAnalytics);
-router.get('/analytics/overdue', reportController.getOverdueReport);
+// router.get('/analytics/business', reportController.getBusinessAnalytics);
+// router.get('/analytics/overdue', reportController.getOverdueReport);
 
-// PAYMENT HISTORY
-router.get('/payments/history', silverLoanController.getAllPaymentHistory);
+// Reports
+// router.get('/reports/monthly-income', reportController.getMonthlyIncomeReport);
 
-// REPORTS
-router.get('/reports/monthly-income', reportController.getMonthlyIncomeReport);
+// Customer specific routes
+router.get('/customer/:customerId', silverLoanController.getSilverLoansByCustomer);
 
-// CUSTOMER SPECIFIC ROUTES (Before /:id route)
-// router.get('/customer/:customerId', silverLoanController.getGoldLoansByCustomer);
-router.get('/customer/:customerId/summary', silverLoanController.getCustomerLoanSummary);
+// Basic CRUD
+router.post('/', silverLoanController.createSilverLoan);
+router.get('/', silverLoanController.getAllSilverLoans);
+router.get('/:id', silverLoanController.getSilverLoanById);
 
-// BASIC CRUD OPERATIONS
-// router.post('/', silverLoanController.createGoldLoan);
-// router.get('/', silverLoanController.getAllGoldLoans);
-// router.get('/:id', silverLoanController.getGoldLoanById);
+// Loan specific operations
+// router.get('/:id/timeline', reportController.getLoanTimeline);
+router.get('/:id/payment-history', silverLoanController.getPaymentHistory);
+router.put('/:id/close', silverLoanController.closeSilverLoan);
 
-// LOAN SPECIFIC OPERATIONS
-router.get('/:id/report', silverLoanController.getLoanReport);
-router.get('/:id/timeline', reportController.getLoanTimeline);
+// Interest payments
+router.post('/:loanId/interest-payment', silverLoanController.addInterestPayment);
+router.get('/:loanId/interest-payments', silverLoanController.getInterestPayments);
 
-// ENHANCED PAYMENT OPERATIONS
-router.post('/:id/payments', silverLoanController.addPayment);
-router.post('/:id/interest-payment', silverLoanController.addInterestPayment);
-router.get('/:id/interest-history', silverLoanController.getInterestPaymentHistory);
+// Repayments
+router.post('/:id/repayment', silverLoanController.processItemRepayment);
+router.get('/:id/repayments', silverLoanController.getRepayments);
+router.get('/:id/repayment-stats', silverLoanController.getRepaymentStats);
+router.post('/:id/validate-repayment', silverLoanController.validateRepayment);
 
-// NEW ENHANCED ENDPOINTS FOR YOUR REQUIREMENTS
-router.get('/:id/interest-calculation', silverLoanController.getInterestCalculation);
+// Additional repayment routes
+router.get('/repayments/search', silverLoanController.searchAllRepayments);
+router.get('/repayments/:repaymentId', silverLoanController.getRepaymentDetails);
+router.get('/repayments/:repaymentId/receipt', silverLoanController.getRepaymentReceipt);
+router.put('/repayments/:repaymentId/cancel', silverLoanController.cancelRepayment);
 
-// ENHANCED REPAYMENT OPERATIONS
-router.get('/:id/repayment-options', silverLoanController.getRepaymentOptions);
-router.post('/:id/process-repayment', silverLoanController.processItemRepayment);
+// Silver price
+router.get('/silver-price/current', silverLoanController.getCurrentSilverPrice);
 
-// ITEM MANAGEMENT
-router.post('/:id/items', silverLoanController.addItems);
-router.put('/:id/items/:itemId', silverLoanController.updateItem);
-router.delete('/:id/items/:itemId', silverLoanController.removeItem);
+// NEW: Get all transactions for a loan
+router.get('/:id/transactions', silverLoanController.getLoanTransactions);
 
-// LOAN MANAGEMENT
-// router.put('/:id/close', silverLoanController.closeGoldLoan);
-router.post('/:id/return-items', silverLoanController.returnItems);
-// router.put('/:id/complete', silverLoanController.completeGoldLoan);
-
-// VALIDATION ENDPOINTS
-router.get('/:id/validate-closure', silverLoanController.validateLoanClosure);
-router.get('/:id/outstanding-summary', silverLoanController.getOutstandingSummary);
+// NEW: Daily summary
+router.get('/daily-summary', silverLoanController.getDailySilverLoanSummary);
+router.get('/:id/active-items', silverLoanController.getActiveItemsForReturn);
+router.post('/:id/return-items', silverLoanController.processItemReturn);
 
 export default router;
