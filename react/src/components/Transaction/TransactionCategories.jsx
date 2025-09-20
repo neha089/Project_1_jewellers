@@ -29,8 +29,8 @@ const incomeCategories = [
     shortLabel: "Loan Interest"
   },
   {
-    id: "loan-repayment",
-    label: "Loan Repayment",
+    id: "loan-repayment-collect",
+    label: "Loan Repayment Collected",
     icon: CreditCard,
     color: "blue",
     shortLabel: "Loan Repay"
@@ -83,13 +83,36 @@ const expenseCategories = [
     color: "purple",
     shortLabel: "Loan Given"
   },
+   {
+    id: "udhari-returned",
+    label: "Udhari Payment Returned",
+    icon: Banknote,
+    color: "emerald",
+    shortLabel: "Udhari Returned"
+  },
+ 
   {
     id: "gold-purchase",
     label: "Gold Purchase on Credit",
-    icon: Gem,
+    icon: Gem,  
     color: "indigo",
     shortLabel: "Gold Purchase"
   },
+   {
+    id: "interest-paid-l",
+    label: "Interest Paid Loan",
+    icon: TrendingUp,
+    color: "pink",
+    shortLabel: "Loan Interest"
+  },
+  {
+    id: "loan-repayment-pay",
+    label: "Loan Repayment Paid",
+    icon: CreditCard,
+    color: "blue",
+    shortLabel: "Loan Repay"
+  },
+ 
   {
     id: "silver-purchase",
     label: "Silver Purchase on Credit",
