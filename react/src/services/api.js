@@ -353,7 +353,35 @@ async makeUdhariPayment(data) {
 
   // Gold Loan APIs
   async createGoldLoan(formData) {
+    console.log('Creating gold loan with data:', formData);
     return this.post('/api/gold-loans', formData);
+  }
+  async getGoldLoansByCustomer(customerId) {
+    try {
+      const response = await fetch(`/api/gold-loans/customer/${customerId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          // Add authentication headers if needed
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch gold loans');
+      }
+
+      return {
+        success: true,
+        data: data.loans || [], // Assuming API returns { loans: [...] }
+      };
+    } catch (error) {
+      console.error('Error fetching gold loans:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch gold loans',
+      };
+    }
   }
 
   async getAllGoldLoans(filters = {}) {
