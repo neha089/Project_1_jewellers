@@ -1,51 +1,114 @@
-// models/SilverLoan.js
 import mongoose from "mongoose";
 
 const loanItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   weightGram: { type: Number, required: true, min: 0 },
-  amountPaise: { type: Number, required: true, min: 0 },
+  loanAmount: { type: Number, required: true, min: 0 }, // Amount in rupees
   purityK: { type: Number, min: 0, required: true },
-  images: [{ type: String }],
-  returnDate: { type: Date }, // When item was returned
-  returnImages: [{ type: String }], // Images when returning item
-  returnValuePaise: { type: Number }, // Value at time of return
-  returnNotes: { type: String },
-  marketValuePaise: { type: Number }, // Market value when added
-  pricePerGramUsed: { type: Number }, // Silver price per gram used for calculation
+  images: [{ type: String }], // Images when item was deposited
+  silverPriceAtDeposit: { type: Number, default: 0 }, // Silver price when deposited
   addedDate: { type: Date, default: Date.now },
-  calculatedAt: { type: Date, default: Date.now }
+  description: { type: String }, // Additional item description
+  category: { type: String, default: 'jewelry' }, // jewelry, coin, bar, etc.
+  // Return fields - filled when item is returned
+  returnDate: { type: Date },
+  returnImages: [{ type: String }], // Photos taken during return
+  returnValue: { type: Number }, // Current market value when returned
+  silverPriceAtReturn: { type: Number }, // Silver price per gram when returned
+  returnNotes: { type: String }, // Notes about item condition during return
+  returnRecordedBy: { type: String }, // Who processed the return
+  returnVerified: { type: Boolean, default: false }, // If return was verified by senior staff
+  // Condition tracking
+  depositCondition: { type: String, default: 'good' }, // good, fair, poor
+  returnCondition: { type: String }, // Condition when returned
+  conditionNotes: { type: String } // Detailed condition notes
 }, { _id: true });
 
 const paymentSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
-  principalPaise: { type: Number, default: 0, min: 0 },
-  interestPaise: { type: Number, default: 0, min: 0 },
+  type: {
+    type: String,
+    enum: ['INTEREST', 'PRINCIPAL', 'PRINCIPAL_AND_INTEREST', 'PROCESSING_FEE', 'LATE_FEE'],
+    required: true
+  },
+  principalAmount: { type: Number, default: 0, min: 0 }, // In rupees
+  interestAmount: { type: Number, default: 0, min: 0 }, // In rupees
   forMonth: { type: String, required: true }, // Format: "YYYY-MM"
   forYear: { type: Number, required: true },
-  forMonthName: { type: String, required: true }, // e.g., "January", "February"
-  photos: [{ type: String }],
+  forMonthName: { type: String, required: true }, // e.g., "January"
+  photos: [{ type: String }], // General payment photos
   notes: { type: String },
-  // Enhanced tracking fields
+  // Payment method details
+  paymentMethod: {
+    type: String,
+    enum: ['CASH', 'BANK_TRANSFER', 'CHEQUE', 'UPI', 'CARD'],
+    default: 'CASH'
+  },
+  referenceNumber: { type: String }, // Transaction reference
+  chequeNumber: { type: String },
+  bankName: { type: String },
+  chequeDate: { type: Date },
+  // Fees and adjustments
+  processingFee: { type: Number, default: 0 },
+  lateFee: { type: Number, default: 0 },
+  adjustmentAmount: { type: Number, default: 0 },
+  adjustmentReason: { type: String },
+  // Repayment specific fields
+  repaymentType: {
+    type: String,
+    enum: ['PARTIAL_PRINCIPAL', 'ITEM_RETURN', 'FULL_PRINCIPAL', 'INTEREST_ONLY']
+  },
+  // Enhanced item tracking for returns
   itemsReturned: [{
     itemId: { type: mongoose.Schema.Types.ObjectId },
     name: { type: String },
     weightGram: { type: Number },
-    currentValue: { type: Number },
-    originalValue: { type: Number }
+    purityK: { type: Number },
+    loanAmount: { type: Number },
+    returnValue: { type: Number },
+    silverPriceAtReturn: { type: Number },
+    returnImages: [{ type: String }],
+    appreciation: { type: Number }, // Current value - original loan amount
+    appreciationPct: { type: Number }, // Percentage appreciation
+    returnCondition: { type: String },
+    returnNotes: { type: String }
   }],
-  excessAmount: { type: Number, default: 0 }, // Any excess payment amount
-  pendingAtTimeOfPayment: { type: Number }, // Total pending interest when payment was made
-  monthlyInterestAtPayment: { type: Number }, // Monthly interest amount at time of payment
-  activePrincipalAtPayment: { type: Number }, // Active principal at time of payment
-  isPartialPayment: { type: Boolean, default: false },
-  remainingInterestForMonth: { type: Number, default: 0 }
+  // Payment totals and tracking
+  repaymentAmount: { type: Number }, // Total amount paid
+  netRepaymentAmount: { type: Number }, // Amount after fees/adjustments
+  totalItemsReturned: { type: Number, default: 0 },
+  totalWeightReturned: { type: Number, default: 0 },
+  totalMarketValueReturned: { type: Number, default: 0 },
+  principalReduced: { type: Number, default: 0 },
+  // Loan status tracking
+  currentLoanAmountAtPayment: { type: Number }, // Loan amount before this payment
+  currentLoanAmountAfterPayment: { type: Number }, // Loan amount after this payment
+  isFullRepayment: { type: Boolean, default: false },
+  isLoanClosed: { type: Boolean, default: false },
+  // Interest tracking
+  interestPaidWithRepayment: { type: Number, default: 0 },
+  interestPeriodCovered: { type: String }, // e.g., "Jan 2024 - Mar 2024"
+  outstandingInterestBefore: { type: Number, default: 0 },
+  outstandingInterestAfter: { type: Number, default: 0 },
+  // Silver price tracking
+  silverPriceUsed: { type: Number, default: 0 }, // Silver price used for calculations
+  selectedItemIds: [{ type: String }], // IDs of items selected for return
+  // Staff and verification
+  recordedBy: { type: String, default: 'Admin' },
+  verifiedBy: { type: String }, // Senior staff verification
+  verificationDate: { type: Date },
+  verificationNotes: { type: String }
 }, { _id: true });
 
 const silverLoanSchema = new mongoose.Schema({
-  customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
-  items: { 
-    type: [loanItemSchema], 
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Customer",
+    required: true,
+    index: true
+  },
+  items: {
+    type: [loanItemSchema],
     validate: {
       validator: function(v) {
         return v && v.length > 0;
@@ -53,103 +116,141 @@ const silverLoanSchema = new mongoose.Schema({
       message: 'At least one item is required for silver loan'
     }
   },
+  // Loan terms
   interestRateMonthlyPct: { type: Number, required: true, min: 0 },
-  principalPaise: { type: Number, required: true, min: 0 },
-  currentPrincipalPaise: { type: Number }, // Current outstanding based on returned items
+  totalLoanAmount: { type: Number, required: true, min: 0 }, // Original total loan amount
+  currentLoanAmount: { type: Number, required: true, min: 0 }, // Current outstanding amount
+  // Dates
   startDate: { type: Date, default: Date.now, index: true },
-  dueDate: { type: Date },
-  status: { 
-    type: String, 
-    enum: ["ACTIVE", "CLOSED", "COMPLETED", "AUCTIONED"], 
-    default: "ACTIVE", 
-    index: true 
-  },
-  payments: [paymentSchema],
+  dueDate: { type: Date }, // Optional due date for the loan
   closureDate: { type: Date },
-  completionDate: { type: Date },
-  closureImages: [{ type: String }], // Images when loan is closed
-  completionImages: [{ type: String }], // Images when loan is completed
+  lastInterestPayment: { type: Date }, // Track last interest payment date
+  // Status tracking
+  status: {
+    type: String,
+    enum: ["ACTIVE", "CLOSED", "PARTIALLY_PAID", "OVERDUE", "DEFAULTED"],
+    default: "ACTIVE",
+    index: true
+  },
+  // Payment history
+  payments: [paymentSchema],
+  // Closure details
+  closureImages: [{ type: String }],
+  closureNotes: { type: String },
+  closureReason: {
+    type: String,
+    enum: ['FULL_PAYMENT', 'ITEM_FORFEIT', 'SETTLEMENT', 'OTHER']
+  },
+  // Additional loan details
   notes: { type: String },
-  // Enhanced tracking fields
-  lastInterestPaymentDate: { type: Date },
-  totalInterestReceived: { type: Number, default: 0 },
-  pendingInterest: { type: Number, default: 0 },
-  silverPriceAtCreation: {
-    purity22K: { type: Number },
-    purity24K: { type: Number },
-    purity18K: { type: Number },
-    date: { type: Date }
-  }
-}, { timestamps: true });
-
-// Virtual fields for calculations
-silverLoanSchema.virtual("amountRepaidPaise").get(function () {
-  return (this.payments || []).reduce((s, p) => s + p.principalPaise, 0);
+  riskCategory: {
+    type: String,
+    enum: ['LOW', 'MEDIUM', 'HIGH'],
+    default: 'LOW'
+  },
+  // Staff tracking
+  createdBy: { type: String, default: 'Admin' },
+  lastModifiedBy: { type: String },
+  lastModifiedDate: { type: Date },
+  // Business rules
+  loanToValueRatio: { type: Number }, // LTV ratio at loan creation
+  maxLoanAmount: { type: Number }, // Maximum allowed loan for this collateral
+  // Interest calculations
+  compoundingFrequency: {
+    type: String,
+    enum: ['MONTHLY', 'QUARTERLY', 'ANNUALLY'],
+    default: 'MONTHLY'
+  },
+  gracePeriodDays: { type: Number, default: 0 },
+  lateFeePercentage: { type: Number, default: 0 },
+  // External references
+  branchId: { type: String }, // If multi-branch
+  loanNumber: { type: String, unique: true }, // Human readable loan number
+  // Audit fields
+  isDeleted: { type: Boolean, default: false },
+  deletedDate: { type: Date },
+  deletedBy: { type: String },
+  deletionReason: { type: String }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
-silverLoanSchema.virtual("interestReceivedPaise").get(function () {
-  return (this.payments || []).reduce((s, p) => s + p.interestPaise, 0);
+// Virtual fields for easy calculations
+silverLoanSchema.virtual("totalInterestPaid").get(function () {
+  return (this.payments || []).reduce((sum, p) => sum + (p.interestAmount || 0), 0);
 });
 
-silverLoanSchema.virtual("outstandingPaise").get(function () {
-  return Math.max(0, this.principalPaise - this.amountRepaidPaise);
+silverLoanSchema.virtual("totalPrincipalPaid").get(function () {
+  return (this.payments || []).reduce((sum, p) => sum + (p.principalAmount || 0), 0);
 });
 
-// Calculate current outstanding based on active items
-silverLoanSchema.virtual("currentOutstandingPaise").get(function () {
-  const activeItems = this.items.filter(item => !item.returnDate);
-  return activeItems.reduce((sum, item) => sum + item.amountPaise, 0);
+silverLoanSchema.virtual("totalFeesPaid").get(function () {
+  return (this.payments || []).reduce((sum, p) =>
+    sum + (p.processingFee || 0) + (p.lateFee || 0), 0);
 });
 
-// Calculate total interest due up to current date based on current principal
-silverLoanSchema.virtual("totalInterestDuePaise").get(function () {
-  if (this.status === 'CLOSED' || this.status === 'COMPLETED') return 0;
-  
-  const startDate = new Date(this.startDate);
-  const currentDate = new Date();
-  
-  // Calculate number of months
-  const months = (currentDate.getFullYear() - startDate.getFullYear()) * 12 + 
-                 (currentDate.getMonth() - startDate.getMonth()) + 1;
-  
-  // Use current principal if available, otherwise use original principal
-  const principalToUse = this.currentPrincipalPaise || this.principalPaise;
-  const monthlyInterest = (principalToUse * this.interestRateMonthlyPct) / 100;
-  return Math.max(0, months * monthlyInterest);
-});
-
-// Calculate pending interest (due - received) with accumulation
-silverLoanSchema.virtual("pendingInterestPaise").get(function () {
-  return Math.max(0, this.totalInterestDuePaise - this.interestReceivedPaise);
-});
-
-// Get active items count
 silverLoanSchema.virtual("activeItemsCount").get(function () {
   return this.items.filter(item => !item.returnDate).length;
 });
 
-// Get returned items count
 silverLoanSchema.virtual("returnedItemsCount").get(function () {
   return this.items.filter(item => item.returnDate).length;
 });
 
-// Method to calculate interest for specific month based on current principal
-silverLoanSchema.methods.calculateMonthlyInterest = function() {
-  const principalToUse = this.currentPrincipalPaise || this.principalPaise;
-  return Math.round((principalToUse * this.interestRateMonthlyPct) / 100);
+silverLoanSchema.virtual("totalActiveWeight").get(function () {
+  return this.items
+    .filter(item => !item.returnDate)
+    .reduce((sum, item) => sum + (item.weightGram || 0), 0);
+});
+
+silverLoanSchema.virtual("totalReturnedWeight").get(function () {
+  return this.items
+    .filter(item => item.returnDate)
+    .reduce((sum, item) => sum + (item.weightGram || 0), 0);
+});
+
+silverLoanSchema.virtual("monthlyInterestDue").get(function () {
+  if (this.currentLoanAmount <= 0) return 0;
+  return (this.currentLoanAmount * this.interestRateMonthlyPct) / 100;
+});
+
+silverLoanSchema.virtual("loanDurationDays").get(function () {
+  const endDate = this.closureDate || new Date();
+  const startDate = new Date(this.startDate);
+  return Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+});
+
+silverLoanSchema.virtual("isOverdue").get(function () {
+  if (!this.dueDate || this.status === 'CLOSED') return false;
+  return new Date() > new Date(this.dueDate);
+});
+
+// Instance methods
+
+// Get active (unreturned) items
+silverLoanSchema.methods.getActiveItems = function() {
+  return this.items.filter(item => !item.returnDate);
 };
 
-// Method to calculate interest based on active items only
-silverLoanSchema.methods.calculateCurrentMonthlyInterest = function() {
-  const activeItems = this.items.filter(item => !item.returnDate);
-  const activePrincipal = activeItems.reduce((sum, item) => sum + item.amountPaise, 0);
-  return Math.round((activePrincipal * this.interestRateMonthlyPct) / 100);
+// Get returned items
+silverLoanSchema.methods.getReturnedItems = function() {
+  return this.items.filter(item => item.returnDate);
 };
 
-// Method to get payment history by month with enhanced details
+// Calculate outstanding interest
+silverLoanSchema.methods.calculateOutstandingInterest = function(asOfDate = new Date()) {
+  const startDate = new Date(this.startDate);
+  const endDate = new Date(asOfDate);
+  const monthsDiff = Math.max(0, (endDate - startDate) / (1000 * 60 * 60 * 24 * 30));
+  const totalInterestDue = this.totalLoanAmount * (this.interestRateMonthlyPct / 100) * monthsDiff;
+  return Math.max(0, totalInterestDue - this.totalInterestPaid);
+};
+
+// Get payments by month/year
 silverLoanSchema.methods.getPaymentsByMonth = function() {
   const paymentsByMonth = {};
-  
   this.payments.forEach(payment => {
     const key = payment.forMonth;
     if (!paymentsByMonth[key]) {
@@ -163,75 +264,173 @@ silverLoanSchema.methods.getPaymentsByMonth = function() {
         itemsReturned: []
       };
     }
-    
     paymentsByMonth[key].payments.push(payment);
-    paymentsByMonth[key].totalPrincipal += payment.principalPaise;
-    paymentsByMonth[key].totalInterest += payment.interestPaise;
-    
+    paymentsByMonth[key].totalPrincipal += payment.principalAmount || 0;
+    paymentsByMonth[key].totalInterest += payment.interestAmount || 0;
     if (payment.itemsReturned && payment.itemsReturned.length > 0) {
       paymentsByMonth[key].itemsReturned.push(...payment.itemsReturned);
     }
   });
-  
   return Object.values(paymentsByMonth).sort((a, b) => {
-    return new Date(a.month) - new Date(b.month);
-  }).map(monthData => ({
-    ...monthData,
-    totalPrincipalRupees: monthData.totalPrincipal / 100,
-    totalInterestRupees: monthData.totalInterest / 100,
-    totalPaymentRupees: (monthData.totalPrincipal + monthData.totalInterest) / 100
-  }));
+    return new Date(b.month) - new Date(a.month); // Descending order
+  });
 };
 
-// Method to get accumulated pending interest with proper calculation
-silverLoanSchema.methods.getAccumulatedPendingInterest = function() {
-  const startDate = new Date(this.startDate);
-  const currentDate = new Date();
-  
-  // Calculate months elapsed
-  const monthsElapsed = (currentDate.getFullYear() - startDate.getFullYear()) * 12 + 
-                       (currentDate.getMonth() - startDate.getMonth()) + 1;
-  
-  // Calculate total interest due
-  const monthlyInterest = this.calculateCurrentMonthlyInterest();
-  const totalInterestDue = monthsElapsed * monthlyInterest;
-  
-  // Calculate total interest received
-  const totalInterestReceived = this.payments.reduce((sum, p) => sum + p.interestPaise, 0);
-  
-  // Return accumulated pending interest
-  return Math.max(0, totalInterestDue - totalInterestReceived);
+// Check if loan can be closed
+silverLoanSchema.methods.canBeClosed = function() {
+  const outstandingInterest = this.calculateOutstandingInterest();
+  return this.currentLoanAmount <= 0 &&
+         outstandingInterest <= 0 &&
+         this.getActiveItems().length === 0;
 };
 
-// Method to get items eligible for return based on payment amount
-silverLoanSchema.methods.getReturnableItems = async function(paymentAmountPaise) {
-  const { SilverPriceService } = await import('../utils/silverloanservice.js');
-  
-  const activeItems = this.items.filter(item => !item.returnDate);
-  const itemsWithCurrentValue = [];
-  
-  for (const item of activeItems) {
-    const calculation = await SilverPriceService.calculateSilverAmount(item.weightGram, item.purityK);
-    const currentValue = calculation.success ? 
-      Math.round(calculation.data.loanAmount * 100) : item.amountPaise;
-    
-    itemsWithCurrentValue.push({
-      ...item.toObject(),
-      currentValuePaise: currentValue,
-      canReturn: paymentAmountPaise >= currentValue,
-      priceChange: currentValue - item.amountPaise
+// Get comprehensive loan summary
+silverLoanSchema.methods.getLoanSummary = function(currentSilverPrice = 0) {
+  const activeItems = this.getActiveItems();
+  const returnedItems = this.getReturnedItems();
+  const outstandingInterest = this.calculateOutstandingInterest();
+  // Calculate current market value of active items
+  const currentMarketValue = activeItems.reduce((sum, item) => {
+    if (currentSilverPrice > 0) {
+      return sum + (item.weightGram * (item.purityK / 24) * currentSilverPrice);
+    }
+    return sum + item.loanAmount;
+  }, 0);
+
+  return {
+    // Basic loan info
+    totalLoanAmount: this.totalLoanAmount,
+    currentLoanAmount: this.currentLoanAmount,
+    loanToValueRatio: this.loanToValueRatio,
+    // Payment summary
+    totalInterestPaid: this.totalInterestPaid,
+    totalPrincipalPaid: this.totalPrincipalPaid,
+    totalFeesPaid: this.totalFeesPaid,
+    outstandingInterest,
+    monthlyInterestDue: this.monthlyInterestDue,
+    // Item summary
+    totalItems: this.items.length,
+    activeItems: activeItems.length,
+    returnedItems: returnedItems.length,
+    totalWeight: this.items.reduce((sum, item) => sum + item.weightGram, 0),
+    activeWeight: this.totalActiveWeight,
+    returnedWeight: this.totalReturnedWeight,
+    // Market values
+    currentMarketValue,
+    totalAppreciation: currentMarketValue - this.currentLoanAmount,
+    appreciationPct: this.currentLoanAmount > 0 ?
+      ((currentMarketValue - this.currentLoanAmount) / this.currentLoanAmount) * 100 : 0,
+    // Status
+    canBeClosed: this.canBeClosed(),
+    isOverdue: this.isOverdue,
+    loanDurationDays: this.loanDurationDays,
+    loanDurationMonths: Math.ceil(this.loanDurationDays / 30),
+    // Risk assessment
+    ltvRatio: currentMarketValue > 0 ? (this.currentLoanAmount / currentMarketValue) : 0,
+    riskLevel: this.riskCategory
+  };
+};
+
+// Calculate total appreciation across all returned items
+silverLoanSchema.methods.getTotalAppreciation = function() {
+  return this.payments.reduce((total, payment) => {
+    if (payment.itemsReturned) {
+      return total + payment.itemsReturned.reduce((sum, item) =>
+        sum + (item.appreciation || 0), 0);
+    }
+    return total;
+  }, 0);
+};
+
+// Get payment history with running totals
+silverLoanSchema.methods.getPaymentHistory = function() {
+  let runningPrincipal = this.totalLoanAmount;
+  let runningInterest = 0;
+  return this.payments
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map(payment => {
+      runningPrincipal -= (payment.principalAmount || 0);
+      runningInterest += (payment.interestAmount || 0);
+      return {
+        ...payment.toObject(),
+        runningPrincipalBalance: Math.max(0, runningPrincipal),
+        runningInterestPaid: runningInterest,
+        outstandingInterestAtPayment: this.calculateOutstandingInterest(payment.date)
+      };
     });
-  }
-  
-  return itemsWithCurrentValue.sort((a, b) => a.currentValuePaise - b.currentValuePaise);
 };
 
-// Index for better performance
+// Static methods
+
+// Find loans requiring attention (overdue, high risk, etc.)
+silverLoanSchema.statics.findLoansRequiringAttention = function() {
+  return this.find({
+    $or: [
+      { status: 'OVERDUE' },
+      { riskCategory: 'HIGH' },
+      {
+        dueDate: {
+          $lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Due within 7 days
+        },
+        status: 'ACTIVE'
+      }
+    ],
+    isDeleted: { $ne: true }
+  }).populate('customer');
+};
+
+// Get loan statistics for a date range
+silverLoanSchema.statics.getLoanStatistics = function(startDate, endDate) {
+  return this.aggregate([
+    {
+      $match: {
+        startDate: { $gte: new Date(startDate), $lte: new Date(endDate) },
+        isDeleted: { $ne: true }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        totalLoans: { $sum: 1 },
+        totalLoanAmount: { $sum: '$totalLoanAmount' },
+        averageLoanAmount: { $avg: '$totalLoanAmount' },
+        activeLoans: {
+          $sum: { $cond: [{ $eq: ['$status', 'ACTIVE'] }, 1, 0] }
+        },
+        closedLoans: {
+          $sum: { $cond: [{ $eq: ['$status', 'CLOSED'] }, 1, 0] }
+        }
+      }
+    }
+  ]);
+};
+
+// Indexes for better performance
 silverLoanSchema.index({ customer: 1, status: 1 });
 silverLoanSchema.index({ startDate: 1, status: 1 });
+silverLoanSchema.index({ dueDate: 1, status: 1 });
+silverLoanSchema.index({ loanNumber: 1 }, { unique: true, sparse: true });
 silverLoanSchema.index({ 'payments.date': -1 });
+silverLoanSchema.index({ status: 1, isDeleted: 1 });
+silverLoanSchema.index({ riskCategory: 1, status: 1 });
 
-silverLoanSchema.set("toJSON", { virtuals: true });
-silverLoanSchema.set("toObject", { virtuals: true });
+// Pre-save middleware
+silverLoanSchema.pre('save', function(next) {
+  this.lastModifiedDate = new Date();
+  // Auto-generate loan number if not provided
+  if (!this.loanNumber && this.isNew) {
+    this.loanNumber = `SL${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  }
+  // Update status based on current conditions
+  if (this.currentLoanAmount <= 0 && this.getActiveItems().length === 0) {
+    this.status = 'CLOSED';
+    if (!this.closureDate) {
+      this.closureDate = new Date();
+    }
+  } else if (this.isOverdue && this.status === 'ACTIVE') {
+    this.status = 'OVERDUE';
+  }
+  next();
+});
 
 export default mongoose.model("SilverLoan", silverLoanSchema);
