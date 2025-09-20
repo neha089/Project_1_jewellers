@@ -5,6 +5,8 @@ const transactionSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: [
+      "SILVER_LOAN_GIVEN", "SILVER_LOAN_PAYMENT", "SILVER_LOAN_CLOSURE","SILVER_LOAN_REPAYMENT",
+      "SILVER_LOAN_INTEREST_RECEIVED",
       "GOLD_LOAN_GIVEN", "GOLD_LOAN_PAYMENT", "GOLD_LOAN_CLOSURE","GOLD_LOAN_REPAYMENT",
       "UDHAR_CLOSURE","INTEREST_PAID",
       "GOLD_LOAN_INTEREST_RECEIVED", "GOLD_LOAN_ITEM_REMOVAL", 
@@ -33,7 +35,7 @@ const transactionSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ['GoldLoan', 'Loan', 'Udhar', 'GoldTransaction', 'SilverTransaction', 'BusinessExpense']
+    enum: ['GoldLoan', 'Loan', 'Udhar', 'GoldTransaction', 'SilverTransaction', 'BusinessExpense', 'SilverLoan']
   },
   category: {
     type: String,

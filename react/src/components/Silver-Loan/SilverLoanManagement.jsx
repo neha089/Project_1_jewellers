@@ -4,8 +4,8 @@ import SilverLoanSearchFilterBar from "./SilverLoanSearchFilterBar";
 import StatsCard from "../StatsCard";
 import AddSilverLoanModal from "./AddSilverLoanModal.jsx";
 import SilverLoanTableRow from "./SilverLoanTableRow";
-import SilverNotificationBell from "./SilverNotificationBell";
-import SilverPaymentReminderModal from "./SilverPaymentReminderModal";
+import NotificationBell from "../Gold-Loan/NotificationBell";
+import PaymentReminderModal from "../Gold-Loan/PaymentReminderModal";
 import SilverInterestPaymentModal from "./SilverInterestPaymentModal";
 import SilverItemRepaymentModal from "./SilverItemRepaymentModal.jsx";
 import { useNotifications } from "../useNotifications";
@@ -190,7 +190,7 @@ const SilverLoanManagement = () => {
     // Apply silver type filter
     if (silverTypeFilter !== 'all') {
       filtered = filtered.filter(loan =>
-        loan.items?.some(item => String(item.purityPercentage) === silverTypeFilter)
+        loan.items?.some(item => String(item.purityK) === silverTypeFilter)
       );
     }
 
@@ -259,15 +259,25 @@ const SilverLoanManagement = () => {
       setSelectedLoan(loan);
       setShowItemRepaymentModal(true);
     }
+     window.location.reload();
   };
 
-  const handleInterestPaymentSuccess = async (result) => {
-    console.log('Interest payment successful:', result);
-    // Refresh the loan data
+const [refreshing, setRefreshing] = useState(false);
+
+const handleInterestPaymentSuccess = async (result) => {
+  console.log('Interest payment successful:', result);
+  
+  try {
+    setRefreshing(true);
     await loadSilverLoans();
-    // Show success notification
     alert(`Interest payment recorded successfully! Receipt: ${result.data?.receiptNumber || 'Generated'}`);
-  };
+  } catch (error) {
+    console.error('Error refreshing loan data:', error);
+    alert(`Interest payment recorded successfully, but failed to refresh data. Please refresh manually.`);
+  } finally {
+    setRefreshing(false);
+  }
+};
 
   const handleItemRepaymentSuccess = async (result) => {
     console.log('Item repayment successful:', result);
@@ -340,7 +350,7 @@ const SilverLoanManagement = () => {
               setError(null);
               loadSilverLoans();
             }}
-            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
           >
             Try Again
           </button>
@@ -360,7 +370,7 @@ const SilverLoanManagement = () => {
           </div>
          
           <div className="flex items-center gap-3">
-            <SilverNotificationBell
+            <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount}
               onToggle={() => setActiveTab('notifications')}
@@ -376,7 +386,7 @@ const SilverLoanManagement = () => {
            
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-lg"
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-lg"
             >
               <Plus size={16} />
               New Loan
@@ -461,16 +471,16 @@ const SilverLoanManagement = () => {
             title="Silver Weight"
             value={`${stats.totalWeight.toFixed(0)}g`}
             icon={Coins}
-            iconColor="text-amber-600"
+            iconColor="text-gray-600"
             trend="Total pledged"
-            className="bg-amber-50 border-amber-200"
+            className="bg-gray-50 border-gray-200"
           />
         </div>
 
         {/* Main Content Area */}
         {activeTab === 'loans' && (
           <>
-            <SilverLoanSearchFilterBar
+<SilverLoanSearchFilterBar
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               statusFilter={statusFilter}
@@ -504,7 +514,7 @@ const SilverLoanManagement = () => {
                 {!searchTerm && statusFilter === 'all' && (
                   <button
                     onClick={() => setShowAddModal(true)}
-                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                   >
                     Create First Loan
                   </button>
@@ -690,7 +700,7 @@ const SilverLoanManagement = () => {
 
       {/* Interest Payment Modal */}
       {showInterestPaymentModal && selectedLoan && (
-        <InterestPaymentModal
+        <SilverInterestPaymentModal
           isOpen={showInterestPaymentModal}
           onClose={() => {
             setShowInterestPaymentModal(false);
@@ -703,7 +713,7 @@ const SilverLoanManagement = () => {
 
       {/* Item Repayment Modal */}
       {showItemRepaymentModal && selectedLoan && (
-        <ItemRepaymentModal
+        <SilverItemRepaymentModal
           isOpen={showItemRepaymentModal}
           onClose={() => {
             setShowItemRepaymentModal(false);
@@ -718,3 +728,6 @@ const SilverLoanManagement = () => {
 };
 
 export default SilverLoanManagement;
+
+
+// export default InterestPaymentModal;

@@ -27,11 +27,11 @@ router.get('/:id/payment-history', silverLoanController.getPaymentHistory);
 router.put('/:id/close', silverLoanController.closeSilverLoan);
 
 // Interest payments
-router.post('/:loanId/interest-payment', silverLoanController.addInterestPayment);
+router.post('/:loanId/interest-payment', silverLoanController.addInterestPaymentS);
 router.get('/:loanId/interest-payments', silverLoanController.getInterestPayments);
 
 // Repayments
-router.post('/:id/repayment', silverLoanController.processItemRepayment);
+router.post('/:id/repayment', silverLoanController.processItemRepaymentS);
 router.get('/:id/repayments', silverLoanController.getRepayments);
 router.get('/:id/repayment-stats', silverLoanController.getRepaymentStats);
 router.post('/:id/validate-repayment', silverLoanController.validateRepayment);
@@ -39,18 +39,18 @@ router.post('/:id/validate-repayment', silverLoanController.validateRepayment);
 // Additional repayment routes
 router.get('/repayments/search', silverLoanController.searchAllRepayments);
 router.get('/repayments/:repaymentId', silverLoanController.getRepaymentDetails);
-router.get('/repayments/:repaymentId/receipt', silverLoanController.getRepaymentReceipt);
+// router.get('/repayments/:repaymentId/receipt', silverLoanController.getRepaymentReceipt);
 router.put('/repayments/:repaymentId/cancel', silverLoanController.cancelRepayment);
 
 // Silver price
 router.get('/silver-price/current', silverLoanController.getCurrentSilverPrice);
 
 // NEW: Get all transactions for a loan
-router.get('/:id/transactions', silverLoanController.getLoanTransactions);
+// router.get('/:id/transactions', silverLoanController.getLoanTransactions);
 
 // NEW: Daily summary
-router.get('/daily-summary', silverLoanController.getDailySilverLoanSummary);
-router.get('/:id/active-items', silverLoanController.getActiveItemsForReturn);
-router.post('/:id/return-items', silverLoanController.processItemReturn);
+// router.get('/daily-summary', silverLoanController.getDailySilverLoanSummary);
+router.get('/:id/active-items', silverLoanController.getActiveItemsForReturnS);
+router.post('/:id/return-items', silverLoanController.processItemReturnS);
 
 export default router;

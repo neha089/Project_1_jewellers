@@ -15,7 +15,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
   const [items, setItems] = useState([{
     id: Date.now(),
     name: '',
-    weight: '',
+    weightGram: '',
     amount: '',
     purity: '925',
     silverPriceAtDeposit: '',
@@ -104,8 +104,8 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
         if (!item.name.trim()) {
           newErrors[`item_${index}_name`] = 'Item name is required';
         }
-        if (!item.weight || parseFloat(item.weight) <= 0) {
-          newErrors[`item_${index}_weight`] = 'Valid weight is required';
+        if (!item.weightGram || parseFloat(item.weightGram) <= 0) {
+          newErrors[`item_${index}_weightGram`] = 'Valid weightGram is required';
         }
         if (!item.amount || parseFloat(item.amount) <= 0) {
           newErrors[`item_${index}_amount`] = 'Valid loan amount is required';
@@ -151,7 +151,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
         customer: selectedCustomer._id,
         items: items.map(item => ({
           name: item.name,
-          weightGram: parseFloat(item.weight),
+          weightGram: parseFloat(item.weightGram),
           loanAmount: parseFloat(item.amount),
           purityK: parseInt(item.purity),
           silverPriceAtDeposit: parseFloat(item.silverPriceAtDeposit),
@@ -167,7 +167,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
       await onSave(loanData);
       
       const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
-      const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
+      const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weightGram), 0);
      
       handleReset();
       
@@ -192,7 +192,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
     setItems([{
       id: Date.now(),
       name: '',
-      weight: '',
+      weightGram: '',
       amount: '',
       purity: '925',
       silverPriceAtDeposit: currentSilverPrice?.pricePerGram?.toString() || '',
@@ -226,9 +226,9 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-amber-50">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg flex items-center justify-center text-white">
               <Coins size={20} />
             </div>
             <div>
@@ -296,7 +296,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     name="interestRate"
                     value={formData.interestRate}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
                       errors.interestRate ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="2.0"
@@ -314,7 +314,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     name="date"
                     value={formData.date}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
                       errors.date ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                     disabled={isSubmitting}
@@ -330,7 +330,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     name="branch"
                     value={formData.branch}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
                     disabled={isSubmitting}
                   >
                     {branches.map(branch => (
@@ -350,7 +350,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                 value={formData.notes}
                 onChange={handleInputChange}
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
                 placeholder="Any additional notes about the silver loan..."
                 disabled={isSubmitting}
               />
@@ -362,7 +362,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
               </div>
             )}
 
-            {items.length > 0 && items.some(item => item.weight && item.amount) && (
+            {items.length > 0 && items.some(item => item.weightGram && item.amount) && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <h4 className="font-medium text-gray-900 mb-2">Loan Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -373,12 +373,12 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                   <div>
                     <span className="text-gray-600">Total Weight:</span>
                     <p className="font-medium">
-                      {items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0).toFixed(2)}g
+                      {items.reduce((sum, item) => sum + (parseFloat(item.weightGram) || 0), 0).toFixed(2)}g
                     </p>
                   </div>
                   <div>
                     <span className="text-gray-600">Total Amount:</span>
-                    <p className="font-medium text-amber-600">
+                    <p className="font-medium text-gray-600">
                       ₹{items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0).toLocaleString()}
                     </p>
                   </div>
@@ -403,7 +403,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
             <button
               type="button"
               onClick={handleReset}
-              className="px-6 py-3 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 hover:border-amber-400 transition-all duration-200 font-medium"
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium"
               disabled={isSubmitting}
             >
               Reset Form
@@ -411,7 +411,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-amber-400 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
+              className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
               disabled={isSubmitting}
             >
               <Coins size={16} />

@@ -225,7 +225,7 @@ const ItemRepaymentModal = ({
         const purityFactor = currentItem.purityK / 24;
         const goldPrice = parseFloat(currentItem.currentGoldPrice) || 0;
         const weight = parseFloat(currentItem.weight) || 0;
-        currentItem.returnValue = weight * purityFactor * goldPrice;
+        currentItem.returnValue = weight *  goldPrice;
         currentItem.appreciation = currentItem.returnValue - currentItem.originalLoanAmount;
         
         // Auto-update return price if not manually set

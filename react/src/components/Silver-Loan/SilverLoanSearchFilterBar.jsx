@@ -23,7 +23,7 @@ const SilverLoanSearchFilterBar = ({
             <p className="text-sm text-gray-600 mt-1">Find and organize your silver loan data efficiently</p>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="w-2 h-2 bg-amber-400 rounded-full"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
             <span>Real-time search</span>
           </div>
         </div>
@@ -40,7 +40,7 @@ const SilverLoanSearchFilterBar = ({
                 placeholder="Search by loan ID, customer name, phone..."
                 value={searchTerm}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200"
                 disabled={loading}
               />
               {searchTerm && (
@@ -62,7 +62,7 @@ const SilverLoanSearchFilterBar = ({
               <select
                 value={statusFilter}
                 onChange={(e) => onStatusFilterChange(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
+                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
                 disabled={loading}
               >
                 <option value="all">All Status</option>
@@ -80,7 +80,7 @@ const SilverLoanSearchFilterBar = ({
               <select
                 value={silverTypeFilter}
                 onChange={(e) => onSilverTypeFilterChange(e.target.value)}
-                className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
+                className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
                 disabled={loading}
               >
                 <option value="all">All Silver</option>
@@ -99,7 +99,7 @@ const SilverLoanSearchFilterBar = ({
               <select
                 value={sortBy}
                 onChange={(e) => onSortChange(e.target.value)}
-                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
+                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200 appearance-none cursor-pointer hover:border-gray-400"
                 disabled={loading}
               >
                 <option value="loanId">Sort by Loan ID</option>
@@ -172,11 +172,11 @@ const SilverLoanSearchFilterBar = ({
                 </span>
               )}
               {silverTypeFilter !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 text-xs rounded-full">
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
                   Silver: {silverTypeFilter}
                   <button
                     onClick={() => onSilverTypeFilterChange('all')}
-                    className="ml-1 hover:text-amber-900 transition-colors"
+                    className="ml-1 hover:text-gray-900 transition-colors"
                   >
                     ×
                   </button>

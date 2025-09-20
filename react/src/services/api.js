@@ -402,7 +402,22 @@ async makeUdhariPayment(data) {
     return this.get(`/api/gold-loans/customer/${customerId}`);
   }
 
-  
+  async getAllSilverLoans(filters = {}) {
+    const params = {};
+    if (filters.page) params.page = filters.page.toString();
+    if (filters.limit) params.limit = filters.limit.toString();
+    if (filters.status && filters.status !== 'all') params.status = filters.status;
+    if (filters.customer) params.customer = filters.customer;
+    return this.get('/api/silver-loans', params);
+  }
+  async getSilverLoan(loanId) {
+    return this.get(`/api/silver-loans/${loanId}`);
+  }
+  async createSilverLoan(formData) {
+    console.log('Creating silver loan with data:', formData);
+    return this.post('/api/silver-loans', formData);
+  }
+
     async getDashboardStats() {
     return this.request("/api/dashboard/stats");
   }
@@ -447,6 +462,31 @@ async addInterestPayment(loanId, paymentData) {
     throw error;
   }
 }
+async addInterestPaymentS(loanId, paymentData) {
+  try {
+    console.log('Adding interest payment for loan:', loanId, 'with data:', paymentData);
+    
+    const result = await this.post(`/api/silver-loans/${loanId}/interest-payment`, paymentData);
+
+    console.log('Interest payment result:', result);
+    return result;
+
+  } catch (error) {
+    console.error('Interest payment API error:', error);
+    
+    if (error.message.includes('404')) {
+      throw new Error('Interest payment endpoint not found. Please verify the route is configured correctly.');
+    } else if (error.message.includes('400')) {
+      throw new Error(error.message || 'Invalid payment data provided.');
+    } else if (error.message.includes('500')) {
+      throw new Error('Server error while processing payment. Please contact support.');
+    }
+    
+    throw error;
+  }
+}
+
+
 
 
 // Get interest payment history for a specific loan
@@ -528,6 +568,80 @@ async getInterestPayments(loanId, filters = {}) {
       };
 
       const response = await this.post(`/api/gold-loans/${loanId}/repayment`, payload);
+      
+      console.log('Item repayment response:', response);
+      return response;
+    } catch (error) {
+      console.error('Process item repayment error:', error);
+      throw error;
+    }
+  }
+  async getActiveItemsForReturnS(loanId) {
+    try {
+      const response = await this.get(`/api/silver-loans/${loanId}/active-items`);  
+      return response;
+    } catch (error) {
+      console.error('Get active items for return error:', error);
+      throw error;
+    }
+  }
+
+  async processItemRepaymentS(loanId, repaymentData) {
+    try {
+      console.log('Processing item repayment for loan:', loanId, 'with data:', repaymentData);
+      
+      // Define valid paymentType values based on Transaction schema
+      const validPaymentTypes = ['PRINCIPAL', 'INTEREST', 'COMBINED', 'DISBURSEMENT'];
+      
+      // Map repaymentType to metadata.paymentType
+      let paymentType = 'PRINCIPAL';
+      if (parseFloat(repaymentData.interestPaidWithRepayment || 0) > 0) {
+        paymentType = 'COMBINED';
+      } else if (['PARTIAL_PRINCIPAL', 'FULL_PRINCIPAL', 'ITEM_RETURN'].includes(repaymentData.repaymentType)) {
+        paymentType = 'PRINCIPAL';
+      }
+
+      if (!validPaymentTypes.includes(paymentType)) {
+        console.warn(`Invalid paymentType: ${paymentType}. Defaulting to PRINCIPAL.`);
+        paymentType = 'PRINCIPAL';
+      }
+
+      const payload = {
+        repaymentAmount: parseFloat(repaymentData.repaymentAmount || 0),
+        paymentMethod: repaymentData.paymentMethod || 'CASH',
+        repaymentDate: repaymentData.repaymentDate || new Date().toISOString(),
+        currentGoldPrice: parseFloat(repaymentData.currentGoldPrice || 0),
+        referenceNumber: repaymentData.referenceNumber || '',
+        chequeNumber: repaymentData.chequeNumber || '',
+        bankName: repaymentData.bankName || '',
+        chequeDate: repaymentData.chequeDate || null,
+        selectedItemIds: repaymentData.selectedItemIds || [],
+        photos: repaymentData.photos || [],
+        notes: repaymentData.notes || '',
+        recordedBy: repaymentData.recordedBy || 'Admin',
+        processingFee: parseFloat(repaymentData.processingFee || 0),
+        lateFee: parseFloat(repaymentData.lateFee || 0),
+        adjustmentAmount: parseFloat(repaymentData.adjustmentAmount || 0),
+        adjustmentReason: repaymentData.adjustmentReason || '',
+        interestPaidWithRepayment: parseFloat(repaymentData.interestPaidWithRepayment || 0),
+        interestPeriodCovered: repaymentData.interestPeriodCovered || '',
+        metadata: {
+          paymentType: paymentType,
+          goldPrice: parseFloat(repaymentData.currentGoldPrice) || undefined,
+          weightGrams: repaymentData.selectedItemIds?.length > 0 
+            ? repaymentData.selectedItemIds.reduce((sum, itemId) => {
+                const item = repaymentData.items?.find(i => i._id === itemId);
+                return sum + (item?.weightGram || 0);
+              }, 0)
+            : undefined,
+          itemCount: repaymentData.selectedItemIds?.length || undefined,
+          photos: repaymentData.photos || [],
+          notes: repaymentData.notes || '',
+          forMonth: repaymentData.interestPeriodCovered || undefined,
+        }
+      };
+
+      const response = await this.post(`/api/silver-loans/${loanId}/repayment`, payload);
       
       console.log('Item repayment response:', response);
       return response;
@@ -1050,7 +1164,9 @@ async getActiveItemsForReturn(loanId){
   async processItemReturn(loanId, returnData){
     return this.post(`api/gold-loans/${loanId}/return-items`, returnData);
   }
-  
+  async processItemReturnS(loanId, returnData){
+    return this.post(`api/silver-loans/${loanId}/return-items`, returnData);
+  }
   // In your api.js file
 // In api.js
 async updateExpense(id, data) {

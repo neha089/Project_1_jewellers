@@ -91,7 +91,7 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
         recordedBy: 'Admin' // Or get from auth
       };
 
-      const response = await ApiService.addInterestPayment(loan._id, interestData);
+      const response = await ApiService.addInterestPaymentS(loan._id, interestData);
 
       if (response.success) {
         onPaymentSuccess?.(response);

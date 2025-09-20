@@ -56,7 +56,7 @@ export const SilverLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder
   const statusConfig = getStatusConfig(loan.status);
   const StatusIcon = statusConfig.icon;
   const daysUntilDue = getDaysUntilDue();
-  const isOverdue = false;
+  const isOverdue = false
   const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
 
   const formatCurrency = (amount) => `₹${(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -83,6 +83,7 @@ export const SilverLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder
 
   const handleInterestPaymentSuccess = (result) => {
     console.log('Interest payment successful:', result);
+    setShowInterestPaymentModal(false);
     if (onPayment) {
       onPayment(loan);
     }
@@ -98,18 +99,18 @@ export const SilverLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder
   return (
     <>
       <div 
-        className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl hover:border-amber-300 transition-all duration-300 transform hover:-translate-y-1 cursor-pointer w-full"
+        className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl hover:border-gray-300 transition-all duration-300 transform hover:-translate-y-1 cursor-pointer w-full"
         onClick={() => setShowModal(true)}
       >
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-3 sm:p-5 border-b border-amber-100">
+        <div className="bg-gradient-to-r from-gray-50 to-orange-50 p-3 sm:p-5 border-b border-gray-100">
           <div className="flex items-start justify-between flex-wrap gap-2 sm:gap-0">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 sm:ring-4 ring-amber-100 flex-shrink-0">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-gray-400 via-gray-500 to-gray-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 sm:ring-4 ring-gray-100 flex-shrink-0">
                 <Coins size={20} className="sm:w-6 sm:h-6 drop-shadow-sm" />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{loan.loanNumber || loan._id}</h3>
-                <p className="text-xs sm:text-sm text-amber-700 font-medium truncate">
+                <p className="text-xs sm:text-sm text-gray-700 font-medium truncate">
                   {loan.items?.length || 0} items • {totalWeight.toFixed(1)}g
                 </p>
               </div>
@@ -173,7 +174,7 @@ export const SilverLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-3 border border-amber-100">
+          <div className="bg-gradient-to-r from-gray-50 to-yellow-50 rounded-lg p-3 border border-gray-100">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0 text-xs sm:text-sm">
               <span className="text-gray-600">Weight & Interest:</span>
               <span className="font-semibold text-gray-900">
@@ -299,13 +300,13 @@ export const SilverLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder
         }}
       />
 
-      <InterestPaymentModal
+      <SilverInterestPaymentModal
         isOpen={showInterestPaymentModal}
         onClose={() => setShowInterestPaymentModal(false)}
         loan={loan}
         onPaymentSuccess={handleInterestPaymentSuccess}
       />
-      <SItemRepaymentModal
+      <SilverItemRepaymentModal
         isOpen={showItemRepaymentModal}
         onClose={() => setShowItemRepaymentModal(false)}
         loan={loan}
@@ -323,7 +324,7 @@ const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSen
 
   // Extract payments from the loan object
   const allPayments = loan.payments || [];
-  const isOverdue = false;
+  const isOverdue=false
   // Filter payments based on active tab
   const filteredPayments = activeTab === 'all' 
     ? allPayments 
@@ -443,17 +444,17 @@ const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSen
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-lg sm:rounded-2xl w-full max-w-6xl h-full sm:max-h-[95vh] overflow-hidden flex flex-col">
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 sm:p-6 border-b border-amber-100 flex-shrink-0">
+        <div className="bg-gradient-to-r from-gray-50 to-orange-50 p-4 sm:p-6 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 sm:ring-4 ring-amber-100 flex-shrink-0">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-gray-400 via-gray-500 to-gray-600 rounded-full flex items-center justify-center text-white shadow-lg ring-2 sm:ring-4 ring-gray-100 flex-shrink-0">
                 <Coins size={24} className="sm:w-7 sm:h-7" />
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
                   {loan.loanNumber || loan._id?.substring(loan._id.length - 8).toUpperCase()}
                 </h2>
-                <p className="text-sm sm:text-base text-amber-700 font-medium truncate">
+                <p className="text-sm sm:text-base text-gray-700 font-medium truncate">
                   {loan.items?.length || 0} items • {totalWeight.toFixed(1)}g • {loan.customer?.name}
                 </p>
                 <span className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 text-xs font-semibold rounded-full mt-2 ${statusConfig.bg} ${statusConfig.text}`}>
@@ -915,7 +916,7 @@ const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSen
             {loan.items && loan.items.length > 0 ? (
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {loan.items.map((item, index) => (
-                  <div key={item._id || index} className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 rounded-xl p-4">
+                  <div key={item._id || index} className="bg-gradient-to-r from-gray-50 to-yellow-50 border border-gray-100 rounded-xl p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2">
@@ -924,7 +925,7 @@ const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSen
                               ? 'bg-green-500' 
                               : item.returnDate === null 
                               ? 'bg-gray-500' 
-                              : 'bg-amber-500'
+                              : 'bg-gray-500'
                           }`} />
                           <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
                             {item.name || `Silver Item ${index + 1}`}
@@ -955,7 +956,7 @@ const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSen
                             <span className={`font-medium text-xs px-2 py-1 rounded-full ${
                               item.returnDate 
                                 ? 'bg-green-100 text-green-800' 
-                                : 'bg-amber-100 text-amber-800'
+                                : 'bg-gray-100 text-gray-800'
                             }`}>
                               {item.returnDate ? `Returned ${formatDate(item.returnDate)}` : 'Active'}
                             </span>
@@ -996,7 +997,7 @@ const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSen
                             {item.images.slice(0, 3).map((image, imgIndex) => (
                               <div 
                                 key={imgIndex}
-                                className="w-12 h-12 rounded overflow-hidden border border-amber-200 relative group cursor-pointer"
+                                className="w-12 h-12 rounded overflow-hidden border border-gray-200 relative group cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   window.open(image, '_blank');
@@ -1024,7 +1025,7 @@ const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSen
                     
                     {/* Item Notes */}
                     {(item.description || item.returnNotes) && (
-                      <div className="mt-3 pt-3 border-t border-amber-100">
+                      <div className="mt-3 pt-3 border-t border-gray-100">
                         <div className="text-xs text-gray-600">
                           {item.description && (
                             <div className="mb-2">

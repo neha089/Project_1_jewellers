@@ -100,7 +100,7 @@ const SilverItemRepaymentModal = ({
 
       // Load active items
       console.log('Loading active items for loan:', loan._id);
-      const result = await ApiService.getActiveItemsForReturn(loan._id.toString());
+      const result = await ApiService.getActiveItemsForReturnS(loan._id.toString());
       
       if (result.success) {
         console.log('Active items loaded:', result.data.activeItems);
@@ -332,7 +332,7 @@ const SilverItemRepaymentModal = ({
 
       console.log('Submitting data:', submitData);
 
-      const result = await ApiService.processItemReturn(loan._id.toString(), submitData);
+      const result = await ApiService.processItemReturnS(loan._id.toString(), submitData);
 
       console.log('API Response:', result);
 

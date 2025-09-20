@@ -691,7 +691,7 @@ export const closeSilverLoan = async (req, res) => {
 };
 
 // Add interest payment using paymentSchema directly
-export const addInterestPayment = async (req, res) => {
+export const addInterestPaymentS = async (req, res) => {
   try {
     const { loanId } = req.params;
     const {
@@ -745,13 +745,7 @@ export const addInterestPayment = async (req, res) => {
     const totalPaid = existingPayments.reduce((sum, payment) => sum + (payment.interestAmount || 0), 0);
     const remainingInterest = Math.max(0, monthlyInterest - totalPaid);
 
-    if (parseFloat(interestAmount) > remainingInterest) {
-      return res.status(400).json({
-        success: false,
-        error: `Interest amount cannot exceed remaining interest due (₹${remainingInterest.toLocaleString()})`
-      });
-    }
-
+    
     // Create payment entry in the payments array
     const payment = {
       date: new Date(paymentDate),
@@ -808,7 +802,7 @@ export const addInterestPayment = async (req, res) => {
 };
 
 // Process item repayment
-export const processItemRepayment = async (req, res) => {
+export const processItemRepaymentS = async (req, res) => {
   try {
     const {
       repaymentAmount,
@@ -1427,7 +1421,7 @@ export const getLoanPaymentSummary = async (req, res) => {
 };
 
 // Process item return
-export const processItemReturn = async (req, res) => {
+export const processItemReturnS = async (req, res) => {
   try {
     const {
       selectedItems = [], // Array of item objects with details
@@ -1710,7 +1704,7 @@ export const processItemReturn = async (req, res) => {
 };
 
 // Get active items for return
-export const getActiveItemsForReturn = async (req, res) => {
+export const getActiveItemsForReturnS = async (req, res) => {
   try {
     const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
     if (!silverLoan) {
