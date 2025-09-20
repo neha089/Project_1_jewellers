@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Percent, AlertCircle, Loader2 } from 'lucide-react';
 import ApiService from '../../services/api.js';
 
-const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
+const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   const [interestAmount, setInterestAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -46,7 +46,7 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   const getMonthlyInterest = () => {
     const outstanding = loan?.currentLoanAmount || loan.totalLoanAmount || 0;
     const interestRate = loan?.interestRateMonthlyPct || 0;
-    return (outstanding * interestRate) ;
+    return (outstanding * interestRate);
   };
 
   const getPendingInterestAmount = () => {
@@ -66,9 +66,9 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
       return;
     }
 
-    const expectedInterest = getPendingInterestAmount() + 0.1 ;
+    const expectedInterest = getPendingInterestAmount() + 0.1;
     if (interestAmount > expectedInterest) {
-      console.log(expectedInterest , interestAmount);
+      console.log(expectedInterest, interestAmount);
       setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest)}`);
       return;
     }
@@ -379,4 +379,4 @@ const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   );
 };
 
-export default InterestPaymentModal;
+export default SilverInterestPaymentModal;

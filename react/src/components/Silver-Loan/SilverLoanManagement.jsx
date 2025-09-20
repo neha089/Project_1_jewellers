@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
-import { GoldLoanCard } from "./GoldLoanCard";
-import GoldLoanSearchFilterBar from "./GoldLoanSearchFilterBar";
+import { SilverLoanCard } from "./SilverLoanCard";
+import SilverLoanSearchFilterBar from "./SilverLoanSearchFilterBar";
 import StatsCard from "../StatsCard";
-import AddGoldLoanModal from "./AddGoldLoanModal.jsx";
-import GoldLoanTableRow from "./GoldLoanTableRow";
-import NotificationBell from "./NotificationBell";
-import PaymentReminderModal from "./PaymentReminderModal";
-import InterestPaymentModal from "./InterestPaymentModal";
-import ItemRepaymentModal from "./ItemRepaymentModal.jsx";
+import AddSilverLoanModal from "./AddSilverLoanModal.jsx";
+import SilverLoanTableRow from "./SilverLoanTableRow";
+import SilverNotificationBell from "./SilverNotificationBell";
+import SilverPaymentReminderModal from "./SilverPaymentReminderModal";
+import SilverInterestPaymentModal from "./SilverInterestPaymentModal";
+import SilverItemRepaymentModal from "./SilverItemRepaymentModal.jsx";
 import { useNotifications } from "../useNotifications";
 import ApiService from "../../services/api";
 import {
@@ -27,8 +27,8 @@ import {
   List
 } from 'lucide-react';
 
-const GoldLoanManagement = () => {
-  const [goldLoans, setGoldLoans] = useState([]);
+const SilverLoanManagement = () => {
+  const [silverLoans, setSilverLoans] = useState([]);
   const [filteredLoans, setFilteredLoans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -54,8 +54,8 @@ const GoldLoanManagement = () => {
     dueToday: 0,
     urgentActions: 0
   });
-  const [goldTypeFilter, setGoldTypeFilter] = useState('all');
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(goldLoans);
+  const [silverTypeFilter, setSilverTypeFilter] = useState('all');
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(silverLoans);
 
   // Calculate due date based on start date and interest rate (assuming monthly payments)
   const calculateDueDate = (loan) => {
@@ -66,12 +66,12 @@ const GoldLoanManagement = () => {
     return dueDate;
   };
 
-  // Load gold loans data
-  const loadGoldLoans = async () => {
+  // Load silver loans data
+  const loadSilverLoans = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await ApiService.getAllGoldLoans({
+      const response = await ApiService.getAllSilverLoans({
         page: 1,
         limit: 100, // Adjust as needed
         status: statusFilter !== 'all' ? statusFilter : undefined
@@ -103,14 +103,14 @@ const GoldLoanManagement = () => {
           return loanWithDueDate;
         });
 
-        setGoldLoans(loansWithDueDates);
+        setSilverLoans(loansWithDueDates);
         calculateStats(loansWithDueDates);
       } else {
-        throw new Error(response.error || 'Failed to fetch gold loans');
+        throw new Error(response.error || 'Failed to fetch silver loans');
       }
     } catch (err) {
       setError(err.message);
-      console.error('Error loading gold loans:', err);
+      console.error('Error loading silver loans:', err);
     } finally {
       setLoading(false);
     }
@@ -172,7 +172,7 @@ const GoldLoanManagement = () => {
 
   // Filter and sort loans
   useEffect(() => {
-    let filtered = [...goldLoans];
+    let filtered = [...silverLoans];
 
     // Apply search filter
     if (searchTerm) {
@@ -187,10 +187,10 @@ const GoldLoanManagement = () => {
       );
     }
 
-    // Apply gold type filter
-    if (goldTypeFilter !== 'all') {
+    // Apply silver type filter
+    if (silverTypeFilter !== 'all') {
       filtered = filtered.filter(loan =>
-        loan.items?.some(item => String(item.purityK) === goldTypeFilter)
+        loan.items?.some(item => String(item.purityPercentage) === silverTypeFilter)
       );
     }
 
@@ -218,22 +218,22 @@ const GoldLoanManagement = () => {
     });
 
     setFilteredLoans(filtered);
-  }, [goldLoans, searchTerm, statusFilter, goldTypeFilter, sortBy]);
+  }, [silverLoans, searchTerm, statusFilter, silverTypeFilter, sortBy]);
 
   // Load data on component mount and when filters change
   useEffect(() => {
-    loadGoldLoans();
+    loadSilverLoans();
   }, []);
 
   // Handle form submissions and actions
   const handleAddLoan = async (formData) => {
     try {
-      const response = await ApiService.createGoldLoan(formData);
+      const response = await ApiService.createSilverLoan(formData);
       if (response.success) {
-        await loadGoldLoans(); // Refresh the list
+        await loadSilverLoans(); // Refresh the list
       }
     } catch (error) {
-      alert('Error creating gold loan: ' + error.message);
+      alert('Error creating silver loan: ' + error.message);
       throw error; // Re-throw to let modal catch it
     }
   };
@@ -245,7 +245,7 @@ const GoldLoanManagement = () => {
   };
 
   const handleView = (loan) => {
-    // This is handled by the modal in GoldLoanCard
+    // This is handled by the modal in SilverLoanCard
     console.log('Viewing loan:', loan._id);
   };
 
@@ -259,30 +259,20 @@ const GoldLoanManagement = () => {
       setSelectedLoan(loan);
       setShowItemRepaymentModal(true);
     }
-     window.location.reload();
   };
 
-const [refreshing, setRefreshing] = useState(false);
-
-const handleInterestPaymentSuccess = async (result) => {
-  console.log('Interest payment successful:', result);
-  
-  try {
-    setRefreshing(true);
-    await loadGoldLoans();
+  const handleInterestPaymentSuccess = async (result) => {
+    console.log('Interest payment successful:', result);
+    // Refresh the loan data
+    await loadSilverLoans();
+    // Show success notification
     alert(`Interest payment recorded successfully! Receipt: ${result.data?.receiptNumber || 'Generated'}`);
-  } catch (error) {
-    console.error('Error refreshing loan data:', error);
-    alert(`Interest payment recorded successfully, but failed to refresh data. Please refresh manually.`);
-  } finally {
-    setRefreshing(false);
-  }
-};
+  };
 
   const handleItemRepaymentSuccess = async (result) => {
     console.log('Item repayment successful:', result);
     // Refresh the loan data
-    await loadGoldLoans();
+    await loadSilverLoans();
     // Show success notification
     alert(`Repayment processed successfully! Receipt: ${result.data?.receiptNumber || 'Generated'}`);
   };
@@ -330,7 +320,7 @@ const handleInterestPaymentSuccess = async (result) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gold-loans-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `silver-loans-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -348,7 +338,7 @@ const handleInterestPaymentSuccess = async (result) => {
           <button
             onClick={() => {
               setError(null);
-              loadGoldLoans();
+              loadSilverLoans();
             }}
             className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
           >
@@ -365,12 +355,12 @@ const handleInterestPaymentSuccess = async (result) => {
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gold Loan Management</h1>
-            <p className="text-gray-600 mt-1">Manage your gold loans, payments, and customer relationships</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Silver Loan Management</h1>
+            <p className="text-gray-600 mt-1">Manage your silver loans, payments, and customer relationships</p>
           </div>
          
           <div className="flex items-center gap-3">
-            <NotificationBell
+            <SilverNotificationBell
               notifications={notifications}
               unreadCount={unreadCount}
               onToggle={() => setActiveTab('notifications')}
@@ -468,7 +458,7 @@ const handleInterestPaymentSuccess = async (result) => {
             className="bg-purple-50 border-purple-200"
           />
           <StatsCard
-            title="Gold Weight"
+            title="Silver Weight"
             value={`${stats.totalWeight.toFixed(0)}g`}
             icon={Coins}
             iconColor="text-amber-600"
@@ -480,35 +470,35 @@ const handleInterestPaymentSuccess = async (result) => {
         {/* Main Content Area */}
         {activeTab === 'loans' && (
           <>
-<GoldLoanSearchFilterBar
+            <SilverLoanSearchFilterBar
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               statusFilter={statusFilter}
               onStatusFilterChange={setStatusFilter}
-              goldTypeFilter={goldTypeFilter}
-              onGoldTypeFilterChange={setGoldTypeFilter}
+              silverTypeFilter={silverTypeFilter}
+              onSilverTypeFilterChange={setSilverTypeFilter}
               sortBy={sortBy}
               onSortChange={setSortBy}
               viewMode={viewMode}
               setViewMode={setViewMode}
-              onRefresh={loadGoldLoans}
+              onRefresh={loadSilverLoans}
               loading={loading}
             />
 
             {loading ? (
               <div className="text-center py-12">
                 <RefreshCw size={48} className="mx-auto text-gray-300 mb-4 animate-spin" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Loading Gold Loans</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Loading Silver Loans</h3>
                 <p className="text-gray-600">Please wait while we fetch your data...</p>
               </div>
             ) : filteredLoans.length === 0 ? (
               <div className="text-center py-12">
                 <Coins size={48} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Gold Loans Found</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Silver Loans Found</h3>
                 <p className="text-gray-600 mb-4">
                   {searchTerm || statusFilter !== 'all'
                     ? 'Try adjusting your search or filters'
-                    : 'Get started by creating your first gold loan'
+                    : 'Get started by creating your first silver loan'
                   }
                 </p>
                 {!searchTerm && statusFilter === 'all' && (
@@ -523,7 +513,7 @@ const handleInterestPaymentSuccess = async (result) => {
             ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredLoans.map(loan => (
-                  <GoldLoanCard
+                  <SilverLoanCard
                     key={loan._id}
                     loan={loan}
                     onEdit={handleEdit}
@@ -549,7 +539,7 @@ const handleInterestPaymentSuccess = async (result) => {
                           Customer
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Gold Details
+                          Silver Details
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Loan Amount
@@ -573,7 +563,7 @@ const handleInterestPaymentSuccess = async (result) => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredLoans.map((loan) => (
-                        <GoldLoanTableRow
+                        <SilverLoanTableRow
                           key={loan._id}
                           loan={loan}
                           onEdit={handleEdit}
@@ -642,7 +632,7 @@ const handleInterestPaymentSuccess = async (result) => {
                           </button>
                           <button
                             onClick={() => {
-                              const loan = goldLoans.find(l => l._id === notification.loanId);
+                              const loan = silverLoans.find(l => l._id === notification.loanId);
                               if (loan) {
                                 setSelectedLoan(loan);
                                 setShowInterestPaymentModal(true);
@@ -654,7 +644,7 @@ const handleInterestPaymentSuccess = async (result) => {
                           </button>
                           <button
                             onClick={() => {
-                              const loan = goldLoans.find(l => l._id === notification.loanId);
+                              const loan = silverLoans.find(l => l._id === notification.loanId);
                               if (loan) handleSendReminder(loan);
                             }}
                             className="px-3 py-1 bg-purple-600 text-white text-sm rounded-full hover:bg-purple-700 transition-colors"
@@ -682,7 +672,7 @@ const handleInterestPaymentSuccess = async (result) => {
 
       {/* Modals */}
       {showAddModal && (
-        <AddGoldLoanModal
+        <AddSilverLoanModal
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           onSave={handleAddLoan}
@@ -727,7 +717,4 @@ const handleInterestPaymentSuccess = async (result) => {
   );
 };
 
-export default GoldLoanManagement;
-
-
-// export default InterestPaymentModal;
+export default SilverLoanManagement;

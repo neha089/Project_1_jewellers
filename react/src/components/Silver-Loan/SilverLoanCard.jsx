@@ -26,10 +26,10 @@ import {
   TrendingUp
 } from 'lucide-react';
 import ApiService from '../../services/api';
-import InterestPaymentModal from './InterestPaymentModal';
-import ItemRepaymentModal from './ItemRepaymentModal.jsx';
+import SilverInterestPaymentModal from './SilverInterestPaymentModal';
+import SilverItemRepaymentModal from './SilverItemRepaymentModal.jsx';
 
-export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }) => {
+export const SilverLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }) => {
   const [showModal, setShowModal] = useState(false);
   const [showInterestPaymentModal, setShowInterestPaymentModal] = useState(false);
   const [showItemRepaymentModal, setShowItemRepaymentModal] = useState(false);
@@ -56,7 +56,7 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
   const statusConfig = getStatusConfig(loan.status);
   const StatusIcon = statusConfig.icon;
   const daysUntilDue = getDaysUntilDue();
-  const isOverdue = false
+  const isOverdue = false;
   const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
 
   const formatCurrency = (amount) => `₹${(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -83,7 +83,6 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
 
   const handleInterestPaymentSuccess = (result) => {
     console.log('Interest payment successful:', result);
-    setShowInterestPaymentModal(false);
     if (onPayment) {
       onPayment(loan);
     }
@@ -278,7 +277,7 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
         </div>
       </div>
       
-      <GoldLoanDetailModal
+      <SilverLoanDetailModal
         loan={loan}
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -306,7 +305,7 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
         loan={loan}
         onPaymentSuccess={handleInterestPaymentSuccess}
       />
-      <ItemRepaymentModal
+      <SItemRepaymentModal
         isOpen={showItemRepaymentModal}
         onClose={() => setShowItemRepaymentModal(false)}
         loan={loan}
@@ -316,7 +315,7 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
   );
 };
 
-const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendReminder }) => {
+const SilverLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendReminder }) => {
   const [loading, setLoading] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(true);
   const [showItemHistory, setShowItemHistory] = useState(true);
@@ -324,7 +323,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
 
   // Extract payments from the loan object
   const allPayments = loan.payments || [];
-  const isOverdue=false
+  const isOverdue = false;
   // Filter payments based on active tab
   const filteredPayments = activeTab === 'all' 
     ? allPayments 
@@ -424,7 +423,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
     if (!itemIds || itemIds.length === 0) return 'None';
     return loan.items
       ?.filter(item => itemIds.includes(item._id.toString()))
-      .map(item => item.name || 'Gold Item')
+      .map(item => item.name || 'Silver Item')
       .slice(0, 2)
       .join(', ') || 'Unknown items';
   };
@@ -907,11 +906,11 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
             )}
           </div>
 
-          {/* Gold Items */}
+          {/* Silver Items */}
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
               <Coins size={18} />
-              Gold Items ({loan.items?.length || 0})
+              Silver Items ({loan.items?.length || 0})
             </h3>
             {loan.items && loan.items.length > 0 ? (
               <div className="space-y-3 max-h-64 overflow-y-auto">
@@ -928,7 +927,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                               : 'bg-amber-500'
                           }`} />
                           <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
-                            {item.name || `Gold Item ${index + 1}`}
+                            {item.name || `Silver Item ${index + 1}`}
                           </h4>
                           {item.returnDate && (
                             <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
@@ -970,10 +969,10 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                                 {formatCurrency(item.returnValue)}
                               </span>
                             </div>
-                            {item.goldPriceAtReturn && (
+                            {item.silverPriceAtReturn && (
                               <div className="flex justify-between items-center text-xs mt-1">
-                                <span className="text-blue-600">Gold Price:</span>
-                                <span className="text-blue-600">₹{item.goldPriceAtReturn}/g</span>
+                                <span className="text-blue-600">Silver Price:</span>
+                                <span className="text-blue-600">₹{item.silverPriceAtReturn}/g</span>
                               </div>
                             )}
                             {item.appreciation !== undefined && (
@@ -1046,7 +1045,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-xl">
                 <Coins size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500 text-sm">No gold items found for this loan</p>
+                <p className="text-gray-500 text-sm">No silver items found for this loan</p>
               </div>
             )}
           </div>
