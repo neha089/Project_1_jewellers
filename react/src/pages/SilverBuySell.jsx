@@ -1,16 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter,RefreshCw, AlertCircle, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Search, Filter, RefreshCw, AlertCircle, X } from 'lucide-react';
 import ApiService from '../services/api';
 import MetalPriceService from '../services/metalPriceService';
 import SilverTransactionForm from '../components/SilverBuySell/SilverTransactionForm';
 import TransactionViewModal from '../components/TransactionViewModal';
 import SStatsCards from '../components/SilverBuySell/SStatsCards';
-import SilverRatesDisplay from '../components/SilverBuySell/SilverRatesDisplay';
 import TransactionTable from '../components/TransactionTable';
 import EmptyState from '../components/EmptyState';
 
+// Custom debounce hook
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 const SilverBuySell = () => {
-  const [transactions, setTransactions] = useState([]);
+  const [allTransactions, setAllTransactions] = useState([]);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [displayTransactions, setDisplayTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -20,70 +38,149 @@ const SilverBuySell = () => {
   const [filterBy, setFilterBy] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [silverRates, setSilverRates] = useState({});
   const [summary, setSummary] = useState({ totalBuy: 0, totalSell: 0, netProfit: 0 });
+
+  const ITEMS_PER_PAGE = 10;
+
+  // Debounce search term to prevent excessive filtering
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   // Load data on component mount
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  // Load transactions when filters change
+  // Apply filters when search term or filter changes
   useEffect(() => {
-    loadTransactions();
-  }, [searchTerm, filterBy, currentPage]);
+    applyFilters();
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [debouncedSearchTerm, filterBy, allTransactions]);
+
+  // Update display transactions when page changes or filtered results change
+  useEffect(() => {
+    updateDisplayTransactions();
+  }, [filteredTransactions, currentPage]);
 
   const loadInitialData = async () => {
     try {
+      setLoading(true);
       await Promise.all([
-        loadTransactions(),
+        loadAllTransactions(),
         loadSilverRates(),
-        loadSummary()
+        loadSummary(),
       ]);
     } catch (error) {
       setError('Failed to load initial data');
       console.error('Error loading initial data:', error);
-    }
-  };
-
-  const loadTransactions = async () => {
-    try {
-      setLoading(true);
-      const params = {
-        page: currentPage,
-        limit: 10,
-        ...(filterBy !== 'all' && { transactionType: filterBy.toUpperCase() }),
-        ...(searchTerm && { search: searchTerm })
-      };
-
-      const response = await ApiService.getSilverTransactions(params);
-      
-      if (response.success) {
-        setTransactions(response.data);
-        setTotalPages(response.pagination?.totalPages || 1);
-      }
-    } catch (error) {
-      setError('Failed to load transactions');
-      console.error('Error loading transactions:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadAllTransactions = async () => {
+    try {
+      // Load all transactions at once
+      const response = await ApiService.getSilverTransactions({ 
+        page: 1, 
+        limit: 10000 // Large number to get all transactions
+      });
+      
+      if (response.success) {
+        setAllTransactions(response.data || []);
+        console.log('Loaded all transactions:', response.data?.length);
+      } else {
+        setError('Failed to fetch transactions');
+        setAllTransactions([]);
+      }
+    } catch (error) {
+      setError('Failed to load transactions');
+      console.error('Error loading transactions:', error);
+      setAllTransactions([]);
+    }
+  };
+
+  const applyFilters = useCallback(() => {
+    let filtered = [...allTransactions];
+
+    // Apply transaction type filter
+    if (filterBy !== 'all') {
+      filtered = filtered.filter(transaction => 
+        transaction.transactionType === filterBy.toUpperCase()
+      );
+    }
+
+    // Apply search filter - search in customer and supplier names
+    if (debouncedSearchTerm.trim()) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter(transaction => {
+        // Get customer name
+        const customerName = (
+          transaction.customer?.name || 
+          transaction.customerName || 
+          ''
+        ).toLowerCase();
+
+        // Get supplier name  
+        const supplierName = (
+          transaction.supplier?.name || 
+          transaction.supplierName || 
+          ''
+        ).toLowerCase();
+
+        // Get phone numbers
+        const customerPhone = (
+          transaction.customer?.phone || 
+          transaction.customerPhone || 
+          ''
+        ).toLowerCase();
+
+        const supplierPhone = (
+          transaction.supplier?.phone || 
+          transaction.supplierPhone || 
+          ''
+        ).toLowerCase();
+
+        // Get bill number
+        const billNumber = (
+          transaction.billNumber || 
+          transaction.invoiceNumber || 
+          ''
+        ).toLowerCase();
+
+        return customerName.includes(searchLower) || 
+               supplierName.includes(searchLower) ||
+               customerPhone.includes(searchLower) ||
+               supplierPhone.includes(searchLower) ||
+               billNumber.includes(searchLower);
+      });
+    }
+
+    setFilteredTransactions(filtered);
+    setTotalCount(filtered.length);
+    setTotalPages(Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  }, [allTransactions, filterBy, debouncedSearchTerm]);
+
+  const updateDisplayTransactions = useCallback(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const pageTransactions = filteredTransactions.slice(startIndex, endIndex);
+    setDisplayTransactions(pageTransactions);
+  }, [filteredTransactions, currentPage]);
+
   const loadSilverRates = async () => {
     try {
-      // First try to get from our metal price service
       const priceData = await MetalPriceService.getCurrentPrices();
       if (priceData && priceData.silver) {
         const silverRatesFormatted = {};
         Object.entries(priceData.silver.rates).forEach(([purity, rate]) => {
-          silverRatesFormatted[`${purity} Silver`] = Math.round(rate / 100); // Convert from paise to rupees
+          silverRatesFormatted[`${purity} Silver`] = Math.round(rate / 100);
         });
         setSilverRates(silverRatesFormatted);
         return;
       }
 
-      // Fallback to API service
       const response = await ApiService.getCurrentRates();
       if (response.success) {
         setSilverRates(response.data);
@@ -96,18 +193,15 @@ const SilverBuySell = () => {
   const loadSummary = async () => {
     try {
       const response = await ApiService.getAnalytics_silver();
-
-        setSummary({
-          totalBuy: response.data.buy.totalAmount || 0,
-          totalSell: response.data.sell.totalAmount|| 0,
-          netProfit: response.data?.netMetrics.netAmount || 0
-        });
-      
+      setSummary({
+        totalBuy: response.data.buy.totalAmount || 0,
+        totalSell: response.data.sell.totalAmount || 0,
+        netProfit: response.data?.netMetrics.netAmount || 0,
+      });
     } catch (error) {
       console.error('Error loading summary:', error);
     }
   };
-
 
   const handleEdit = (transaction) => {
     setEditingTransaction(transaction);
@@ -123,9 +217,12 @@ const SilverBuySell = () => {
       try {
         setLoading(true);
         const response = await ApiService.deleteSilverTransaction(id);
-        
         if (response.success) {
-          await Promise.all([loadTransactions(), loadSummary()]);
+          // Remove from local state immediately
+          setAllTransactions(prev => prev.filter(t => t._id !== id && t.id !== id));
+          await loadSummary(); // Refresh summary
+        } else {
+          setError('Failed to delete transaction');
         }
       } catch (error) {
         setError('Failed to delete transaction');
@@ -145,14 +242,22 @@ const SilverBuySell = () => {
     setShowForm(false);
     setEditingTransaction(null);
     setError(null);
-    await Promise.all([loadTransactions(), loadSummary()]);
+    // Reload all transactions to get the updated data
+    await Promise.all([loadAllTransactions(), loadSummary()]);
   };
 
   const refreshData = async () => {
+    setSearchTerm('');
+    setFilterBy('all');
+    setCurrentPage(1);
     await loadInitialData();
   };
 
-  if (loading && transactions.length === 0) {
+  const clearSearch = () => {
+    setSearchTerm('');
+  };
+
+  if (loading && allTransactions.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex items-center space-x-3">
@@ -171,6 +276,14 @@ const SilverBuySell = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Silver Buy/Sell</h1>
             <p className="text-gray-600">Manage your silver transactions</p>
+            {totalCount > 0 && (
+              <p className="text-sm text-gray-500 mt-1">
+                {debouncedSearchTerm.trim() || filterBy !== 'all' 
+                  ? `Found ${totalCount} transaction${totalCount !== 1 ? 's' : ''}` 
+                  : `Total ${totalCount} transaction${totalCount !== 1 ? 's' : ''}`
+                }
+              </p>
+            )}
           </div>
           <div className="flex space-x-3">
             <button
@@ -201,7 +314,7 @@ const SilverBuySell = () => {
                 onClick={() => setError(null)}
                 className="ml-auto text-red-600 hover:text-red-800"
               >
-                ×
+                <X className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -210,9 +323,6 @@ const SilverBuySell = () => {
         {/* Stats Cards */}
         <SStatsCards summary={summary} />
 
-        {/* Current Silver Rates Display */}
-        <SilverRatesDisplay silverRates={silverRates} />
-
         {/* Filters */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -220,11 +330,20 @@ const SilverBuySell = () => {
               <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by customer name, bill number..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-transparent"
+                placeholder="Search by customer name, supplier name, phone, bill number..."
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-600 focus:border-transparent"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {searchTerm && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                  title="Clear search"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-gray-400" />
@@ -239,16 +358,48 @@ const SilverBuySell = () => {
               </select>
             </div>
           </div>
+          
+          {/* Active Filters Display */}
+          {(debouncedSearchTerm.trim() || filterBy !== 'all') && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="text-sm text-gray-600">Active filters:</span>
+              {debouncedSearchTerm.trim() && (
+                <span className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                  Search: "{debouncedSearchTerm}"
+                  <button
+                    onClick={clearSearch}
+                    className="ml-2 text-blue-600 hover:text-blue-800"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {filterBy !== 'all' && (
+                <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                  Type: {filterBy.charAt(0).toUpperCase() + filterBy.slice(1)}
+                  <button
+                    onClick={() => setFilterBy('all')}
+                    className="ml-2 text-green-600 hover:text-green-800"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Transactions Table */}
         <TransactionTable
-          transactions={transactions}
+          transactions={displayTransactions}
           onView={handleView}
+          onEdit={handleEdit}
           onDelete={handleDelete}
           currentPage={currentPage}
           totalPages={totalPages}
+          totalCount={totalCount}
           onPageChange={setCurrentPage}
+          loading={loading}
         />
 
         {/* Transaction Form Modal */}
@@ -275,8 +426,15 @@ const SilverBuySell = () => {
         )}
 
         {/* Empty State */}
-        {!loading && transactions.length === 0 && (
-          <EmptyState onCreateTransaction={() => setShowForm(true)} />
+        {!loading && displayTransactions.length === 0 && (
+          <EmptyState 
+            onCreateTransaction={() => setShowForm(true)}
+            hasFilters={debouncedSearchTerm.trim() || filterBy !== 'all'}
+            onClearFilters={() => {
+              setSearchTerm('');
+              setFilterBy('all');
+            }}
+          />
         )}
       </div>
     </div>

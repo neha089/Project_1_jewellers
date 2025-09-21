@@ -28,7 +28,7 @@ const SStatsCards = ({ summary }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <div className="grid grid-cols-3 md:grid-cols-3 gap-6 mb-6">
       {/* Total Purchases */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex items-center">

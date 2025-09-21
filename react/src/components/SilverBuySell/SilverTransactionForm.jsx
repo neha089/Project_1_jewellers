@@ -72,7 +72,7 @@ const SilverTransactionForm = ({
   const populateEditForm = () => {
     const transaction = editingTransaction;
     
-    const originalAdvance = transaction.advanceAmount ? transaction.advanceAmount / 100 : 0;
+    const originalAdvance = transaction.advanceAmount ? transaction.advanceAmount  : 0;
     
     setFormData({
       transactionType: transaction.transactionType,
@@ -118,10 +118,10 @@ const SilverTransactionForm = ({
         description: item.description || '',
         purity: item.purity || '925',
         weight: item.weight ? item.weight.toString() : '',
-        ratePerGram: item.ratePerGram ? (item.ratePerGram / 100).toString() : '',
-        makingCharges: item.makingCharges ? (item.makingCharges / 100).toString() : '0',
+        ratePerGram: item.ratePerGram ? (item.ratePerGram).toString() : '',
+        makingCharges: item.makingCharges ? (item.makingCharges ).toString() : '0',
         wastage: item.wastage ? item.wastage.toString() : '0',
-        taxAmount: item.taxAmount ? (item.taxAmount / 100).toString() : '0',
+        taxAmount: item.taxAmount ? (item.taxAmount ).toString() : '0',
         photos: item.photos || [],
         hallmarkNumber: item.hallmarkNumber || '',
         certificateNumber: item.certificateNumber || ''
@@ -274,7 +274,7 @@ const SilverTransactionForm = ({
       const tax = parseFloat(item.taxAmount) || 0;
       
       const baseAmount = weight * rate;
-      const wastageAmount = (baseAmount * wastage) / 100;
+      const wastageAmount = (baseAmount * wastage) ;
       const itemTotal = baseAmount + wastageAmount + making + tax;
       
       return total + itemTotal;
@@ -735,7 +735,7 @@ const SilverTransactionForm = ({
               ) : (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount (₹)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2"> Amount (₹)</label>
                     <input
                       type="number"
                       name="advanceAmount"

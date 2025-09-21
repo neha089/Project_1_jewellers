@@ -55,9 +55,9 @@ export const createSilverTransaction = async (req, res) => {
       }
 
       const weight = parseFloat(item.weight);
-      const ratePerGram = Math.round(parseFloat(item.ratePerGram) * 100); // Convert to paise
-      const makingCharges = Math.round(parseFloat(item.makingCharges || 0) * 100);
-      const taxAmount = Math.round(parseFloat(item.taxAmount || 0) * 100);
+      const ratePerGram = Math.round(parseFloat(item.ratePerGram) ); // Convert to paise
+      const makingCharges = Math.round(parseFloat(item.makingCharges || 0) );
+      const taxAmount = Math.round(parseFloat(item.taxAmount || 0) );
       
       // Calculate item total amount (all in paise)
       const itemTotalAmount = (weight * ratePerGram) + makingCharges + taxAmount;
@@ -96,7 +96,7 @@ export const createSilverTransaction = async (req, res) => {
       customer: customer || null,
       supplier: transactionType === "BUY" && !customer ? supplier : null,
       items: processedItems,
-      advanceAmount: Math.round(advanceAmount * 100), // Convert to paise
+      advanceAmount: Math.round(advanceAmount ), // Convert to paise
       paymentMode,
       notes,
       billNumber,
@@ -298,7 +298,7 @@ export const updateSilverTransaction = async (req, res) => {
     // Recalculate amounts if silver details are updated
     if (updates.silverDetails) {
       const baseAmount = updates.silverDetails.weight * updates.silverDetails.ratePerGram;
-      const wastageAmount = (baseAmount * (updates.silverDetails.wastage || 0)) / 100;
+      const wastageAmount = (baseAmount * (updates.silverDetails.wastage || 0)) ;
       const totalAmount = baseAmount + wastageAmount + (updates.silverDetails.makingCharges || 0) + (updates.silverDetails.taxAmount || 0);
       
       updates.totalAmount = Math.round(totalAmount);
@@ -457,14 +457,14 @@ export const getDailyAnalytics = async (req, res) => {
       const type = item._id.toLowerCase();
       if (processedData[type]) {
         processedData[type] = {
-          totalAmount: item.totalAmount / 100, // Convert from paise to rupees
+          totalAmount: item.totalAmount , // Convert from paise to rupees
           totalWeight: item.totalWeight,
           transactionCount: item.transactionCount,
-          avgRate: (item.avgRate || 0) / 100,
+          avgRate: (item.avgRate || 0) ,
           totalItems: item.items,
-          formattedAmount: `₹${(item.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+          formattedAmount: `₹${(item.totalAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
           formattedWeight: `${item.totalWeight}g`,
-          formattedAvgRate: `₹${((item.avgRate || 0) / 100).toFixed(2)}/g`
+          formattedAvgRate: `₹${((item.avgRate || 0) ).toFixed(2)}/g`
         };
 
         // Process purity breakdown
@@ -487,12 +487,12 @@ export const getDailyAnalytics = async (req, res) => {
           const data = purityMap[purity];
           acc[purity] = {
             weight: data.weight,
-            amount: data.amount / 100,
+            amount: data.amount ,
             count: data.count,
-            avgRate: data.weight > 0 ? (data.amount / data.weight) / 100 : 0,
-            formattedAmount: `₹${(data.amount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+            avgRate: data.weight > 0 ? (data.amount / data.weight)  : 0,
+            formattedAmount: `₹${(data.amount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
             formattedWeight: `${data.weight}g`,
-            formattedAvgRate: `₹${(data.weight > 0 ? (data.amount / data.weight) / 100 : 0).toFixed(2)}/g`
+            formattedAvgRate: `₹${(data.weight > 0 ? (data.amount / data.weight)  : 0).toFixed(2)}/g`
           };
           return acc;
         }, {});
@@ -506,7 +506,7 @@ export const getDailyAnalytics = async (req, res) => {
       netTransactions: processedData.sell.transactionCount - processedData.buy.transactionCount,
       grossProfit: processedData.sell.totalAmount - processedData.buy.totalAmount,
       profitMargin: processedData.buy.totalAmount > 0 
-        ? ((processedData.sell.totalAmount - processedData.buy.totalAmount) / processedData.buy.totalAmount * 100)
+        ? ((processedData.sell.totalAmount - processedData.buy.totalAmount) / processedData.buy.totalAmount )
         : 0,
       totalBusinessVolume: processedData.sell.totalAmount + processedData.buy.totalAmount
     };
@@ -605,10 +605,10 @@ export const getWeeklyAnalytics = async (req, res) => {
       
       if (weeklyAnalytics[dayName] && weeklyAnalytics[dayName][type]) {
         weeklyAnalytics[dayName][type] = {
-          totalAmount: item.totalAmount / 100,
+          totalAmount: item.totalAmount ,
           totalWeight: item.totalWeight,
           transactionCount: item.transactionCount,
-          formattedAmount: `₹${(item.totalAmount / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+          formattedAmount: `₹${(item.totalAmount ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
         };
       }
     });
@@ -664,7 +664,7 @@ export const getProfitLossAnalysis = async (req, res) => {
     const purityAnalysis = {};
 
     transactions.forEach(transaction => {
-      const amount = transaction.totalAmount / 100;
+      const amount = transaction.totalAmount ;
       const weight = transaction.totalWeight;
 
       if (transaction.transactionType === 'BUY') {
@@ -705,7 +705,7 @@ export const getProfitLossAnalysis = async (req, res) => {
           };
         }
 
-        const itemAmount = item.itemTotalAmount / 100;
+        const itemAmount = item.itemTotalAmount ;
         if (transaction.transactionType === 'BUY') {
           purityAnalysis[item.purity].buyAmount += itemAmount;
           purityAnalysis[item.purity].buyWeight += item.weight;
@@ -720,7 +720,7 @@ export const getProfitLossAnalysis = async (req, res) => {
 
     // Calculate metrics
     const grossProfit = totalSellAmount - totalBuyAmount;
-    const profitMargin = totalBuyAmount > 0 ? (grossProfit / totalBuyAmount) * 100 : 0;
+    const profitMargin = totalBuyAmount > 0 ? (grossProfit / totalBuyAmount)  : 0;
     const avgBuyRate = totalBuyWeight > 0 ? totalBuyAmount / totalBuyWeight : 0;
     const avgSellRate = totalSellWeight > 0 ? totalSellAmount / totalSellWeight : 0;
     const rateSpread = avgSellRate - avgBuyRate;
