@@ -129,13 +129,17 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
         throw new Error('Please enter a valid interest rate');
       }
       
+      if (!formData.startDate) {
+        throw new Error('Please select a start date');
+      }
+
       const loanData = {
         customer: selectedCustomer._id,
         principalPaise: Math.round(parseFloat(formData.amount) * 100),
         interestRateMonthlyPct: parseFloat(formData.interestRate),
         note: formData.note.trim() || '',
         totalInstallments: parseInt(formData.totalInstallments) || 1,
-        takenDate: formData.startDate ? new Date(formData.startDate) : new Date(), // 👈 add this
+        takenDate: formData.startDate ? new Date(formData.startDate) : new Date(),
         dueDate: formData.returnDate || null,
         paymentMethod: formData.paymentMethod || 'CASH'
       };
@@ -172,6 +176,7 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
       amount: '',
       interestRate: '',
       note: '',
+      startDate: '',
       returnDate: '',
       totalInstallments: 1,
       paymentMethod: 'CASH'
@@ -482,21 +487,18 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
                   placeholder="Enter loan details..."
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Loan Start Date *
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Loan Start Date *</label>
                 <input
                   type="date"
                   required
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl 
-                            focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.startDate}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, startDate: e.target.value }))
-                  }
+                  onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Expected Return Date (Optional)</label>
                 <input
@@ -504,7 +506,7 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
                   className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.returnDate}
                   onChange={(e) => setFormData(prev => ({ ...prev, returnDate: e.target.value }))}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={formData.startDate || new Date().toISOString().split('T')[0]}
                 />
               </div>
 
@@ -532,7 +534,7 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !formData.amount || !formData.interestRate || !selectedCustomer}
+                  disabled={submitting || !formData.amount || !formData.interestRate || !formData.startDate || !selectedCustomer}
                   className={`flex-1 px-6 py-3 text-white rounded-xl transition-colors font-medium ${
                     formData.type === 'given'
                       ? 'bg-red-600 hover:bg-red-700'
@@ -554,4 +556,5 @@ const AddLoanModal = ({ isOpen, onClose, onSuccess }) => {
     </div>
   );
 };
+
 export default AddLoanModal;

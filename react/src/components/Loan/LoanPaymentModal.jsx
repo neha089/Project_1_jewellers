@@ -42,13 +42,13 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
   };
 
   const getOutstandingAmount = () => {
-    return loan?.outstandingAmount || 0;
+    return loan?.outstandingRupees || 0;
   };
 
   const getMonthlyInterest = () => {
     const outstanding = loan?.outstandingPrincipal || 0;
     const interestRate = loan?.interestRateMonthlyPct || 0;
-    return (outstanding * interestRate) / 100 / 100; // Convert paise to rupees
+    return (outstanding * interestRate) / 100 / 100;
   };
 
   const handlePayment = async (e) => {
@@ -73,12 +73,6 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
       return;
     }
 
-    const expectedInterest = getMonthlyInterest() * 100; // Convert back to paise for validation
-    if (interestPaise > 0 && interestPaise > expectedInterest) {
-      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest / 100)}`);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
@@ -93,13 +87,12 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
         reference: paymentReference.trim() || '',
         transactionId: paymentReference.trim() || '',
       };
-      console.log('Submitting payment data:', paymentData);
+
       const isGivenLoan = loan.loanType === 'GIVEN';
-      console.log('Is given loan (receivable):', isGivenLoan);
       const response = isGivenLoan
         ? await ApiService.receiveLoanPayment(paymentData)
         : await ApiService.makeLoanPayment(paymentData);
-      console.log(response);
+
       if (response.success) {
         onSuccess();
         onClose();
@@ -119,10 +112,9 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
     setPrincipalAmount(amount);
   };
 
-  const handleQuickInterestAmount = (percentage) => {
+  const handleQuickInterestAmount = () => {
     const expectedInterest = getMonthlyInterest();
-    const amount = (expectedInterest * percentage / 100).toFixed(2);
-    setInterestAmount(amount);
+    setInterestAmount(expectedInterest.toFixed(2));
   };
 
   if (!isOpen || !loan || !loan._id) {
@@ -153,9 +145,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
           </div>
           <button
             onClick={onClose}
-            className="p /
-
-System: -2 hover:bg-slate-200 rounded-xl transition-colors"
+            className="p-2 hover:bg-slate-200 rounded-xl transition-colors"
           >
             <X size={20} className="text-slate-600" />
           </button>
@@ -244,17 +234,16 @@ System: -2 hover:bg-slate-200 rounded-xl transition-colors"
                 value={interestAmount}
                 onChange={(e) => setInterestAmount(e.target.value)}
                 placeholder="0.00"
-                max={monthlyInterest}
               />
             </div>
             {monthlyInterest > 0 && (
               <div className="flex gap-2 mt-3">
                 <button
                   type="button"
-                  onClick={() => handleQuickInterestAmount(100)}
+                  onClick={() => handleQuickInterestAmount()}
                   className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
                 >
-                  Current Month ({formatCurrency(monthlyInterest)})
+                  Suggested ({formatCurrency(monthlyInterest)})
                 </button>
               </div>
             )}
@@ -274,11 +263,11 @@ System: -2 hover:bg-slate-200 rounded-xl transition-colors"
                 <span className="text-slate-700">Total Payment:</span>
                 <span className="text-slate-900">{formatCurrency((parseFloat(principalAmount || 0) + parseFloat(interestAmount || 0)))}</span>
               </div>
-              {principalAmount && (
+              {(principalAmount || interestAmount) && (
                 <div className="flex justify-between text-sm mt-1">
                   <span className="text-slate-600">Remaining Principal:</span>
                   <span className="font-medium text-orange-600">
-                    {formatCurrency(Math.max(0, outstandingAmount - parseFloat(principalAmount)))}
+                    {formatCurrency(Math.max(0, outstandingAmount - (parseFloat(principalAmount || 0) + parseFloat(interestAmount || 0))))}
                   </span>
                 </div>
               )}

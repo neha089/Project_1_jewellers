@@ -103,7 +103,6 @@ const loanSchema = new mongoose.Schema({
     enum: ['CASH', 'BANK_TRANSFER', 'UPI', 'GPAY', 'PHONEPE', 'PAYTM', 'CHEQUE', 'CARD', 'ONLINE'],
     default: 'CASH'
   },
-  // Payment history array - stores all payments made/received for this loan
   paymentHistory: [{
     principalAmount: {
       type: Number,
@@ -139,6 +138,14 @@ const loanSchema = new mongoose.Schema({
     bankTransactionId: {
       type: String,
       trim: true
+    },
+    outstandingBefore: {
+      type: Number,
+      min: 0
+    },
+    outstandingAfter: {
+      type: Number,
+      min: 0
     }
   }],
   adminNotes: {
@@ -203,6 +210,22 @@ loanSchema.virtual('monthsElapsed').get(function() {
   return Math.max(0, monthDiff);
 });
 
+// Method to calculate daily interest based on outstanding principal
+loanSchema.methods.calculateDailyInterest = function (asOfDate = new Date()) {
+  const daysSinceStart = Math.floor((asOfDate - new Date(this.takenDate)) / (1000 * 60 * 60 * 24));
+  if (daysSinceStart <= 0) return 0;
+
+  // Calculate outstanding principal at asOfDate
+  const principalPaidBeforeDate = this.paymentHistory
+    .filter(payment => new Date(payment.date) <= asOfDate && payment.principalAmount > 0)
+    .reduce((total, payment) => total + payment.principalAmount, 0);
+  const outstandingAtDate = Math.max(0, this.principalPaise - principalPaidBeforeDate);
+
+  const dailyInterestRate = this.interestRateMonthlyPct / 30 / 100; // Convert monthly % to daily decimal
+  const dailyInterestPaise = Math.round(outstandingAtDate * dailyInterestRate * daysSinceStart);
+  return Math.max(0, dailyInterestPaise);
+};
+
 // Instance method to update next interest due date
 loanSchema.methods.updateNextInterestDueDate = function() {
   if (this.outstandingPrincipal <= 0) {
@@ -214,16 +237,13 @@ loanSchema.methods.updateNextInterestDueDate = function() {
   let nextDue;
 
   if (!this.lastInterestPaymentDate) {
-    // First interest payment - due one month after loan was taken
     nextDue = new Date(this.takenDate);
     nextDue.setMonth(nextDue.getMonth() + 1);
   } else {
-    // Next interest payment - one month after last payment
     nextDue = new Date(this.lastInterestPaymentDate);
     nextDue.setMonth(nextDue.getMonth() + 1);
   }
 
-  // If calculated date is in the past, set to beginning of current month
   if (nextDue < now) {
     nextDue = new Date(now.getFullYear(), now.getMonth(), 1);
   }
@@ -237,16 +257,12 @@ loanSchema.methods.getPendingInterestAmount = function() {
   const now = new Date();
   let totalInterestDue = 0;
   
-  // Start from when the loan was taken
   const startDate = new Date(this.takenDate);
   let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
   
-  // Calculate interest for each month
   while (currentDate < now) {
-    // Find outstanding principal at the beginning of this month
     let outstandingAtMonth = this.principalPaise;
     
-    // Subtract any principal payments made before this month
     const principalPaidBeforeMonth = this.paymentHistory
       .filter(payment => new Date(payment.date) < currentDate && payment.principalAmount > 0)
       .reduce((total, payment) => total + payment.principalAmount, 0);
@@ -258,7 +274,6 @@ loanSchema.methods.getPendingInterestAmount = function() {
       totalInterestDue += monthlyInterest;
     }
     
-    // Move to next month
     currentDate.setMonth(currentDate.getMonth() + 1);
   }
   
@@ -299,6 +314,7 @@ loanSchema.methods.getInterestPaymentStatus = function() {
 
 // Method to add payment to history
 loanSchema.methods.addPayment = function(paymentData) {
+  const outstandingBefore = this.outstandingPrincipal;
   const paymentEntry = {
     principalAmount: paymentData.principalAmount || 0,
     interestAmount: paymentData.interestAmount || 0,
@@ -307,28 +323,31 @@ loanSchema.methods.addPayment = function(paymentData) {
     note: paymentData.note || '',
     paymentMethod: paymentData.paymentMethod || 'CASH',
     paymentReference: paymentData.paymentReference || '',
-    bankTransactionId: paymentData.bankTransactionId || ''
+    bankTransactionId: paymentData.bankTransactionId || '',
+    outstandingBefore,
+    outstandingAfter: Math.max(0, outstandingBefore - (paymentData.principalAmount || 0) - (paymentData.interestAmount || 0))
   };
 
   this.paymentHistory.push(paymentEntry);
 
   // Update loan amounts
-  if (paymentData.principalAmount) {
-    this.outstandingPrincipal = Math.max(0, this.outstandingPrincipal - paymentData.principalAmount);
-    this.totalPrincipalPaid += paymentData.principalAmount;
-    this.lastPrincipalPaymentDate = paymentEntry.date;
-  }
-
-  if (paymentData.interestAmount) {
-    this.totalInterestPaid += paymentData.interestAmount;
-    this.lastInterestPaymentDate = paymentEntry.date;
+  if (paymentData.principalAmount || paymentData.interestAmount) {
+    this.outstandingPrincipal = Math.max(0, this.outstandingPrincipal - (paymentData.principalAmount || 0) - (paymentData.interestAmount || 0));
+    if (paymentData.principalAmount) {
+      this.totalPrincipalPaid += paymentData.principalAmount;
+      this.lastPrincipalPaymentDate = paymentEntry.date;
+    }
+    if (paymentData.interestAmount) {
+      this.totalInterestPaid += paymentData.interestAmount;
+      this.lastInterestPaymentDate = paymentEntry.date;
+    }
   }
 
   this.paidInstallments = this.paymentHistory.length;
   
   // Update status
   const isFullyPaid = this.outstandingPrincipal <= 0;
-  this.status = isFullyPaid ? 'CLOSED' : (this.totalPrincipalPaid > 0 ? 'PARTIALLY_PAID' : 'ACTIVE');
+  this.status = isFullyPaid ? 'CLOSED' : (this.totalPrincipalPaid > 0 || this.totalInterestPaid > 0 ? 'PARTIALLY_PAID' : 'ACTIVE');
   this.isActive = !isFullyPaid;
 
   return this;
@@ -339,7 +358,7 @@ loanSchema.methods.getPaymentSummary = function() {
   const totalPaid = this.principalPaise - this.outstandingPrincipal;
   return {
     originalAmount: this.principalPaise / 100,
-    totalPrincipalPaid: totalPaid / 100,
+    totalPrincipalPaid: this.totalPrincipalPaid / 100,
     totalInterestPaid: this.totalInterestPaid / 100,
     outstandingBalance: this.outstandingPrincipal / 100,
     completionPercentage: this.completionPercentage,
@@ -354,20 +373,18 @@ loanSchema.methods.getPaymentSummary = function() {
 
 // Pre-save middleware to update status and calculations
 loanSchema.pre('save', function(next) {
-  // Ensure outstanding principal is calculated correctly
   const calculatedOutstanding = Math.max(0, this.principalPaise - (this.totalPrincipalPaid || 0));
   
   if (this.isModified('totalPrincipalPaid') || this.outstandingPrincipal === undefined) {
     this.outstandingPrincipal = calculatedOutstanding;
   }
 
-  // Update status based on outstanding balance
   if (this.outstandingPrincipal <= 0 && this.status !== 'CLOSED') {
     this.status = 'CLOSED';
     this.isActive = false;
     this.outstandingPrincipal = 0;
     this.nextInterestDueDate = null;
-  } else if (this.totalPrincipalPaid > 0 && this.outstandingPrincipal > 0 && this.status === 'ACTIVE') {
+  } else if ((this.totalPrincipalPaid > 0 || this.totalInterestPaid > 0) && this.outstandingPrincipal > 0 && this.status === 'ACTIVE') {
     this.status = 'PARTIALLY_PAID';
   }
 

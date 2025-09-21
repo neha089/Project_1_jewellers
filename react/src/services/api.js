@@ -1039,6 +1039,9 @@ async getInterestPayments(loanId, filters = {}) {
   async getAnalytics_silver() {
     return this.get("/api/silver/reports/daily-summary");
   }
+    async getAnalytics_gold() {
+    return this.get("/api/silver/reports/daily-summary");
+  }
   
   async getSilverTransactions(params = {}) {
     return this.get("/api/silver", params);

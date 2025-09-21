@@ -274,7 +274,6 @@ const SilverBuySell = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Silver Buy/Sell</h1>
             <p className="text-gray-600">Manage your silver transactions</p>
             {totalCount > 0 && (
               <p className="text-sm text-gray-500 mt-1">

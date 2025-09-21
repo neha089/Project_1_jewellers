@@ -59,10 +59,7 @@ const LInterestPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
     }
 
     const expectedInterest = getPendingInterestAmount() * 100; // Convert to paise
-    if (parseFloat(interestAmount) * 100 > expectedInterest) {
-      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest / 100)}`);
-      return;
-    }
+    
 
     try {
       setLoading(true);
