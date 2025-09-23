@@ -3,15 +3,12 @@ import {
   Plus, 
   RefreshCw, 
   AlertCircle,
-  TrendingUp,
-  TrendingDown,
   Coins,
   Weight,
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
 import ApiService from '../services/api';
-import MetalPriceService from '../services/metalPriceService';
 import GoldTransactionForm from './GoldBuySell/GoldTransactionForm';
 import TransactionViewModal from './TransactionViewModal';
 import TransactionTable from './TransactionTable';
@@ -22,13 +19,12 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [viewingTransaction, setViewingTransaction] = useState(null);
-  const [goldRates, setGoldRates] = useState({});
   const [summary, setSummary] = useState({
     totalBuy: 0,
     totalSell: 0,
     totalWeight: 0,
     netProfit: 0,
-    transactionCount: 0
+    transactionCount: 0,
   });
 
   useEffect(() => {
@@ -39,12 +35,7 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
     try {
       setLoading(true);
       setError(null);
-      
-      await Promise.all([
-        loadTransactions(),
-        loadGoldRates(),
-        loadSummary()
-      ]);
+      await loadTransactions();
     } catch (error) {
       setError('Failed to load gold transaction data');
       console.error('Error loading data:', error);
@@ -55,82 +46,26 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
 
   const loadTransactions = async () => {
     try {
-      const params = customerId ? { customerId } : {};
-      const response = await ApiService.getGoldTransactions(params);
-      
+      const response = await ApiService.getGoldTrnsactionByCustomerId(customerId);
+      console.log("API Response:", response); // Debug log
       if (response.success) {
         setTransactions(response.data || []);
+        if (response.stats) {
+          setSummary({
+            totalBuy: response.stats.buy.totalSaleAmount / 100 || 0, // Convert paise to rupees
+            totalSell: response.stats.sell.totalSaleAmount / 100 || 0,
+            totalWeight: response.stats.sell.totalWeight || 0,
+            netProfit: (response.stats.sell.totalSaleAmount - response.stats.buy.totalSaleAmount) / 100 || 0,
+            transactionCount: response.stats.sell.totalTransactions || 0,
+          });
+        }
+      } else {
+        throw new Error(response.message || 'Failed to fetch transactions');
       }
     } catch (error) {
-      console.error('Error loading transactions:', error);
+      console.error("Error loading transactions:", error);
       throw error;
     }
-  };
-
-  const loadGoldRates = async () => {
-    try {
-      const priceData = await MetalPriceService.getCurrentPrices();
-      if (priceData && priceData.gold) {
-        const goldRatesFormatted = {};
-        Object.entries(priceData.gold.rates).forEach(([purity, rate]) => {
-          goldRatesFormatted[`${purity} Gold`] = Math.round(rate);
-        });
-        setGoldRates(goldRatesFormatted);
-      }
-    } catch (error) {
-      console.error('Error loading gold rates:', error);
-    }
-  };
-
-  const loadSummary = async () => {
-    try {
-      let summaryData = { totalBuy: 0, totalSell: 0, totalWeight: 0, netProfit: 0, transactionCount: 0 };
-      
-      if (customerId) {
-        // Get customer-specific transactions for summary
-        const params = { customerId };
-        const response = await ApiService.getGoldTransactions(params);
-        
-        if (response.success && response.data) {
-          const customerTransactions = response.data;
-          summaryData = calculateSummaryFromTransactions(customerTransactions);
-        }
-      } else {
-        // Get global analytics
-        const response = await ApiService.getDailyAnalytics_gold();
-        if (response && response.summary) {
-          summaryData = {
-            totalBuy: response.summary[0]?.overallAmount || 0,
-            totalSell: response.summary[1]?.overallAmount || 0,
-            totalWeight: 0, // Will be calculated from transactions
-            netProfit: (response.summary[1]?.overallAmount || 0) - (response.summary[0]?.overallAmount || 0),
-            transactionCount: (response.summary[0]?.count || 0) + (response.summary[1]?.count || 0)
-          };
-        }
-      }
-      
-      setSummary(summaryData);
-    } catch (error) {
-      console.error('Error loading summary:', error);
-    }
-  };
-
-  const calculateSummaryFromTransactions = (transactions) => {
-    return transactions.reduce((acc, transaction) => {
-      const amount = transaction.totalAmount || 0;
-      const weight = transaction.items?.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0) || 0;
-      
-      if (transaction.transactionType === 'BUY') {
-        acc.totalBuy += amount;
-      } else {
-        acc.totalSell += amount;
-      }
-      
-      acc.totalWeight += weight;
-      acc.transactionCount += 1;
-      
-      return acc;
-    }, { totalBuy: 0, totalSell: 0, totalWeight: 0, netProfit: 0, transactionCount: 0 });
   };
 
   const handleView = (transaction) => {
@@ -142,7 +77,6 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
       try {
         setLoading(true);
         const response = await ApiService.deleteGoldTransaction(id);
-        
         if (response.success) {
           await loadData();
           if (onRefresh) onRefresh();
@@ -201,7 +135,7 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
         <div>
           <h3 className="text-lg font-medium text-gray-900">Gold Transactions</h3>
           <p className="text-sm text-gray-500">
-            {customerId ? 'Customer gold buy/sell history' : 'All gold transactions'}
+            {customerId ? 'Customer gold sell history' : 'All gold transactions'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -230,11 +164,8 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
             <div className="p-2 bg-green-50 rounded-lg">
               <ArrowDownRight size={20} className="text-green-600" />
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Purchases</p>
-              <p className="text-2xl font-bold text-gray-900">₹{summary.totalBuy.toLocaleString()}</p>
             </div>
-          </div>
+          <p className="text-sm text-gray-600">Total gold bought</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -244,9 +175,12 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Sales</p>
-              <p className="text-2xl font-bold text-gray-900">₹{summary.totalSell.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                ₹{(summary.totalSell || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </p>
             </div>
           </div>
+          <p className="text-sm text-gray-600">Total gold sold to business</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -255,10 +189,11 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
               <Weight size={20} className="text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Weight</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.totalWeight.toFixed(2)}g</p>
+              <p className="text-sm text-gray-500">Total Weight Sold</p>
+              <p className="text-2xl font-bold text-gray-900">{(summary.totalWeight || 0).toFixed(2)}g</p>
             </div>
           </div>
+          <p className="text-sm text-gray-600">Total gold sold</p>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
@@ -267,27 +202,13 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
               <Coins size={20} className="text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Transactions</p>
-              <p className="text-2xl font-bold text-gray-900">{summary.transactionCount}</p>
+              <p className="text-sm text-gray-500">Total Sell Transactions</p>
+              <p className="text-2xl font-bold text-gray-900">{summary.transactionCount || 0}</p>
             </div>
           </div>
+          <p className="text-sm text-gray-600">All sell transactions</p>
         </div>
       </div>
-
-      {/* Current Gold Rates */}
-      {Object.keys(goldRates).length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Current Gold Rates</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Object.entries(goldRates).map(([type, rate]) => (
-              <div key={type} className="text-center p-3 bg-yellow-50 rounded-lg">
-                <p className="text-sm text-gray-600">{type}</p>
-                <p className="text-lg font-bold text-yellow-700">₹{rate}/g</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Transactions Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -307,7 +228,7 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Gold Transactions</h3>
             <p className="text-gray-500 mb-6">
               {customerId 
-                ? "This customer hasn't made any gold transactions yet" 
+                ? "This customer hasn't sold any gold yet" 
                 : "Get started by creating your first gold transaction"
               }
             </p>
@@ -325,7 +246,7 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
       {showForm && (
         <GoldTransactionForm
           editingTransaction={null}
-          goldRates={goldRates}
+          goldRates={null} // Add logic to fetch gold rates if needed
           onClose={handleFormClose}
           onSuccess={handleFormSuccess}
           onError={setError}
@@ -336,7 +257,7 @@ const GoldTransactionTab = ({ customerId, onRefresh }) => {
         <TransactionViewModal
           transaction={viewingTransaction}
           onClose={() => setViewingTransaction(null)}
-          onEdit={null} // Remove edit functionality
+          onEdit={null}
         />
       )}
     </div>

@@ -8,7 +8,8 @@ import {
   deleteSilverTransaction,
   getDailyAnalytics,
   getWeeklyAnalytics,
-  getProfitLossAnalysis
+  getProfitLossAnalysis,
+  getSilverTrnsactionByCustomerId
 } from "../controllers/silverController.js";
 
 const router = express.Router();
@@ -24,5 +25,6 @@ router.delete("/:id", deleteSilverTransaction);
 router.get("/reports/daily-summary", getDailyAnalytics);
 router.get("/reports/weekly-summary", getWeeklyAnalytics);
 router.get("/reports/profit-loss", getProfitLossAnalysis);
+router.get("/customers/:customerId/transactions", getSilverTrnsactionByCustomerId);
 
 export default router;

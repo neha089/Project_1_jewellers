@@ -793,4 +793,90 @@ export const getProfitLossAnalysis = async (req, res) => {
       error: error.message
     });
   }
+};export const getSilverTrnsactionByCustomerId = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    // Validate customerId
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer ID",
+      });
+    }
+
+    // Validate page and limit
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    if (isNaN(pageNum) || pageNum < 1 || isNaN(limitNum) || limitNum < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid page or limit",
+      });
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+
+    // Convert customerId to ObjectId for consistent querying
+    const customerObjectId = new mongoose.Types.ObjectId(customerId);
+
+    // Fetch transactions, count, and aggregated stats for SELL transactions
+    const [transactions, totalCount, aggregateStats] = await Promise.all([
+      SilverTransaction.find({ customer: customerObjectId, transactionType: "SELL" })
+        .populate("customer", "name phone email address")
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(), // Use lean() for performance
+      SilverTransaction.countDocuments({ customer: customerObjectId, transactionType: "SELL" }),
+      SilverTransaction.aggregate([
+        {
+          $match: {
+            customer: customerObjectId,
+            transactionType: "SELL",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalSaleAmount: { $sum: "$totalAmount" },
+            totalWeight: { $sum: "$totalWeight" },
+            totalTransactions: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    // Debug logging
+    console.log("Transactions found:", transactions);
+    console.log("Total count:", totalCount);
+    console.log("Aggregate stats:", aggregateStats);
+
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const stats =
+      aggregateStats.length > 0
+        ? aggregateStats[0]
+        : { totalSaleAmount: 0, totalWeight: 0, totalTransactions: 0 };
+
+    res.json({
+      success: true,
+      data: transactions.map((t) => SilverTransaction.hydrate(t).formatForDisplay()),
+      stats,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching silver transactions by customer ID:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching silver transactions by customer ID",
+      error: error.message,
+    });
+  }
 };

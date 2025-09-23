@@ -20,7 +20,7 @@ const SummaryCards = () => {
     try {
       setLoading(true);
       const response = await ApiService.getDashboardStats();
-
+      console.log("Dashboard Stats Response:", response.data.financials); // Debug log
       if (response && response.data) {
         const data = response.data;
         // Calculate total income (all money coming in)

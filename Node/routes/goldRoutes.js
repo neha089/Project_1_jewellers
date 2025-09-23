@@ -11,7 +11,8 @@ import {
   getCurrentGoldPrices,
   getDailySummary,
   getMonthlySummary,
-  getGoldAnalytics
+  getGoldAnalytics,
+  getGoldTrnsactionByCustomerId
 } from "../controllers/goldController.js";
 
 const router = express.Router();
@@ -31,5 +32,5 @@ router.get("/reports/current-prices", getCurrentGoldPrices);
 router.get("/reports/daily-summary", getDailySummary);
 router.get("/reports/monthly-summary", getMonthlySummary);
 router.get("/reports/analytics", getGoldAnalytics);
-
+router.get("/customers/:customerId/transactions", getGoldTrnsactionByCustomerId);
 export default router;

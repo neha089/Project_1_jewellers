@@ -2,7 +2,6 @@
 import React, { useState, useCallback } from "react";
 import { CheckCircle2 } from "lucide-react";
 import SummaryCards from "./SummaryCards";
-import TransactionHeader from "./TransactionHeader";
 import RecentTransactions from "./RecentTransactions";
 import CustomerSearch from "../CustomerSearch";
 import CreateCustomerForm from "../CreateCustomerForm";

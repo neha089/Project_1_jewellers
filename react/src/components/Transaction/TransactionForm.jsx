@@ -16,6 +16,11 @@ import AddUdharModal from "../AddUdhariModal";
 import UdhariPaymentModal from "../Udhaar/UdhariPaymentModal";
 import InterestPaymentModal from "../Gold-Loan/InterestPaymentModal";
 import ItemRepaymentModal from "../Gold-Loan/ItemRepaymentModal";
+import MetalItemsManager from "../MetalItemsManager";
+import GoldTransactionForm from "../GoldTransactionForm"; // Assuming path
+import SilverTransactionForm from "../SilverTransactionForm"; // Assuming path
+import AddGoldLoanModal from "../AddGoldLoanModal"; // Assuming path
+
 const UdhariSelectionModal = ({ isOpen, onClose, availableUdhars, onSelect, categoryId }) => {
   if (!isOpen) return null;
 
@@ -175,9 +180,6 @@ const GoldLoanSelectionModal = ({ isOpen, onClose, availableLoans, onSelect, cat
 
 
 
-
-
-// Enhanced Loan Selection Modal
 const LoanSelectionModal = ({ isOpen, onClose, availableLoans, onSelect, categoryId }) => {
   if (!isOpen) return null;
 
@@ -260,6 +262,9 @@ const TransactionForm = ({
   const [isUdharPaymentModalOpen, setIsUdharPaymentModalOpen] = useState(false);
   const [isUdhariSelectionModalOpen, setIsUdhariSelectionModalOpen] = useState(false);
   const [isGoldLoanSelectionModalOpen, setIsGoldLoanSelectionModalOpen] = useState(false);
+  const [isGoldTransactionModalOpen, setIsGoldTransactionModalOpen] = useState(false);
+  const [isSilverTransactionModalOpen, setIsSilverTransactionModalOpen] = useState(false);
+  const [isAddGoldLoanModalOpen, setIsAddGoldLoanModalOpen] = useState(false);
 
   // Selected items
   const [selectedLoan, setSelectedLoan] = useState(null);
@@ -488,14 +493,15 @@ const TransactionForm = ({
 
   // Effects
   useEffect(() => {
-    const isInterestPayment = selectedCategory?.id.includes("interest");
-    const isRepayment = selectedCategory?.id.includes("repayment");
-    const isUdhari = selectedCategory?.id.includes("udhari");
-    const isLoanTransaction = selectedCategory?.id.includes("loan") || selectedCategory?.id.endsWith("-l");
-    const isGoldLoanTransaction = selectedCategory?.id.includes("gl") || selectedCategory?.id === "gold-loan-repayment";
+    const categoryId = selectedCategory?.id;
+    const isInterestPayment = categoryId.includes("interest");
+    const isRepayment = categoryId.includes("repayment");
+    const isUdhari = categoryId.includes("udhari");
+    const isLoanTransaction = categoryId.includes("loan") || categoryId.endsWith("-l");
+    const isGoldLoanTransaction = categoryId.includes("gl") || categoryId === "gold-loan-repayment";
 
     console.log("TransactionForm: Category changed", {
-      categoryId: selectedCategory?.id,
+      categoryId,
       isInterestPayment,
       isRepayment,
       isLoanTransaction,
@@ -513,12 +519,15 @@ const TransactionForm = ({
     setIsUdharPaymentModalOpen(false);
     setIsUdhariSelectionModalOpen(false);
     setIsGoldLoanSelectionModalOpen(false);
+    setIsGoldTransactionModalOpen(false);
+    setIsSilverTransactionModalOpen(false);
+    setIsAddGoldLoanModalOpen(false);
     setErrors({});
     setLoansLoaded(false);
 
     // Load required data
     if ((isInterestPayment || isRepayment) && (isLoanTransaction || isGoldLoanTransaction) && selectedCustomer) {
-      console.log("TransactionForm: Loading customer loans for", selectedCategory.id);
+      console.log("TransactionForm: Loading customer loans for", categoryId);
       fetchCustomerLoans().then(() => {
         console.log("TransactionForm: Loans loaded, setting loansLoaded to true");
         setLoansLoaded(true);
@@ -529,7 +538,7 @@ const TransactionForm = ({
       fetchCustomerUdhars();
     }
 
-    if (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver")) {
+    if (categoryId.includes("gold") || categoryId.includes("silver")) {
       fetchCurrentMetalPrices();
     }
   }, [selectedCategory, selectedCustomer]);
@@ -559,6 +568,24 @@ const TransactionForm = ({
     if (categoryId === "udhari-given" || categoryId === "udhari-taken") {
       console.log("TransactionForm: Opening udhari modal");
       setIsUdharModalOpen(true);
+      return;
+    }
+
+    if (categoryId === "gold-loan") {
+      console.log("TransactionForm: Opening add gold loan modal");
+      setIsAddGoldLoanModalOpen(true);
+      return;
+    }
+
+    if (categoryId === "gold-sell" || categoryId === "gold-purchase") {
+      console.log("TransactionForm: Opening gold transaction modal");
+      setIsGoldTransactionModalOpen(true);
+      return;
+    }
+
+    if (categoryId === "silver-sell" || categoryId === "silver-purchase") {
+      console.log("TransactionForm: Opening silver transaction modal");
+      setIsSilverTransactionModalOpen(true);
       return;
     }
 
@@ -728,7 +755,7 @@ const TransactionForm = ({
 
     if (isMetalTransaction && isMetalBuySell) {
       if (transactionData.items.length === 0) {
-        newErrors.items = "Valid payment amount is required";
+        newErrors.items = "At least one item is required";
       } else {
         transactionData.items.forEach((item, index) => {
           if (!item.itemName.trim()) {
@@ -827,58 +854,6 @@ const TransactionForm = ({
             interestRateMonthlyPct: transactionData.interestRate,
             durationMonths: transactionData.durationMonths,
             date: transactionData.date,
-          });
-          break;
-
-        case "gold-sell":
-        case "gold-purchase":
-          response = await ApiService.createGoldTransaction({
-            transactionType: selectedCategory.id === "gold-sell" ? "SELL" : "BUY",
-            customer: selectedCustomer._id,
-            items: transactionData.items.map((item) => ({
-              itemName: item.itemName,
-              description: item.description,
-              purity: item.purity,
-              weight: parseFloat(item.weight),
-              ratePerGram: parseFloat(item.ratePerGram),
-              makingCharges: parseFloat(item.makingCharges),
-              wastage: parseFloat(item.wastage),
-              taxAmount: parseFloat(item.taxAmount),
-              photos: item.photos,
-              hallmarkNumber: item.hallmarkNumber,
-              certificateNumber: item.certificateNumber,
-            })),
-            advanceAmount: parseFloat(transactionData.advanceAmount || 0),
-            paymentMode: transactionData.paymentMode,
-            notes: transactionData.description,
-            billNumber: transactionData.billNumber,
-            fetchCurrentRates: true,
-          });
-          break;
-
-        case "silver-sell":
-        case "silver-purchase":
-          response = await ApiService.createSilverTransaction({
-            transactionType: selectedCategory.id === "silver-sell" ? "SELL" : "BUY",
-            customer: selectedCustomer._id,
-            items: transactionData.items.map((item) => ({
-              itemName: item.itemName,
-              description: item.description,
-              purity: item.purity,
-              weight: parseFloat(item.weight),
-              ratePerGram: parseFloat(item.ratePerGram),
-              makingCharges: parseFloat(item.makingCharges),
-              wastage: parseFloat(item.wastage),
-              taxAmount: parseFloat(item.taxAmount),
-              photos: item.photos,
-              hallmarkNumber: item.hallmarkNumber,
-              certificateNumber: item.certificateNumber,
-            })),
-            advanceAmount: parseFloat(transactionData.advanceAmount || 0),
-            paymentMode: transactionData.paymentMode,
-            notes: transactionData.description,
-            billNumber: transactionData.billNumber,
-            fetchCurrentRates: true,
           });
           break;
 
@@ -1088,6 +1063,9 @@ const TransactionForm = ({
     setIsUdharPaymentModalOpen(false);
     setIsUdhariSelectionModalOpen(false);
     setIsGoldLoanSelectionModalOpen(false);
+    setIsGoldTransactionModalOpen(false);
+    setIsSilverTransactionModalOpen(false);
+    setIsAddGoldLoanModalOpen(false);
     onCancel();
   };
 
@@ -1101,6 +1079,9 @@ const TransactionForm = ({
     setIsUdharPaymentModalOpen(false);
     setIsUdhariSelectionModalOpen(false);
     setIsGoldLoanSelectionModalOpen(false);
+    setIsGoldTransactionModalOpen(false);
+    setIsSilverTransactionModalOpen(false);
+    setIsAddGoldLoanModalOpen(false);
     onSuccess();
   };
 
@@ -1132,6 +1113,11 @@ const TransactionForm = ({
     "udhari-returned",
     "interest-received-gl",
     "gold-loan-repayment",
+    "gold-loan", // Added for creation
+    "gold-sell",
+    "gold-purchase",
+    "silver-sell",
+    "silver-purchase" // Added for metal buy/sell
   ];
 
   // If modal handled, only render modals
@@ -1213,9 +1199,9 @@ const TransactionForm = ({
             setSelectedLoan(loan);
             updateTransactionData({ selectedLoanId: loanId });
             setIsGoldLoanSelectionModalOpen(false);
-            if (categoryId === "interest-received-gl") {
+            if (selectedCategory.id === "interest-received-gl") {
               setIsInterestModalOpen(true);
-            } else if (categoryId === "gold-loan-repayment") {
+            } else if (selectedCategory.id === "gold-loan-repayment") {
               setIsPaymentModalOpen(true);
             }
           }}
@@ -1252,6 +1238,56 @@ const TransactionForm = ({
             setIsUdharPaymentModalOpen(true);
           }}
         />
+
+        {/* NEW: Gold Transaction Modal */}
+        {isGoldTransactionModalOpen && (
+          <GoldTransactionForm
+            editingTransaction={null}
+            GoldRates={currentMetalPrices?.gold?.rates || {}}
+            onClose={handleModalClose}
+            onSuccess={handleModalSuccess}
+            onError={(err) => setErrors({submit: err})}
+            initialCustomer={selectedCustomer}
+            transactionType={selectedCategory.id === "gold-sell" ? "SELL" : "BUY"}
+          />
+        )}
+
+        {/* NEW: Silver Transaction Modal */}
+        {isSilverTransactionModalOpen && (
+          <SilverTransactionForm
+            editingTransaction={null}
+            silverRates={currentMetalPrices?.silver?.rates || {}}
+            onClose={handleModalClose}
+            onSuccess={handleModalSuccess}
+            onError={(err) => setErrors({submit: err})}
+            initialCustomer={selectedCustomer}
+            transactionType={selectedCategory.id === "silver-sell" ? "SELL" : "BUY"}
+          />
+        )}
+
+        {/* NEW: Add Gold Loan Modal */}
+        {isAddGoldLoanModalOpen && (
+          <AddGoldLoanModal
+            isOpen={isAddGoldLoanModalOpen}
+            onClose={handleModalClose}
+            onSave={async (loanData) => {
+              try {
+                const response = await ApiService.createGoldLoan({
+                  ...loanData,
+                  customer: selectedCustomer._id
+                });
+                if (response.success) {
+                  handleModalSuccess();
+                } else {
+                  setErrors({submit: response.message || "Failed to create gold loan"});
+                }
+              } catch (error) {
+                setErrors({submit: error.message || "Failed to create gold loan"});
+              }
+            }}
+            initialCustomer={selectedCustomer} // NEW prop
+          />
+        )}
       </>
     );
   }

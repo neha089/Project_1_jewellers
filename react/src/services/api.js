@@ -119,6 +119,12 @@ async getCustomerById(customerId) {
   async createCustomer(customerData) {
     return this.post('/api/customers', customerData);
   }
+  async getSilverTrnsactionByCustomerId(customerId) {
+    return this.get(`/api/silver/customers/${customerId}/transactions`);
+  }
+  async getGoldTrnsactionByCustomerId(customerId) {
+    return this.get(`/api/gold/customers/${customerId}/transactions`);
+  }
   async createGoldTransaction(transactionData) {
     return this.post("/api/gold/", transactionData);
   }
@@ -778,13 +784,9 @@ async getInterestPayments(loanId, filters = {}) {
     });
   }
 
-  async getDashboardStats() {
-    return this.get('/api/gold-loans/analytics/dashboard');
-  }
 
-  async getPaymentHistory(loanId) {
-    return this.get(`/api/gold-loans/${loanId}/payment-history`);
-  }
+
+
   // Metal Sale APIs
   async createMetalSale(saleData) {
     return this.post("/api/metal-sales/", {
