@@ -1,62 +1,65 @@
 import Transaction from '../models/Transaction.js';
 import mongoose from 'mongoose';
 import SilverLoan from '../models/SilverLoan.js';
-import InterestPayment from '../models/InterestPayment.js';
 import Repayment from '../models/Repayment.js';
 import Customer from '../models/Customer.js';
 
-// Create new silver loan with manual amounts and enhanced validation
+// Create new silver loan with overall loan amount (no per-item amounts) and enhanced validation
 export const createSilverLoan = async (req, res) => {
   try {
-    const { customer, items, interestRateMonthlyPct, startDate, notes } = req.body;
-
+    const { customer, totalLoanAmount, items, interestRateMonthlyPct, startDate, notes } = req.body;
+   
     if (!customer) {
       return res.status(400).json({ success: false, error: 'Customer is required' });
+    }
+
+    if (!totalLoanAmount || parseFloat(totalLoanAmount) <= 0) {
+      return res.status(400).json({ success: false, error: 'Total loan amount must be greater than 0' });
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'At least one item is required for silver loan' });
     }
 
-    // Validate and process items
+    // Validate and process items (no loanAmount per item)
     const processedItems = [];
-    let totalPrincipal = 0;
 
     for (const item of items) {
-      if (!item.weightGram || !item.purityK || !item.loanAmount) {
+      if (!item.weightGram || !item.purityK) {
         return res.status(400).json({
           success: false,
-          error: `Item ${item.name || 'Unknown'} is missing weight, purity, or loan amount`
+          error: `Item ${item.name || 'Unknown'} is missing weight or purity`
         });
       }
 
       const processedItem = {
         name: item.name || 'Silver Item',
         weightGram: parseFloat(item.weightGram),
-        loanAmount: parseFloat(item.loanAmount), // Direct amount in rupees
         purityK: parseInt(item.purityK),
         images: item.images || [],
-        silverPriceAtDeposit: parseFloat(item.silverPriceAtDeposit) || 0,
         addedDate: new Date()
       };
-
+     
       processedItems.push(processedItem);
-      totalPrincipal += processedItem.loanAmount;
     }
+
+    const totalPrincipal = parseFloat(totalLoanAmount);
 
     const silverLoan = new SilverLoan({
       customer,
       items: processedItems,
       interestRateMonthlyPct: parseFloat(interestRateMonthlyPct),
       totalLoanAmount: totalPrincipal,
-      currentLoanAmount: totalPrincipal, // Track remaining loan amount
+      currentPrincipal: totalPrincipal,
+      outstandingAmount: totalPrincipal,
+      lastAccruedDate: startDate || new Date(),
       startDate: startDate || new Date(),
       status: 'ACTIVE',
       notes
     });
 
     await silverLoan.save();
-
+  
     // Create transaction record for loan disbursement
     const transaction = new Transaction({
       type: 'SILVER_LOAN_GIVEN',
@@ -76,7 +79,6 @@ export const createSilverLoan = async (req, res) => {
         itemId: item._id,
         name: item.name,
         weightGram: item.weightGram,
-        value: item.loanAmount,
         action: 'ADDED'
       }))
     });
@@ -92,6 +94,375 @@ export const createSilverLoan = async (req, res) => {
   }
 };
 
+// Add interest payment - Reduce from outstanding amount (accrue first)
+export const addInterestPayment = async (req, res) => {
+  try {
+    const { loanId } = req.params;
+    const {
+      interestAmount,
+      paymentDate,
+      paymentMethod,
+      forMonth, // Format: "YYYY-MM"
+      photos = [],
+      notes,
+      recordedBy = 'Admin'
+    } = req.body;
+
+    // Validate loan exists
+    const loan = await SilverLoan.findById(loanId).populate('customer');
+    if (!loan) {
+      return res.status(404).json({ success: false, error: 'Loan not found' });
+    }
+
+    // Validate required fields
+    if (!interestAmount || parseFloat(interestAmount) <= 0) {
+      return res.status(400).json({ success: false, error: 'Interest amount must be greater than 0' });
+    }
+    if (!paymentDate) {
+      return res.status(400).json({ success: false, error: 'Payment date is required' });
+    }
+    if (!forMonth) {
+      return res.status(400).json({ success: false, error: 'Payment month is required' });
+    }
+
+    // Validate payment method-specific fields
+    if (paymentMethod === 'CHEQUE') {
+      if (!req.body.chequeNumber || !req.body.bankName || !req.body.chequeDate) {
+        return res.status(400).json({ success: false, error: 'Cheque details are required' });
+      }
+    }
+    if (['NET_BANKING', 'UPI', 'CARD', 'BANK_TRANSFER'].includes(paymentMethod)) {
+      if (!req.body.referenceNumber) {
+        return res.status(400).json({ success: false, error: 'Reference number is required for digital payments' });
+      }
+    }
+
+    const parsedPaymentDate = new Date(paymentDate);
+    loan.accrueTo(parsedPaymentDate);
+
+    const currentOutstanding = loan.outstandingAmount;
+    const newOutstanding = currentOutstanding - parseFloat(interestAmount);
+
+    if (newOutstanding < loan.currentPrincipal) {
+      console.warn(`Interest payment would reduce outstanding below principal. Adjusting.`);
+    }
+
+    // Update outstanding
+    loan.outstandingAmount = newOutstanding;
+    loan.lastAccruedDate = parsedPaymentDate;
+
+    const [year, month] = forMonth.split('-');
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const forMonthName = monthNames[parseInt(month) - 1];
+
+    // Create payment entry in the payments array
+    const payment = {
+      date: parsedPaymentDate,
+      type: 'INTEREST',
+      principalAmount: 0,
+      interestAmount: parseFloat(interestAmount),
+      forMonth,
+      forYear: parseInt(year),
+      forMonthName,
+      photos,
+      notes: notes || `Interest payment for ${forMonthName} ${year}`,
+      currentOutstandingAtPayment: currentOutstanding,
+      currentOutstandingAfterPayment: loan.outstandingAmount
+    };
+
+    loan.payments.push(payment);
+    loan.lastInterestPayment = parsedPaymentDate;
+    await loan.save();
+
+    // Create transaction record
+    const transaction = new Transaction({
+      type: 'SILVER_LOAN_INTEREST_RECEIVED',
+      customer: loan.customer._id,
+      amount: parseFloat(interestAmount),
+      direction: -1, // incoming
+      description: `Interest payment - ${loan.customer.name} - ${forMonthName} ${year}`,
+      relatedDoc: loan._id,
+      relatedModel: 'SilverLoan',
+      category: 'INCOME',
+      metadata: {
+        paymentType: 'INTEREST',
+        forMonth,
+        paymentMethod,
+        photos
+      }
+    });
+    await transaction.save();
+
+    res.status(200).json({
+      success: true,
+      data: payment,
+      message: `Interest payment of ₹${parseFloat(interestAmount).toLocaleString()} recorded for ${forMonthName} ${year}`
+    });
+  } catch (error) {
+    console.error('Error adding interest payment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Process item return - Manual amounts paid by customer, reduce from outstanding
+export const processItemReturn = async (req, res) => {
+  try {
+    const {
+      selectedItems = [], // Array of item objects with details: {itemId, weight, returnPrice, condition, returnPhotos, returnNotes}
+      paymentMethod = 'CASH',
+      repaymentDate,
+      photos = [],
+      notes,
+      recordedBy = 'Admin',
+      processingFee = 0,
+      lateFee = 0,
+      adjustmentAmount = 0,
+      adjustmentReason = ''
+    } = req.body;
+
+    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
+    if (!silverLoan) {
+      return res.status(400).json({ success: false, error: 'Silver loan not found' });
+    }
+
+    if (silverLoan.status === 'CLOSED') {
+      return res.status(400).json({ success: false, error: 'Cannot process return for closed loan' });
+    }
+
+    // Validate selected items
+    if (!selectedItems || selectedItems.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one item must be selected for return' });
+    }
+
+    // Process each selected item
+    const processedItems = [];
+    let totalWeight = 0;
+    const returnDate = new Date(repaymentDate || Date.now());
+
+    for (const itemData of selectedItems) {
+      // Find the original item in the loan
+      const originalItem = silverLoan.items.find(item => 
+        item._id.toString() === itemData.itemId
+      );
+
+      if (!originalItem) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Original item not found for ID: ${itemData.itemId}` 
+        });
+      }
+
+      if (originalItem.returnDate) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Item "${originalItem.name}" has already been returned` 
+        });
+      }
+
+      // Validate item return details
+      if (!itemData.weight || itemData.weight <= 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Valid weight required for item: ${originalItem.name}` 
+        });
+      }
+
+      if (!itemData.returnPrice || itemData.returnPrice <= 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Valid return amount required for item: ${originalItem.name}` 
+        });
+      }
+
+      // Update the original item with return information
+      originalItem.returnDate = returnDate;
+      originalItem.returnImages = itemData.returnPhotos || [];
+      originalItem.returnNotes = itemData.returnNotes || `Returned on ${returnDate.toLocaleDateString('en-IN')}`;
+      originalItem.returnCondition = itemData.condition || 'good';
+      originalItem.returnRecordedBy = recordedBy;
+      originalItem.returnVerified = false;
+
+      // Track totals
+      totalWeight += itemData.weight;
+
+      // Store processed item info (no originalLoanAmount)
+      processedItems.push({
+        itemId: originalItem._id,
+        name: originalItem.name,
+        originalWeightGram: originalItem.weightGram,
+        returnedWeightGram: itemData.weight,
+        purityK: originalItem.purityK,
+        returnPrice: parseFloat(itemData.returnPrice),
+        returnPhotos: itemData.returnPhotos || [],
+        returnCondition: itemData.condition || 'good',
+        returnNotes: itemData.returnNotes || '',
+        weightDifference: itemData.weight - originalItem.weightGram,
+        weightDifferencePct: originalItem.weightGram > 0 ? ((itemData.weight - originalItem.weightGram) / originalItem.weightGram) * 100 : 0
+      });
+    }
+
+    // Calculate total repayment amount (sum of return prices - manual)
+    const totalRepaymentAmount = selectedItems.reduce((sum, item) => sum + parseFloat(item.returnPrice || 0), 0);
+    const processingFeeAmount = parseFloat(processingFee) || 0;
+    const lateFeeAmount = parseFloat(lateFee) || 0;
+    const adjustmentAmountValue = parseFloat(adjustmentAmount) || 0;
+    const netRepaymentAmount = totalRepaymentAmount - processingFeeAmount - lateFeeAmount + adjustmentAmountValue;
+
+    if (netRepaymentAmount <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Net repayment amount must be greater than zero' 
+      });
+    }
+
+    // Accrue interest up to return date
+    silverLoan.accrueTo(returnDate);
+
+    const currentOutstandingBefore = silverLoan.outstandingAmount;
+    const principalReduced = netRepaymentAmount; // Since no per-item, net reduces principal and outstanding
+
+    silverLoan.outstandingAmount = Math.max(0, currentOutstandingBefore - netRepaymentAmount);
+    silverLoan.currentPrincipal = Math.max(0, silverLoan.currentPrincipal - principalReduced);
+    silverLoan.lastAccruedDate = returnDate;
+
+    // Update loan status
+    const activeItemsCount = silverLoan.items.filter(item => !item.returnDate).length;
+    const previousStatus = silverLoan.status;
+
+    // Explicitly check if outstanding amount and principal are zero or very close to zero
+    const isEffectivelyZero = (amount) => Math.abs(amount) < 0.01; // Handle floating-point precision
+    if (isEffectivelyZero(silverLoan.outstandingAmount) && isEffectivelyZero(silverLoan.currentPrincipal) && activeItemsCount === 0) {
+      silverLoan.status = 'CLOSED';
+      silverLoan.closureDate = returnDate;
+      silverLoan.closureImages = photos;
+      silverLoan.closureReason = 'FULL_PAYMENT';
+    } else if (activeItemsCount < silverLoan.items.length || silverLoan.currentPrincipal < silverLoan.totalLoanAmount) {
+      silverLoan.status = 'PARTIALLY_PAID';
+    } else {
+      silverLoan.status = 'ACTIVE';
+    }
+
+    // Create payment record
+    const payment = {
+      date: returnDate,
+      type: 'PRINCIPAL',
+      principalAmount: principalReduced,
+      interestAmount: 0,
+      forMonth: `${returnDate.getFullYear()}-${String(returnDate.getMonth() + 1).padStart(2, '0')}`,
+      forYear: returnDate.getFullYear(),
+      forMonthName: returnDate.toLocaleString('default', { month: 'long' }),
+      photos,
+      notes: notes || `Item return - ${processedItems.length} items returned`,
+      paymentMethod,
+      processingFee: processingFeeAmount,
+      lateFee: lateFeeAmount,
+      adjustmentAmount: adjustmentAmountValue,
+      adjustmentReason,
+      repaymentType: 'ITEM_RETURN',
+      repaymentAmount: totalRepaymentAmount,
+      netRepaymentAmount,
+      itemsReturned: processedItems,
+      totalItemsReturned: processedItems.length,
+      totalWeightReturned: totalWeight,
+      principalReduced,
+      currentOutstandingAtPayment: currentOutstandingBefore,
+      currentOutstandingAfterPayment: silverLoan.outstandingAmount,
+      isFullRepayment: silverLoan.status === 'CLOSED',
+      isLoanClosed: silverLoan.status === 'CLOSED',
+      selectedItemIds: selectedItems.map(item => item.itemId),
+      recordedBy
+    };
+
+    silverLoan.payments.push(payment);
+    silverLoan.lastModifiedBy = recordedBy;
+    silverLoan.lastModifiedDate = new Date();
+
+    await silverLoan.save();
+
+    // Create transaction
+    const transactionType = silverLoan.status === 'CLOSED' ? 'SILVER_LOAN_CLOSURE' : 'SILVER_LOAN_REPAYMENT';
+    const transaction = new Transaction({
+      type: transactionType,
+      customer: silverLoan.customer._id,
+      amount: totalRepaymentAmount,
+      direction: -1,
+      description: silverLoan.status === 'CLOSED'
+        ? `Silver loan closed - ${processedItems.length} items returned by ${silverLoan.customer.name}`
+        : `Silver loan repayment - ${processedItems.length} items returned by ${silverLoan.customer.name}`,
+      relatedDoc: silverLoan._id,
+      relatedModel: 'SilverLoan',
+      category: 'INCOME',
+      metadata: {
+        paymentType: 'PRINCIPAL',
+        repaymentType: 'ITEM_RETURN',
+        itemCount: processedItems.length,
+        totalWeight,
+        totalRepaymentAmount,
+        isLoanClosed: silverLoan.status === 'CLOSED',
+        statusChanged: previousStatus !== silverLoan.status,
+        principalReduced,
+        processingFee: processingFeeAmount,
+        lateFee: lateFeeAmount,
+        adjustmentAmount: adjustmentAmountValue
+      },
+      affectedItems: processedItems.map(item => ({
+        itemId: item.itemId,
+        name: item.name,
+        originalWeightGram: item.originalWeightGram,
+        returnedWeightGram: item.returnedWeightGram,
+        purityK: item.purityK,
+        action: 'RETURNED'
+      }))
+    });
+
+    await transaction.save();
+
+    const remainingItems = silverLoan.items.filter(item => !item.returnDate);
+    const statusMessage = silverLoan.status === 'CLOSED'
+      ? 'All items returned and loan closed successfully!'
+      : `${processedItems.length} items returned successfully. ${remainingItems.length} items remaining.`;
+
+    res.json({
+      success: true,
+      data: payment,
+      silverLoan,
+      returnSummary: {
+        itemsReturned: processedItems.length,
+        totalWeightReturned: totalWeight,
+        totalRepaymentAmount,
+        netRepaymentAmount,
+        remainingItems: remainingItems.length,
+        remainingPrincipal: silverLoan.currentPrincipal,
+        remainingOutstanding: silverLoan.outstandingAmount,
+        loanStatus: silverLoan.status,
+        isLoanClosed: silverLoan.status === 'CLOSED',
+        returnedItems: processedItems,
+        remainingItemsSummary: remainingItems.map(item => ({
+          id: item._id,
+          name: item.name,
+          weight: item.weightGram,
+          purity: `${item.purityK}K`
+        })),
+        fees: {
+          processingFee: processingFeeAmount,
+          lateFee: lateFeeAmount,
+          adjustmentAmount: adjustmentAmountValue,
+          adjustmentReason
+        }
+      },
+      message: statusMessage
+    });
+
+  } catch (error) {
+    console.error('Item return processing error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to process item return'
+    });
+  }
+};
+
 // Get repayment statistics for a loan
 export const getRepaymentStats = async (req, res) => {
   try {
@@ -101,7 +472,7 @@ export const getRepaymentStats = async (req, res) => {
     // Calculate date range based on timeframe
     const endDate = new Date();
     const startDate = new Date();
-
+   
     switch (timeframe) {
       case '1month':
         startDate.setMonth(startDate.getMonth() - 1);
@@ -122,38 +493,45 @@ export const getRepaymentStats = async (req, res) => {
         startDate.setFullYear(startDate.getFullYear() - 1);
     }
 
-    const stats = await Repayment.aggregate([
+    const stats = await SilverLoan.aggregate([
       {
         $match: {
-          silverLoan: new mongoose.Types.ObjectId(silverLoanId),
-          repaymentDate: { $gte: startDate, $lte: endDate }
+          _id: new mongoose.Types.ObjectId(silverLoanId)
+        }
+      },
+      {
+        $unwind: '$payments'
+      },
+      {
+        $match: {
+          'payments.date': { $gte: startDate, $lte: endDate }
         }
       },
       {
         $group: {
           _id: null,
           totalTransactions: { $sum: 1 },
-          totalAmount: { $sum: '$repaymentAmount' },
-          totalItemsReturned: { $sum: '$totalItemsReturned' },
-          totalWeightReturned: { $sum: '$totalWeightReturned' },
-          totalInterestPaid: { $sum: '$interestPaidWithRepayment' },
-          totalProcessingFees: { $sum: '$processingFee' },
-          totalLateFees: { $sum: '$lateFee' },
-          totalAdjustments: { $sum: '$adjustmentAmount' },
-          averageRepaymentAmount: { $avg: '$repaymentAmount' },
-          largestRepayment: { $max: '$repaymentAmount' },
-          smallestRepayment: { $min: '$repaymentAmount' },
+          totalAmount: { $sum: '$payments.repaymentAmount' },
+          totalItemsReturned: { $sum: '$payments.totalItemsReturned' },
+          totalWeightReturned: { $sum: '$payments.totalWeightReturned' },
+          totalInterestPaid: { $sum: '$payments.interestAmount' },
+          totalProcessingFees: { $sum: '$payments.processingFee' },
+          totalLateFees: { $sum: '$payments.lateFee' },
+          totalAdjustments: { $sum: '$payments.adjustmentAmount' },
+          averageRepaymentAmount: { $avg: '$payments.repaymentAmount' },
+          largestRepayment: { $max: '$payments.repaymentAmount' },
+          smallestRepayment: { $min: '$payments.repaymentAmount' },
           repaymentMethods: {
-            $push: '$paymentMethod'
+            $push: '$payments.paymentMethod'
           },
           repaymentTypes: {
-            $push: '$repaymentType'
+            $push: '$payments.repaymentType'
           },
           monthlyTotals: {
             $push: {
-              month: { $month: '$repaymentDate' },
-              year: { $year: '$repaymentDate' },
-              amount: '$repaymentAmount'
+              month: { $month: '$payments.date' },
+              year: { $year: '$payments.date' },
+              amount: '$payments.repaymentAmount'
             }
           }
         }
@@ -197,6 +575,7 @@ export const getRepaymentStats = async (req, res) => {
         }
       }
     });
+
   } catch (error) {
     console.error('Get repayment stats error:', error);
     res.status(500).json({
@@ -222,7 +601,7 @@ export const validateRepayment = async (req, res) => {
 
     // Validation logic
     const validations = [];
-
+   
     // Check if loan is active
     if (silverLoan.status !== 'ACTIVE') {
       validations.push({
@@ -238,7 +617,7 @@ export const validateRepayment = async (req, res) => {
       const invalidItems = repaymentData.selectedItemIds.filter(itemId =>
         !availableItems.some(item => item._id.toString() === itemId)
       );
-
+     
       if (invalidItems.length > 0) {
         validations.push({
           field: 'selectedItemIds',
@@ -259,22 +638,11 @@ export const validateRepayment = async (req, res) => {
         });
       }
 
-      if (amount > silverLoan.currentLoanAmount) {
+      silverLoan.accrueTo(new Date());
+      if (amount > silverLoan.outstandingAmount) {
         validations.push({
           field: 'repaymentAmount',
-          message: 'Repayment amount cannot exceed outstanding loan amount',
-          severity: 'warning'
-        });
-      }
-    }
-
-    // Check silver price
-    if (repaymentData.currentSilverPrice) {
-      const silverPrice = parseFloat(repaymentData.currentSilverPrice);
-      if (silverPrice <= 0 || silverPrice > 10000) {
-        validations.push({
-          field: 'currentSilverPrice',
-          message: 'Silver price seems unrealistic',
+          message: 'Repayment amount cannot exceed outstanding amount',
           severity: 'warning'
         });
       }
@@ -308,11 +676,13 @@ export const validateRepayment = async (req, res) => {
         loan: {
           id: silverLoan._id,
           status: silverLoan.status,
-          currentAmount: silverLoan.currentLoanAmount,
+          currentPrincipal: silverLoan.currentPrincipal,
+          outstandingAmount: silverLoan.outstandingAmount,
           availableItems: silverLoan.items.filter(item => !item.returnDate).length
         }
       }
     });
+
   } catch (error) {
     console.error('Validate repayment error:', error);
     res.status(500).json({
@@ -327,8 +697,7 @@ export const getRepaymentDetails = async (req, res) => {
   try {
     const repaymentId = req.params.repaymentId;
 
-    const repayment = await Repayment.findById(repaymentId)
-      .populate('silverLoan', 'startDate totalLoanAmount interestRateMonthlyPct')
+    const repayment = await SilverLoan.findOne({'payments._id': repaymentId})
       .populate('customer', 'name phone email');
 
     if (!repayment) {
@@ -338,10 +707,13 @@ export const getRepaymentDetails = async (req, res) => {
       });
     }
 
+    const payment = repayment.payments.id(repaymentId);
+
     res.json({
       success: true,
-      data: repayment
+      data: payment
     });
+
   } catch (error) {
     console.error('Get repayment details error:', error);
     res.status(500).json({
@@ -356,26 +728,27 @@ export const getRepaymentReceipt = async (req, res) => {
   try {
     const repaymentId = req.params.repaymentId;
 
-    const repayment = await Repayment.findById(repaymentId)
-      .populate('silverLoan')
+    const loan = await SilverLoan.findOne({'payments._id': repaymentId})
       .populate('customer');
 
-    if (!repayment) {
+    if (!loan) {
       return res.status(404).json({
         success: false,
         error: 'Repayment record not found'
       });
     }
 
+    const repayment = loan.payments.id(repaymentId);
+
     // Generate receipt data
     const receiptData = {
-      receiptNumber: repayment.receiptNumber,
-      repaymentDate: repayment.repaymentDate,
-      customer: repayment.customer,
+      receiptNumber: repayment._id.toString().slice(-8).toUpperCase(),
+      repaymentDate: repayment.date,
+      customer: loan.customer,
       loan: {
-        id: repayment.silverLoan._id,
-        startDate: repayment.silverLoan.startDate,
-        interestRate: repayment.silverLoan.interestRateMonthlyPct
+        id: loan._id,
+        startDate: loan.startDate,
+        interestRate: loan.interestRateMonthlyPct
       },
       repaymentDetails: {
         amount: repayment.repaymentAmount,
@@ -385,10 +758,10 @@ export const getRepaymentReceipt = async (req, res) => {
         chequeNumber: repayment.chequeNumber,
         bankName: repayment.bankName
       },
-      returnedItems: repayment.returnedItems,
+      returnedItems: repayment.itemsReturned,
       calculations: {
-        loanAmountBefore: repayment.loanAmountBeforeRepayment,
-        loanAmountAfter: repayment.loanAmountAfterRepayment,
+        outstandingBefore: repayment.currentOutstandingAtPayment,
+        outstandingAfter: repayment.currentOutstandingAfterPayment,
         processingFee: repayment.processingFee,
         lateFee: repayment.lateFee,
         adjustmentAmount: repayment.adjustmentAmount,
@@ -402,6 +775,7 @@ export const getRepaymentReceipt = async (req, res) => {
       success: true,
       data: receiptData
     });
+
   } catch (error) {
     console.error('Get repayment receipt error:', error);
     res.status(500).json({
@@ -411,7 +785,7 @@ export const getRepaymentReceipt = async (req, res) => {
   }
 };
 
-// Search all repayments across loans
+// Search all repayments across loans - Adjusted for payments array
 export const searchAllRepayments = async (req, res) => {
   try {
     const {
@@ -427,31 +801,32 @@ export const searchAllRepayments = async (req, res) => {
       maxAmount
     } = req.query;
 
-    // Build search filter
+    // Build search filter for payments
     const filter = {};
+    const match = {};
 
     if (receiptNumber) {
-      filter.receiptNumber = { $regex: receiptNumber, $options: 'i' };
+      match['payments._id'] = { $regex: receiptNumber, $options: 'i' }; // Approximate, since receipt is generated
     }
-
+   
     if (paymentMethod) {
-      filter.paymentMethod = paymentMethod;
+      match['payments.paymentMethod'] = paymentMethod;
     }
-
+   
     if (repaymentType) {
-      filter.repaymentType = repaymentType;
+      match['payments.repaymentType'] = repaymentType;
     }
-
+   
     if (startDate || endDate) {
-      filter.repaymentDate = {};
-      if (startDate) filter.repaymentDate.$gte = new Date(startDate);
-      if (endDate) filter.repaymentDate.$lte = new Date(endDate);
+      match['payments.date'] = {};
+      if (startDate) match['payments.date'].$gte = new Date(startDate);
+      if (endDate) match['payments.date'].$lte = new Date(endDate);
     }
-
+   
     if (minAmount || maxAmount) {
-      filter.repaymentAmount = {};
-      if (minAmount) filter.repaymentAmount.$gte = parseFloat(minAmount);
-      if (maxAmount) filter.repaymentAmount.$lte = parseFloat(maxAmount);
+      match['payments.repaymentAmount'] = {};
+      if (minAmount) match['payments.repaymentAmount'].$gte = parseFloat(minAmount);
+      if (maxAmount) match['payments.repaymentAmount'].$lte = parseFloat(maxAmount);
     }
 
     // If searching by customer name, first find matching customers
@@ -459,25 +834,48 @@ export const searchAllRepayments = async (req, res) => {
       const customers = await Customer.find({
         name: { $regex: customerName, $options: 'i' }
       }).select('_id');
-
+     
       filter.customer = { $in: customers.map(c => c._id) };
     }
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
-    const skip = (pageNum - 1) * limitNum;
 
-    const [repayments, totalCount] = await Promise.all([
-      Repayment.find(filter)
-        .populate('customer', 'name phone email')
-        .populate('silverLoan', '_id totalLoanAmount')
-        .sort({ repaymentDate: -1 })
-        .skip(skip)
-        .limit(limitNum),
-      Repayment.countDocuments(filter)
+    const aggregate = [
+      { $match: filter },
+      { $unwind: '$payments' },
+      { $match: match },
+      { $sort: { 'payments.date': -1 } },
+      { $skip: (pageNum - 1) * limitNum },
+      { $limit: limitNum },
+      {
+        $lookup: {
+          from: 'customers',
+          localField: 'customer',
+          foreignField: '_id',
+          as: 'customerInfo'
+        }
+      },
+      {
+        $project: {
+          payment: '$payments',
+          customer: { $arrayElemAt: ['$customerInfo', 0] },
+          silverLoan: '$_id'
+        }
+      }
+    ];
+
+    const repayments = await SilverLoan.aggregate(aggregate);
+
+    const totalCount = await SilverLoan.aggregate([
+      { $match: filter },
+      { $unwind: '$payments' },
+      { $match: match },
+      { $count: 'total' }
     ]);
 
-    const totalPages = Math.ceil(totalCount / limitNum);
+    const total = totalCount[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitNum);
 
     res.json({
       success: true,
@@ -485,12 +883,13 @@ export const searchAllRepayments = async (req, res) => {
       pagination: {
         currentPage: pageNum,
         totalPages,
-        totalCount,
+        totalCount: total,
         limit: limitNum,
         hasNext: pageNum < totalPages,
         hasPrev: pageNum > 1
       }
     });
+
   } catch (error) {
     console.error('Search repayments error:', error);
     res.status(500).json({
@@ -506,13 +905,15 @@ export const cancelRepayment = async (req, res) => {
     const repaymentId = req.params.repaymentId;
     const { reason } = req.body;
 
-    const repayment = await Repayment.findById(repaymentId);
-    if (!repayment) {
+    const loan = await SilverLoan.findOne({'payments._id': repaymentId});
+    if (!loan) {
       return res.status(404).json({
         success: false,
         error: 'Repayment record not found'
       });
     }
+
+    const repayment = loan.payments.id(repaymentId);
 
     if (repayment.status === 'CANCELLED') {
       return res.status(400).json({
@@ -524,42 +925,23 @@ export const cancelRepayment = async (req, res) => {
     // Update repayment status
     repayment.status = 'CANCELLED';
     repayment.notes = (repayment.notes || '') + `\n\nCANCELLED: ${reason} (${new Date().toISOString()})`;
-    await repayment.save();
 
-    // TODO: Add reversal logic if needed (e.g., update silverLoan.currentLoanAmount, item returnDate, etc.)
-    // This would require careful implementation to avoid data inconsistencies
+    // Reversal: Add back to outstanding and principal if applicable
+    loan.outstandingAmount += repayment.netRepaymentAmount || repayment.interestAmount || 0;
+    if (repayment.type === 'PRINCIPAL') {
+      loan.currentPrincipal += repayment.principalAmount || 0;
+    }
+
+    await loan.save();
 
     res.json({
       success: true,
       data: repayment,
       message: 'Repayment cancelled successfully'
     });
+
   } catch (error) {
     console.error('Cancel repayment error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// Get current silver price (mock or integrate with API)
-export const getCurrentSilverPrice = async (req, res) => {
-  try {
-    // TODO: Integrate with real silver price API if needed
-    const currentPrice = {
-      pricePerGram: 80, // Example value; replace with real data
-      lastUpdated: new Date().toISOString(),
-      source: 'internal',
-      currency: 'INR'
-    };
-
-    res.json({
-      success: true,
-      data: currentPrice
-    });
-  } catch (error) {
-    console.error('Get silver price error:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -576,7 +958,8 @@ export const getDashboardStats = async (req, res) => {
           _id: '$status',
           count: { $sum: 1 },
           totalLoanAmount: { $sum: '$totalLoanAmount' },
-          currentLoanAmount: { $sum: '$currentLoanAmount' },
+          currentPrincipal: { $sum: '$currentPrincipal' },
+          outstandingAmount: { $sum: '$outstandingAmount' },
           totalInterestReceived: {
             $sum: {
               $reduce: {
@@ -621,7 +1004,8 @@ export const getDashboardStats = async (req, res) => {
     ]);
 
     const businessMetrics = {
-      totalActiveLoanAmount: stats.find(s => s._id === 'ACTIVE')?.currentLoanAmount || 0,
+      totalActivePrincipal: stats.find(s => s._id === 'ACTIVE')?.currentPrincipal || 0,
+      totalActiveOutstanding: stats.find(s => s._id === 'ACTIVE')?.outstandingAmount || 0,
       totalInterestEarned: stats.reduce((sum, s) => sum + (s.totalInterestReceived || 0), 0),
       totalLoans: stats.reduce((sum, s) => sum + s.count, 0)
     };
@@ -654,8 +1038,10 @@ export const closeSilverLoan = async (req, res) => {
       return res.status(400).json({ success: false, error: "Loan is already closed" });
     }
 
+    silverLoan.accrueTo(new Date());
+
     // Check if can be closed
-    if (silverLoan.currentLoanAmount > 0 || silverLoan.getActiveItems().length > 0) {
+    if (silverLoan.outstandingAmount > 0 || silverLoan.currentPrincipal > 0 || silverLoan.getActiveItems().length > 0) {
       return res.status(400).json({ success: false, error: "Cannot close loan with outstanding amount or items" });
     }
 
@@ -690,436 +1076,6 @@ export const closeSilverLoan = async (req, res) => {
   }
 };
 
-// Add interest payment using paymentSchema directly
-export const addInterestPaymentS = async (req, res) => {
-  try {
-    const { loanId } = req.params;
-    const {
-      interestAmount,
-      paymentDate,
-      paymentMethod,
-      forMonth, // Format: "YYYY-MM"
-      photos = [],
-      notes,
-      recordedBy = 'Admin'
-    } = req.body;
-
-    // Validate loan exists
-    const loan = await SilverLoan.findById(loanId).populate('customer');
-    if (!loan) {
-      return res.status(404).json({ success: false, error: 'Loan not found' });
-    }
-
-    // Validate required fields
-    if (!interestAmount || parseFloat(interestAmount) <= 0) {
-      return res.status(400).json({ success: false, error: 'Interest amount must be greater than 0' });
-    }
-    if (!paymentDate) {
-      return res.status(400).json({ success: false, error: 'Payment date is required' });
-    }
-    if (!forMonth) {
-      return res.status(400).json({ success: false, error: 'Payment month is required' });
-    }
-
-    // Validate payment method-specific fields
-    if (paymentMethod === 'CHEQUE') {
-      if (!req.body.chequeNumber || !req.body.bankName || !req.body.chequeDate) {
-        return res.status(400).json({ success: false, error: 'Cheque details are required' });
-      }
-    }
-    if (['NET_BANKING', 'UPI', 'CARD', 'BANK_TRANSFER'].includes(paymentMethod)) {
-      if (!req.body.referenceNumber) {
-        return res.status(400).json({ success: false, error: 'Reference number is required for digital payments' });
-      }
-    }
-
-    // Calculate interest details
-    const monthlyInterest = (loan.currentLoanAmount * loan.interestRateMonthlyPct);
-    const [year, month] = forMonth.split('-');
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'];
-    const forMonthName = monthNames[parseInt(month) - 1];
-
-    // Check for existing payments for the same month
-    const existingPayments = loan.payments.filter(p => p.forMonth === forMonth && p.type === 'INTEREST');
-    const totalPaid = existingPayments.reduce((sum, payment) => sum + (payment.interestAmount || 0), 0);
-    const remainingInterest = Math.max(0, monthlyInterest - totalPaid);
-
-    
-    // Create payment entry in the payments array
-    const payment = {
-      date: new Date(paymentDate),
-      type: 'INTEREST',
-      principalAmount: 0,
-      interestAmount: parseFloat(interestAmount),
-      forMonth,
-      forYear: parseInt(year),
-      forMonthName,
-      photos,
-      notes: notes || `Interest payment for ${forMonthName} ${year}`,
-      currentLoanAmountAtPayment: loan.currentLoanAmount,
-      currentLoanAmountAfterPayment: loan.currentLoanAmount // No change for interest payment
-    };
-
-    loan.payments.push(payment);
-    loan.lastInterestPayment = new Date(paymentDate);
-    await loan.save();
-
-    // Create transaction record
-    const transaction = new Transaction({
-      type: 'SILVER_LOAN_INTEREST_RECEIVED',
-      customer: loan.customer._id,
-      amount: parseFloat(interestAmount),
-      direction: -1, // incoming
-      description: `Interest payment - ${loan.customer.name} - ${forMonthName} ${year}`,
-      relatedDoc: loan._id,
-      relatedModel: 'SilverLoan',
-      category: 'INCOME',
-      metadata: {
-        paymentType: 'INTEREST',
-        forMonth,
-        monthlyInterestDue: monthlyInterest,
-        paymentMethod,
-        photos
-      }
-    });
-    await transaction.save();
-
-    res.status(200).json({
-      success: true,
-      data: payment,
-      interestSummary: {
-        monthlyInterest,
-        totalPaidForMonth: totalPaid + parseFloat(interestAmount),
-        remainingInterest: Math.max(0, remainingInterest - parseFloat(interestAmount))
-      },
-      message: `Interest payment of ₹${parseFloat(interestAmount).toLocaleString()} recorded for ${forMonthName} ${year}`
-    });
-  } catch (error) {
-    console.error('Error adding interest payment:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-};
-
-// Process item repayment
-export const processItemRepaymentS = async (req, res) => {
-  try {
-    const {
-      repaymentAmount,
-      paymentMethod = 'CASH',
-      repaymentDate,
-      selectedItemIds = [],
-      photos = [],
-      notes,
-      recordedBy = 'Admin',
-      processingFee = 0,
-      lateFee = 0,
-      adjustmentAmount = 0,
-      adjustmentReason = '',
-      itemReturnDetails = [] // Array of { itemId, returnSilverPrice, returnPhotos, returnNotes, weight, condition }
-    } = req.body;
-
-    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
-    if (!silverLoan) {
-      return res.status(404).json({ success: false, error: 'Silver loan not found' });
-    }
-
-    if (silverLoan.status === 'CLOSED') {
-      return res.status(400).json({ success: false, error: 'Cannot process repayment for closed loan' });
-    }
-
-    // Validate required fields
-    if (!selectedItemIds || selectedItemIds.length === 0) {
-      return res.status(400).json({ success: false, error: 'No items selected for return' });
-    }
-
-    if (!itemReturnDetails || itemReturnDetails.length === 0) {
-      return res.status(400).json({ success: false, error: 'Item return details are required' });
-    }
-
-    const finalRepaymentAmount = parseFloat(repaymentAmount) || 0;
-    const processingFeeAmount = parseFloat(processingFee) || 0;
-    const lateFeeAmount = parseFloat(lateFee) || 0;
-    const adjustmentAmountValue = parseFloat(adjustmentAmount) || 0;
-    const netRepaymentAmount = finalRepaymentAmount - processingFeeAmount - lateFeeAmount + adjustmentAmountValue;
-
-    if (netRepaymentAmount <= 0) {
-      return res.status(400).json({ success: false, error: 'Net repayment amount must be greater than zero' });
-    }
-
-    const currentLoanAmountBefore = silverLoan.currentLoanAmount || silverLoan.totalLoanAmount || 0;
-
-    // Get items to return - only unreturned items
-    const itemsToReturn = silverLoan.items.filter(item =>
-      selectedItemIds.includes(item._id.toString()) && !item.returnDate
-    );
-
-    if (itemsToReturn.length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid items found for return' });
-    }
-
-    if (itemsToReturn.length !== selectedItemIds.length) {
-      return res.status(400).json({
-        success: false,
-        error: 'Some selected items are already returned or not found'
-      });
-    }
-
-    // Calculate total loan amount of items being returned
-    const totalItemLoanValue = itemsToReturn.reduce((sum, item) => sum + (item.loanAmount || 0), 0);
-
-    // Validate repayment amount covers the item loan values
-    if (netRepaymentAmount < totalItemLoanValue) {
-      return res.status(400).json({
-        success: false,
-        error: `Repayment amount (₹${netRepaymentAmount.toLocaleString()}) is insufficient to return selected items (₹${totalItemLoanValue.toLocaleString()} required)`
-      });
-    }
-
-    let totalWeight = 0;
-    let totalCurrentMarketValue = 0;
-    let totalAppreciation = 0;
-
-    // Process each item return with individual details
-    const returnDate = new Date(repaymentDate || Date.now());
-    const processedItems = [];
-
-    itemsToReturn.forEach(item => {
-      // Find the return details for this specific item
-      const itemDetail = itemReturnDetails.find(detail =>
-        detail.itemId === item._id.toString()
-      );
-
-      if (!itemDetail) {
-        throw new Error(`Return details not found for item: ${item.name}`);
-      }
-
-      // Validate item details
-      if (!itemDetail.returnSilverPrice || itemDetail.returnSilverPrice <= 0) {
-        throw new Error(`Valid silver price required for item: ${item.name}`);
-      }
-
-      if (!itemDetail.weight || itemDetail.weight <= 0) {
-        throw new Error(`Valid weight required for item: ${item.name}`);
-      }
-
-      // Calculate current market value based on actual return details
-      const currentValue = itemDetail.weight * (item.purityK / 24) * itemDetail.returnSilverPrice;
-      const appreciation = currentValue - item.loanAmount;
-
-      // Update item with return information
-      item.returnDate = returnDate;
-      item.returnImages = itemDetail.returnPhotos || [];
-      item.silverPriceAtReturn = parseFloat(itemDetail.returnSilverPrice);
-      item.returnValue = currentValue;
-      item.returnNotes = itemDetail.returnNotes || `${item.name} returned on ${returnDate.toDateString()} at ₹${itemDetail.returnSilverPrice}/gram`;
-      item.returnCondition = itemDetail.condition || 'good';
-      item.returnRecordedBy = recordedBy;
-      item.returnVerified = false; // Will be verified by senior staff later
-
-      // Track totals
-      totalWeight += itemDetail.weight;
-      totalCurrentMarketValue += currentValue;
-      totalAppreciation += appreciation;
-
-      // Store processed item info for response
-      processedItems.push({
-        itemId: item._id,
-        name: item.name,
-        weightGram: itemDetail.weight,
-        purityK: item.purityK,
-        loanAmount: item.loanAmount,
-        returnValue: currentValue,
-        silverPriceAtReturn: itemDetail.returnSilverPrice,
-        returnImages: itemDetail.returnPhotos || [],
-        returnNotes: item.returnNotes,
-        returnCondition: item.returnCondition,
-        appreciation: appreciation,
-        appreciationPct: item.loanAmount > 0 ? (appreciation / item.loanAmount) * 100 : 0
-      });
-    });
-
-    // Update loan amounts
-    const principalReduced = totalItemLoanValue;
-    silverLoan.currentLoanAmount = Math.max(0, currentLoanAmountBefore - principalReduced);
-
-    // Update loan status based on remaining items and amount
-    const activeItemsCount = silverLoan.items.filter(item => !item.returnDate).length;
-    const previousStatus = silverLoan.status;
-
-    if (silverLoan.currentLoanAmount <= 0 && activeItemsCount === 0) {
-      silverLoan.status = 'CLOSED';
-      silverLoan.closureDate = returnDate;
-      silverLoan.closureImages = photos;
-      silverLoan.closureReason = 'FULL_PAYMENT';
-    } else if (activeItemsCount < silverLoan.items.length) {
-      silverLoan.status = 'PARTIALLY_PAID';
-    }
-
-    // Create comprehensive payment entry
-    const payment = {
-      date: returnDate,
-      type: 'PRINCIPAL',
-      principalAmount: principalReduced,
-      interestAmount: 0,
-      forMonth: `${returnDate.getFullYear()}-${String(returnDate.getMonth() + 1).padStart(2, '0')}`,
-      forYear: returnDate.getFullYear(),
-      forMonthName: returnDate.toLocaleString('default', { month: 'long' }),
-      photos,
-      notes: notes || `Item return - ${processedItems.length} items returned`,
-      paymentMethod,
-      processingFee: processingFeeAmount,
-      lateFee: lateFeeAmount,
-      adjustmentAmount: adjustmentAmountValue,
-      adjustmentReason,
-      repaymentType: 'ITEM_RETURN',
-      repaymentAmount: finalRepaymentAmount,
-      netRepaymentAmount,
-      itemsReturned: processedItems,
-      totalItemsReturned: processedItems.length,
-      totalWeightReturned: totalWeight,
-      totalMarketValueReturned: totalCurrentMarketValue,
-      principalReduced,
-      currentLoanAmountAtPayment: currentLoanAmountBefore,
-      currentLoanAmountAfterPayment: silverLoan.currentLoanAmount,
-      isFullRepayment: silverLoan.status === 'CLOSED',
-      isLoanClosed: silverLoan.status === 'CLOSED',
-      selectedItemIds,
-      silverPriceUsed: 0, // Different prices used for different items
-      recordedBy,
-      totalAppreciation,
-      averageAppreciationPct: totalItemLoanValue > 0 ? (totalAppreciation / totalItemLoanValue) * 100 : 0
-    };
-
-    silverLoan.payments.push(payment);
-    silverLoan.lastModifiedBy = recordedBy;
-    silverLoan.lastModifiedDate = new Date();
-
-    await silverLoan.save();
-
-    // Create transaction record
-    const transactionType = silverLoan.status === 'CLOSED' ? 'SILVER_LOAN_CLOSURE' : 'SILVER_LOAN_REPAYMENT';
-
-    const transaction = new Transaction({
-      type: transactionType,
-      customer: silverLoan.customer._id,
-      amount: finalRepaymentAmount,
-      direction: -1, // incoming
-      description: silverLoan.status === 'CLOSED'
-        ? `Silver loan closed - ${processedItems.length} items returned by ${silverLoan.customer.name}`
-        : `Silver loan repayment - ${processedItems.length} items returned by ${silverLoan.customer.name}`,
-      relatedDoc: silverLoan._id,
-      relatedModel: 'SilverLoan',
-      category: 'INCOME',
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        repaymentType: 'ITEM_RETURN',
-        itemCount: processedItems.length,
-        totalWeight,
-        totalMarketValue: totalCurrentMarketValue,
-        totalAppreciation,
-        averageAppreciationPct: payment.averageAppreciationPct,
-        isLoanClosed: silverLoan.status === 'CLOSED',
-        statusChanged: previousStatus !== silverLoan.status,
-        previousStatus,
-        newStatus: silverLoan.status,
-        principalReduced,
-        processingFee: processingFeeAmount,
-        lateFee: lateFeeAmount,
-        adjustmentAmount: adjustmentAmountValue,
-        silverPricesUsed: processedItems.map(item => ({
-          itemId: item.itemId,
-          silverPrice: item.silverPriceAtReturn
-        }))
-      },
-      affectedItems: processedItems.map(item => ({
-        itemId: item.itemId,
-        name: item.name,
-        weightGram: item.weightGram,
-        purityK: item.purityK,
-        originalValue: item.loanAmount,
-        returnValue: item.returnValue,
-        silverPriceAtReturn: item.silverPriceAtReturn,
-        appreciation: item.appreciation,
-        action: 'RETURNED'
-      }))
-    });
-
-    await transaction.save();
-
-    // Get remaining items for response
-    const remainingItems = silverLoan.items.filter(item => !item.returnDate);
-
-    const statusMessage = silverLoan.status === 'CLOSED'
-      ? 'Loan completed and closed successfully!'
-      : `${processedItems.length} items returned successfully. ${remainingItems.length} items remaining. Loan amount: ₹${silverLoan.currentLoanAmount.toLocaleString()}`;
-
-    // Comprehensive response
-    res.json({
-      success: true,
-      data: payment,
-      silverLoan,
-      repaymentSummary: {
-        repaymentAmount: finalRepaymentAmount,
-        netRepaymentAmount,
-        principalReduced,
-        itemsReturned: processedItems.length,
-        totalItemLoanValue,
-        totalCurrentMarketValue,
-        totalWeight,
-        totalAppreciation,
-        averageAppreciationPct: payment.averageAppreciationPct,
-        remainingItems: remainingItems.length,
-        remainingLoanAmount: silverLoan.currentLoanAmount,
-        loanStatus: silverLoan.status,
-        isLoanClosed: silverLoan.status === 'CLOSED',
-        statusChanged: previousStatus !== silverLoan.status,
-        previousStatus,
-        returnedItems: processedItems.map(item => ({
-          id: item.itemId,
-          name: item.name,
-          weight: item.weightGram,
-          purity: `${item.purityK}K`,
-          originalLoanAmount: item.loanAmount,
-          returnValue: item.returnValue,
-          appreciation: item.appreciation,
-          appreciationPct: item.appreciationPct,
-          silverPriceAtReturn: item.silverPriceAtReturn,
-          returnImages: item.returnImages,
-          returnCondition: item.returnCondition,
-          returnDate: returnDate
-        })),
-        remainingItemsSummary: remainingItems.map(item => ({
-          id: item._id,
-          name: item.name,
-          weight: item.weightGram,
-          purity: `${item.purityK}K`,
-          loanAmount: item.loanAmount
-        })),
-        fees: {
-          processingFee: processingFeeAmount,
-          lateFee: lateFeeAmount,
-          adjustmentAmount: adjustmentAmountValue,
-          adjustmentReason
-        },
-        newMonthlyInterest: silverLoan.currentLoanAmount > 0
-          ? (silverLoan.currentLoanAmount * silverLoan.interestRateMonthlyPct / 100)
-          : 0,
-        paymentMethod,
-        repaymentDate: returnDate,
-        recordedBy
-      },
-      message: statusMessage
-    });
-  } catch (error) {
-    console.error('Item return processing error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to process item return'
-    });
-  }
-};
-
 // Get all silver loans with pagination and filters
 export const getAllSilverLoans = async (req, res) => {
   try {
@@ -1134,6 +1090,12 @@ export const getAllSilverLoans = async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
+
+    // Accrue for each loan before returning
+    for (const loan of silverLoans) {
+      loan.accrueTo(new Date());
+      await loan.save();
+    }
 
     const total = await SilverLoan.countDocuments(query);
 
@@ -1160,11 +1122,19 @@ export const getSilverLoanById = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Silver loan not found' });
     }
 
+    silverLoan.accrueTo(new Date());
+    await silverLoan.save();
+
+    const outstandingAmount = silverLoan.outstandingAmount;
+    const outstandingInterest = outstandingAmount - silverLoan.currentPrincipal;
+
     res.json({
       success: true,
       data: {
         ...silverLoan.toObject(),
-        loanSummary: silverLoan.getLoanSummary()
+        loanSummary: silverLoan.getLoanSummary(),
+        outstandingInterest,
+        outstandingAmount
       }
     });
   } catch (error) {
@@ -1178,13 +1148,19 @@ export const getSilverLoansByCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+    if (!mongoose.Types.ObjectId.isValid(customerId) ) {
       return res.status(400).json({ success: false, error: 'Invalid customer ID format' });
     }
 
     const silverLoans = await SilverLoan.find({ customer: customerId })
       .populate('customer', 'name phone email')
       .sort({ createdAt: -1 });
+
+    // Accrue for each
+    for (const loan of silverLoans) {
+      loan.accrueTo(new Date());
+      await loan.save();
+    }
 
     const loansWithSummary = silverLoans.map(loan => ({
       ...loan.toObject(),
@@ -1208,6 +1184,9 @@ export const getPaymentHistory = async (req, res) => {
     if (!silverLoan) {
       return res.status(404).json({ success: false, error: 'Silver loan not found' });
     }
+
+    silverLoan.accrueTo(new Date());
+    await silverLoan.save();
 
     const payments = silverLoan.payments
       .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -1238,7 +1217,8 @@ export const getPaymentHistory = async (req, res) => {
           id: silverLoan._id,
           customerName: silverLoan.customer.name,
           totalLoanAmount: silverLoan.totalLoanAmount,
-          currentLoanAmount: silverLoan.currentLoanAmount,
+          currentPrincipal: silverLoan.currentPrincipal,
+          outstandingAmount: silverLoan.outstandingAmount,
           interestRate: silverLoan.interestRateMonthlyPct,
           status: silverLoan.status
         },
@@ -1252,7 +1232,68 @@ export const getPaymentHistory = async (req, res) => {
   }
 };
 
-// Get interest payments for a specific loan
+// Get all transactions related to a specific silver loan
+export const getLoanTransactions = async (req, res) => {
+  try {
+    const silverLoanId = req.params.id;
+
+    const silverLoan = await SilverLoan.findById(silverLoanId);
+    if (!silverLoan) {
+      return res.status(404).json({ success: false, error: 'Silver loan not found' });
+    }
+
+    const transactions = await Transaction.find({
+      relatedDoc: silverLoanId,
+      relatedModel: 'SilverLoan'
+    }).sort({ date: -1 }).populate('customer', 'name phone');
+
+    res.json({
+      success: true,
+      data: transactions,
+      summary: {
+        totalTransactions: transactions.length,
+        totalIncoming: transactions.reduce((sum, t) => t.direction === -1 ? sum + t.amount : sum, 0),
+        totalOutgoing: transactions.reduce((sum, t) => t.direction === 1 ? sum + t.amount : sum, 0)
+      }
+    });
+  } catch (error) {
+    console.error('Get loan transactions error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Get daily silver loan summary
+export const getDailySilverLoanSummary = async (req, res) => {
+  try {
+    const { date } = req.query;
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    const dailyLoans = await SilverLoan.find({
+      startDate: { $gte: start, $lte: end }
+    }).populate('customer', 'name phone');
+
+    const summary = {
+      totalLoans: dailyLoans.length,
+      totalAmount: dailyLoans.reduce((sum, loan) => sum + loan.totalLoanAmount, 0),
+      totalItems: dailyLoans.reduce((sum, loan) => sum + loan.items.length, 0),
+      totalWeight: dailyLoans.reduce((sum, loan) => sum + loan.items.reduce((wSum, item) => wSum + item.weightGram, 0), 0)
+    };
+
+    res.json({
+      success: true,
+      data: dailyLoans,
+      summary
+    });
+  } catch (error) {
+    console.error('Get daily summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Get interest payments
 export const getInterestPayments = async (req, res) => {
   try {
     const { loanId } = req.params;
@@ -1265,7 +1306,7 @@ export const getInterestPayments = async (req, res) => {
 
     // Filter payments for interest only
     const interestPayments = loan.payments.filter(payment => payment.type === 'INTEREST');
-
+   
     // Sort by date (newest first)
     interestPayments.sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -1277,15 +1318,8 @@ export const getInterestPayments = async (req, res) => {
 
     // Add calculated fields for each payment
     const enhancedPayments = paginatedPayments.map(payment => {
-      const monthlyInterest = loan.currentLoanAmount * loan.interestRateMonthlyPct;
-      const calculatedInterestDue = monthlyInterest;
-      const paymentDifference = (payment.interestAmount || 0) - calculatedInterestDue;
-
       return {
         ...payment.toObject(),
-        calculatedInterestDue,
-        paymentDifference,
-        interestRate: loan.interestRateMonthlyPct,
         receiptNumber: payment._id.toString().slice(-8).toUpperCase()
       };
     });
@@ -1319,7 +1353,7 @@ export const getRepayments = async (req, res) => {
 
     // Filter payments for principal only
     const repayments = loan.payments.filter(payment => payment.type === 'PRINCIPAL');
-
+   
     // Sort by date (newest first)
     repayments.sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -1362,6 +1396,9 @@ export const getLoanPaymentSummary = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Loan not found' });
     }
 
+    loan.accrueTo(new Date());
+    await loan.save();
+
     const interestPayments = loan.payments.filter(p => p.type === 'INTEREST');
     const repayments = loan.payments.filter(p => p.type === 'PRINCIPAL');
 
@@ -1371,24 +1408,21 @@ export const getLoanPaymentSummary = async (req, res) => {
     const totalItemsReturned = repayments.reduce((sum, p) => sum + (p.totalItemsReturned || 0), 0);
     const totalWeightReturned = repayments.reduce((sum, p) => sum + (p.totalWeightReturned || 0), 0);
 
-    // Calculate outstanding interest (simplified calculation)
-    const monthlyRate = loan.interestRateMonthlyPct || 0;
-    const startDate = new Date(loan.startDate);
-    const monthsSinceStart = Math.max(1, Math.ceil((new Date() - startDate) / (1000 * 60 * 60 * 24 * 30)));
-    const totalInterestDue = (loan.totalLoanAmount || 0) * (monthlyRate / 100) * monthsSinceStart;
-    const outstandingInterest = Math.max(0, totalInterestDue - totalInterestPaid);
+    const outstandingInterest = loan.outstandingAmount - loan.currentPrincipal;
 
     const summary = {
       loanDetails: {
         loanId: loan._id,
         customerName: loan.customer?.name,
         totalLoanAmount: loan.totalLoanAmount || 0,
-        currentLoanAmount: loan.currentLoanAmount || 0,
-        interestRateMonthlyPct: monthlyRate,
+        currentPrincipal: loan.currentPrincipal || 0,
+        outstandingAmount: loan.outstandingAmount || 0,
+        interestRateMonthlyPct: loan.interestRateMonthlyPct || 0,
         status: loan.status,
         startDate: loan.startDate,
         totalItems: loan.items?.length || 0,
-        remainingItems: loan.items?.filter(item => !item.returnDate).length || 0
+        remainingItems: loan.items?.filter(item => !item.returnDate).length || 0,
+        outstandingInterest,
       },
       paymentSummary: {
         totalInterestPaid,
@@ -1399,7 +1433,7 @@ export const getLoanPaymentSummary = async (req, res) => {
         totalItemsReturned,
         totalWeightReturned,
         outstandingInterest,
-        remainingPrincipal: loan.currentLoanAmount || 0
+        remainingPrincipal: loan.currentPrincipal || 0
       },
       recentPayments: loan.payments
         .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -1420,291 +1454,8 @@ export const getLoanPaymentSummary = async (req, res) => {
   }
 };
 
-// Process item return
-export const processItemReturnS = async (req, res) => {
-  try {
-    const {
-      selectedItems = [], // Array of item objects with details
-      paymentMethod = 'CASH',
-      repaymentDate,
-      photos = [],
-      notes,
-      recordedBy = 'Admin',
-      processingFee = 0,
-      lateFee = 0,
-      adjustmentAmount = 0,
-      adjustmentReason = ''
-    } = req.body;
-
-    const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
-    if (!silverLoan) {
-      return res.status(404).json({ success: false, error: 'Silver loan not found' });
-    }
-
-    if (silverLoan.status === 'CLOSED') {
-      return res.status(400).json({ success: false, error: 'Cannot process return for closed loan' });
-    }
-
-    // Validate selected items
-    if (!selectedItems || selectedItems.length === 0) {
-      return res.status(400).json({ success: false, error: 'At least one item must be selected for return' });
-    }
-
-    // Validate each selected item
-    const processedItems = [];
-    let totalReturnValue = 0;
-    let totalWeight = 0;
-    let totalAppreciation = 0;
-    const returnDate = new Date(repaymentDate || Date.now());
-
-    for (const itemData of selectedItems) {
-      // Find the original item in the loan
-      const originalItem = silverLoan.items.find(item =>
-        item._id.toString() === itemData.itemId
-      );
-
-      if (!originalItem) {
-        return res.status(400).json({
-          success: false,
-          error: `Original item not found for ID: ${itemData.itemId}`
-        });
-      }
-
-      if (originalItem.returnDate) {
-        return res.status(400).json({
-          success: false,
-          error: `Item "${originalItem.name}" has already been returned`
-        });
-      }
-
-      // Validate item return details
-      if (!itemData.weight || itemData.weight <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: `Valid weight required for item: ${originalItem.name}`
-        });
-      }
-
-      if (!itemData.returnPrice || itemData.returnPrice <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: `Valid return price required for item: ${originalItem.name}`
-        });
-      }
-
-      if (!itemData.currentSilverPrice || itemData.currentSilverPrice <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: `Valid silver price required for item: ${originalItem.name}`
-        });
-      }
-
-      // Calculate current market value
-      const purityFactor = originalItem.purityK / 24;
-      const currentMarketValue = itemData.weight * purityFactor * itemData.currentSilverPrice;
-      const appreciation = currentMarketValue - originalItem.loanAmount;
-
-      // Update the original item with return information
-      originalItem.returnDate = returnDate;
-      originalItem.returnImages = itemData.returnPhotos || [];
-      originalItem.returnValue = currentMarketValue;
-      originalItem.silverPriceAtReturn = parseFloat(itemData.currentSilverPrice);
-      originalItem.returnNotes = itemData.returnNotes || `Returned on ${returnDate.toLocaleDateString('en-IN')}`;
-      originalItem.returnCondition = itemData.condition || 'good';
-      originalItem.returnRecordedBy = recordedBy;
-      originalItem.returnVerified = false;
-
-      // Track totals
-      totalWeight += itemData.weight;
-      totalReturnValue += currentMarketValue;
-      totalAppreciation += appreciation;
-
-      // Store processed item info
-      processedItems.push({
-        itemId: originalItem._id,
-        name: originalItem.name,
-        originalWeightGram: originalItem.weightGram,
-        returnedWeightGram: itemData.weight,
-        purityK: originalItem.purityK,
-        originalLoanAmount: originalItem.loanAmount,
-        returnValue: currentMarketValue,
-        silverPriceAtReturn: parseFloat(itemData.currentSilverPrice),
-        returnPrice: parseFloat(itemData.returnPrice),
-        returnPhotos: itemData.returnPhotos || [],
-        appreciation,
-        appreciationPct: originalItem.loanAmount > 0 ? (appreciation / originalItem.loanAmount) * 100 : 0,
-        returnCondition: itemData.condition || 'good',
-        returnNotes: itemData.returnNotes || '',
-        weightDifference: itemData.weight - originalItem.weightGram,
-        weightDifferencePct: originalItem.weightGram > 0 ? ((itemData.weight - originalItem.weightGram) / originalItem.weightGram) * 100 : 0
-      });
-    }
-
-    // Calculate total repayment amount (sum of return prices)
-    const totalRepaymentAmount = selectedItems.reduce((sum, item) => sum + (item.returnPrice || 0), 0);
-    const processingFeeAmount = parseFloat(processingFee) || 0;
-    const lateFeeAmount = parseFloat(lateFee) || 0;
-    const adjustmentAmountValue = parseFloat(adjustmentAmount) || 0;
-    const netRepaymentAmount = totalRepaymentAmount - processingFeeAmount - lateFeeAmount + adjustmentAmountValue;
-
-    if (netRepaymentAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Net repayment amount must be greater than zero'
-      });
-    }
-
-    const currentLoanAmountBefore = silverLoan.currentLoanAmount;
-    const principalReduced = processedItems.reduce((sum, item) => sum + item.originalLoanAmount, 0);
-    silverLoan.currentLoanAmount = Math.max(0, currentLoanAmountBefore - principalReduced);
-
-    // Update loan status
-    const activeItemsCount = silverLoan.items.filter(item => !item.returnDate).length;
-    const previousStatus = silverLoan.status;
-
-    if (silverLoan.currentLoanAmount <= 0 && activeItemsCount === 0) {
-      silverLoan.status = 'CLOSED';
-      silverLoan.closureDate = returnDate;
-      silverLoan.closureImages = photos;
-      silverLoan.closureReason = 'FULL_PAYMENT';
-    } else if (activeItemsCount < silverLoan.items.length) {
-      silverLoan.status = 'PARTIALLY_PAID';
-    }
-
-    // Create payment record
-    const payment = {
-      date: returnDate,
-      type: 'PRINCIPAL',
-      principalAmount: principalReduced,
-      interestAmount: 0,
-      forMonth: `${returnDate.getFullYear()}-${String(returnDate.getMonth() + 1).padStart(2, '0')}`,
-      forYear: returnDate.getFullYear(),
-      forMonthName: returnDate.toLocaleString('default', { month: 'long' }),
-      photos,
-      notes: notes || `Item return - ${processedItems.length} items returned`,
-      paymentMethod,
-      processingFee: processingFeeAmount,
-      lateFee: lateFeeAmount,
-      adjustmentAmount: adjustmentAmountValue,
-      adjustmentReason,
-      repaymentType: 'ITEM_RETURN',
-      repaymentAmount: totalRepaymentAmount,
-      netRepaymentAmount,
-      itemsReturned: processedItems,
-      totalItemsReturned: processedItems.length,
-      totalWeightReturned: totalWeight,
-      totalMarketValueReturned: totalReturnValue,
-      principalReduced,
-      currentLoanAmountAtPayment: currentLoanAmountBefore,
-      currentLoanAmountAfterPayment: silverLoan.currentLoanAmount,
-      isFullRepayment: silverLoan.status === 'CLOSED',
-      isLoanClosed: silverLoan.status === 'CLOSED',
-      selectedItemIds: selectedItems.map(item => item.itemId),
-      totalAppreciation,
-      averageAppreciationPct: principalReduced > 0 ? (totalAppreciation / principalReduced) * 100 : 0,
-      recordedBy
-    };
-
-    silverLoan.payments.push(payment);
-    silverLoan.lastModifiedBy = recordedBy;
-    silverLoan.lastModifiedDate = new Date();
-
-    await silverLoan.save();
-
-    // Create transaction
-    const transactionType = silverLoan.status === 'CLOSED' ? 'SILVER_LOAN_CLOSURE' : 'SILVER_LOAN_REPAYMENT';
-    const transaction = new Transaction({
-      type: transactionType,
-      customer: silverLoan.customer._id,
-      amount: totalRepaymentAmount,
-      direction: -1,
-      description: silverLoan.status === 'CLOSED'
-        ? `Silver loan closed - ${processedItems.length} items returned by ${silverLoan.customer.name}`
-        : `Silver loan repayment - ${processedItems.length} items returned by ${silverLoan.customer.name}`,
-      relatedDoc: silverLoan._id,
-      relatedModel: 'SilverLoan',
-      category: 'INCOME',
-      metadata: {
-        paymentType: 'PRINCIPAL',
-        repaymentType: 'ITEM_RETURN',
-        itemCount: processedItems.length,
-        totalWeight,
-        totalMarketValue: totalReturnValue,
-        totalAppreciation,
-        totalRepaymentAmount,
-        isLoanClosed: silverLoan.status === 'CLOSED',
-        statusChanged: previousStatus !== silverLoan.status,
-        principalReduced,
-        processingFee: processingFeeAmount,
-        lateFee: lateFeeAmount,
-        adjustmentAmount: adjustmentAmountValue
-      },
-      affectedItems: processedItems.map(item => ({
-        itemId: item.itemId,
-        name: item.name,
-        originalWeightGram: item.originalWeightGram,
-        returnedWeightGram: item.returnedWeightGram,
-        purityK: item.purityK,
-        originalValue: item.originalLoanAmount,
-        returnValue: item.returnValue,
-        silverPriceAtReturn: item.silverPriceAtReturn,
-        appreciation: item.appreciation,
-        action: 'RETURNED'
-      }))
-    });
-
-    await transaction.save();
-
-    const remainingItems = silverLoan.items.filter(item => !item.returnDate);
-    const statusMessage = silverLoan.status === 'CLOSED'
-      ? 'All items returned and loan closed successfully!'
-      : `${processedItems.length} items returned successfully. ${remainingItems.length} items remaining.`;
-
-    res.json({
-      success: true,
-      data: payment,
-      silverLoan,
-      returnSummary: {
-        itemsReturned: processedItems.length,
-        totalOriginalValue: principalReduced,
-        totalCurrentMarketValue: totalReturnValue,
-        totalWeightReturned: totalWeight,
-        totalAppreciation,
-        averageAppreciationPct: payment.averageAppreciationPct,
-        totalRepaymentAmount,
-        netRepaymentAmount,
-        remainingItems: remainingItems.length,
-        remainingLoanAmount: silverLoan.currentLoanAmount,
-        loanStatus: silverLoan.status,
-        isLoanClosed: silverLoan.status === 'CLOSED',
-        returnedItems: processedItems,
-        remainingItemsSummary: remainingItems.map(item => ({
-          id: item._id,
-          name: item.name,
-          weight: item.weightGram,
-          purity: `${item.purityK}K`,
-          loanAmount: item.loanAmount
-        })),
-        fees: {
-          processingFee: processingFeeAmount,
-          lateFee: lateFeeAmount,
-          adjustmentAmount: adjustmentAmountValue,
-          adjustmentReason
-        }
-      },
-      message: statusMessage
-    });
-  } catch (error) {
-    console.error('Item return processing error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to process item return'
-    });
-  }
-};
-
 // Get active items for return
-export const getActiveItemsForReturnS = async (req, res) => {
+export const getActiveItemsForReturn = async (req, res) => {
   try {
     const silverLoan = await SilverLoan.findById(req.params.id).populate('customer');
     if (!silverLoan) {
@@ -1712,14 +1463,13 @@ export const getActiveItemsForReturnS = async (req, res) => {
     }
 
     const activeItems = silverLoan.items.filter(item => !item.returnDate);
-
+    
     res.json({
       success: true,
       data: {
         activeItems,
         totalActiveItems: activeItems.length,
-        totalActiveWeight: activeItems.reduce((sum, item) => sum + (item.weightGram || 0), 0),
-        totalLoanValue: activeItems.reduce((sum, item) => sum + (item.loanAmount || 0), 0)
+        totalActiveWeight: activeItems.reduce((sum, item) => sum + (item.weightGram || 0), 0)
       }
     });
   } catch (error) {

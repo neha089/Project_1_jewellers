@@ -6,9 +6,8 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
     const newItem = {
       id: Date.now(),
       name: "",
-      weightGram: "",
-      amount: "",
-      purity: "99.9",
+      weight: "",
+      purityPercentage: "22",
       images: [],
     };
     onItemsChange([...items, newItem]);
@@ -23,12 +22,15 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
       if (item.id === itemId) {
         const updatedItem = { ...item, [field]: value };
         
-        if ((field === "weightGram" || field === "purity") && currentSilverPrice) {
-          const weight = parseFloat(field === "weightGram" ? value : item.weightGram) || 0;
-          const purity = parseFloat(field === "purity" ? value : item.purity) || 99.9;
+        // Auto-calculate amount based on weight, purityPercentage, and current silver price
+        if ((field === "weight" || field === "purityPercentage") && currentSilverPrice) {
+          const weight = parseFloat(field === "weight" ? value : item.weight) || 0;
+          const purityPercentage = parseFloat(field === "purityPercentage" ? value : item.purityPercentage) || 22;
           
           if (weight > 0) {
-            const marketValue = weight * (purity / 100) * currentSilverPrice.pricePerGram;
+            // Calculate market value: weight * purityPercentage ratio * current price
+            const marketValue = weight * (purityPercentage / 24) * currentSilverPrice.pricePerGram;
+            // Loan amount is typically 70-80% of market value
             const loanAmount = marketValue * 0.75;
             updatedItem.amount = loanAmount.toFixed(2);
           }
@@ -43,22 +45,7 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
 
   const handleItemImageUpload = (itemId, e) => {
     const files = Array.from(e.target.files);
-    const maxSize = 5 * 1024 * 1024;
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    
-    const validFiles = files.filter(file => {
-      if (file.size > maxSize) {
-        alert(`File ${file.name} is too large. Maximum size is 5MB.`);
-        return false;
-      }
-      if (!allowedTypes.includes(file.type)) {
-        alert(`File ${file.name} has invalid type. Only JPEG, PNG, and WebP are allowed.`);
-        return false;
-      }
-      return true;
-    });
-
-    validFiles.forEach((file) => {
+    files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const updatedItems = items.map((item) =>
@@ -71,17 +58,12 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
                     id: Date.now() + Math.random(),
                     name: file.name,
                     dataUrl: e.target.result,
-                    size: file.size,
-                    type: file.type
                   },
-                ].slice(0, 5),
+                ],
               }
             : item
         );
         onItemsChange(updatedItems);
-      };
-      reader.onerror = () => {
-        alert(`Failed to read file ${file.name}`);
       };
       reader.readAsDataURL(file);
     });
@@ -119,19 +101,19 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
       </div>
 
       {currentSilverPrice && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-blue-800 text-sm">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-yellow-800 text-sm">
             <span className="font-medium">Current Silver Price:</span>
-            <span>₹{currentSilverPrice.pricePerGram.toFixed(2)}/gram (99.9%)</span>
-            <span className="text-xs text-blue-600">
-              Last updated: {new Date(currentSilverPrice.lastUpdated).toLocaleString('en-IN')}
+            <span>₹{currentSilverPrice.pricePerGram.toFixed(2)}/gram (24K)</span>
+            <span className="text-xs text-yellow-600">
+              Last updated: {new Date(currentSilverPrice.lastUpdated).toLocaleString()}
             </span>
           </div>
         </div>
       )}
 
       {items.map((item, index) => (
-        <div key={item.id} className="border border-blue-200 rounded-lg p-4 space-y-4">
+        <div key={item.id} className="border border-gray-200 rounded-lg p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h5 className="font-medium text-gray-800">Item {index + 1}</h5>
             {items.length > 1 && (
@@ -156,16 +138,13 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
                 value={item.name}
                 onChange={(e) => updateItem(item.id, "name", e.target.value)}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors[`item_${index}_name`] ? "border-red-300 bg-red-50" : "border-blue-300 hover:border-blue-400"
+                  errors[`item_${index}_name`] ? "border-red-300" : "border-gray-300"
                 }`}
-                placeholder="e.g., Silver Coin, Chain, Bar"
+                placeholder="e.g., Silver Chain, Ring, etc."
                 disabled={loading}
               />
               {errors[`item_${index}_name`] && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertTriangle size={10} />
-                  {errors[`item_${index}_name`]}
-                </p>
+                <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_name`]}</p>
               )}
             </div>
 
@@ -176,110 +155,76 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
               <input
                 type="number"
                 step="0.1"
-                value={item.weightGram}
-                onChange={(e) => updateItem(item.id, "weightGram", e.target.value)}
+                value={item.weight}
+                onChange={(e) => updateItem(item.id, "weight", e.target.value)}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors[`item_${index}_weightGram`] ? "border-red-300 bg-red-50" : "border-blue-300 hover:border-blue-400"
+                  errors[`item_${index}_weight`] ? "border-red-300" : "border-gray-300"
                 }`}
                 placeholder="0.0"
                 disabled={loading}
               />
-              {errors[`item_${index}_weightGram`] && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertTriangle size={10} />
-                  {errors[`item_${index}_weightGram`]}
-                </p>
+              {errors[`item_${index}_weight`] && (
+                <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_weight`]}</p>
               )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Purity (%)
+                PurityPercentage (K)
               </label>
-              <input
-                type="number"
-                step="0.1"
-                min="90"
-                max="99.9"
-                value={item.purity}
-                onChange={(e) => updateItem(item.id, "purity", e.target.value)}
-                className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-400"
-                placeholder="99.9"
+              <select
+                value={item.purityPercentage}
+                onChange={(e) => updateItem(item.id, "purityPercentage", e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
-              />
+              >
+                <option value="24">800</option>
+                <option value="22">999</option>
+                <option value="18">925</option>
+                <option value="14">900</option>
+              </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Loan Amount (₹) *
-                {currentSilverPrice && (
-                  <span className="text-xs text-blue-600 block">Auto-calculated</span>
-                )}
-              </label>
-              <input
-                type="number"
-                value={item.amount}
-                onChange={(e) => updateItem(item.id, "amount", e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors[`item_${index}_amount`] ? "border-red-300 bg-red-50" : "border-blue-300 hover:border-blue-400"
-                } ${currentSilverPrice ? "bg-blue-50" : ""}`}
-                placeholder="0"
-                disabled={loading}
-              />
-              {errors[`item_${index}_amount`] && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertTriangle size={10} />
-                  {errors[`item_${index}_amount`]}
-                </p>
-              )}
-              {currentSilverPrice && item.weightGram && item.purity && (
-                <p className="text-xs text-blue-600 mt-1">
-                  Market value: ₹{(parseFloat(item.weightGram || 0) * (parseFloat(item.purity || 99.9) / 100) * currentSilverPrice.pricePerGram).toFixed(2)}
-                </p>
-              )}
-            </div>
+           
           </div>
 
           {/* Item Images */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Item Photos (Optional - Max 5 photos, 5MB each)
+              Item Photos
             </label>
-            <div className="border-2 border-dashed border-blue-300 rounded-lg p-3 hover:border-blue-400">
-              <label className="cursor-pointer bg-blue-100 text-blue-700 px-3 py-1 rounded text-sm hover:bg-blue-200 transition-colors flex items-center gap-2 w-fit">
-                <Upload size={14} />
-                Add Photos ({item.images.length}/5)
+            <div className="border border-dashed border-gray-300 rounded-lg p-3">
+              <label className="cursor-pointer bg-gray-100 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-200 transition-colors">
+                <Upload size={14} className="inline mr-1" />
+                Add Photos
                 <input
                   type="file"
                   multiple
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  accept="image/*"
                   onChange={(e) => handleItemImageUpload(item.id, e)}
                   className="hidden"
-                  disabled={loading || item.images.length >= 5}
+                  disabled={loading}
                 />
               </label>
             </div>
 
             {item?.images?.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-2">
+              <div className="grid grid-cols-4 gap-2 mt-2">
                 {item.images.map((image) => (
                   <div key={image.id} className="relative group">
                     <img
                       src={image.dataUrl}
                       alt={image.name}
-                      className="w-full h-16 object-cover rounded border border-blue-200"
+                      className="w-full h-16 object-cover rounded border"
                     />
                     <button
                       type="button"
                       onClick={() => removeItemImage(item.id, image.id)}
-                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       disabled={loading}
                     >
                       <X size={10} />
                     </button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity truncate">
-                      {image.name}
-                    </div>
                   </div>
                 ))}
               </div>
@@ -289,28 +234,9 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
       ))}
 
       {errors.items && (
-        <div className="bg-red-50 border border-red-200 rounded p-3">
-          <p className="text-red-700 text-sm flex items-center gap-1">
-            <AlertTriangle size={14} />
-            {errors.items}
-          </p>
-        </div>
+        <p className="text-red-500 text-sm">{errors.items}</p>
       )}
 
-      {/* Total Amount Display */}
-      <div className="bg-blue-50 rounded-lg p-4">
-        <div className="flex justify-between items-center">
-          <span className="font-medium text-gray-700">Total Loan Amount:</span>
-          <span className="text-xl font-bold text-blue-600">
-            ₹{calculateTotalAmount().toFixed(2)}
-          </span>
-        </div>
-        {currentSilverPrice && (
-          <div className="text-xs text-blue-600 mt-1">
-            Based on current silver price: ₹{currentSilverPrice.pricePerGram.toFixed(2)}/gram (99.9%)
-          </div>
-        )}
-      </div>
     </div>
   );
 };

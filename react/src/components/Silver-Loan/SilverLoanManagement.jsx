@@ -6,8 +6,8 @@ import AddSilverLoanModal from "./AddSilverLoanModal.jsx";
 import SilverLoanTableRow from "./SilverLoanTableRow";
 import NotificationBell from "../Gold-Loan/NotificationBell";
 import PaymentReminderModal from "../Gold-Loan/PaymentReminderModal";
-import SilverInterestPaymentModal from "./SilverInterestPaymentModal";
-import SilverItemRepaymentModal from "./SilverItemRepaymentModal.jsx";
+import InterestPaymentModal from "./SilverInterestPaymentModal";
+import ItemRepaymentModal from "./SilverItemRepaymentModal.jsx";
 import { useNotifications } from "../useNotifications";
 import ApiService from "../../services/api";
 import {
@@ -57,52 +57,28 @@ const SilverLoanManagement = () => {
   const [silverTypeFilter, setSilverTypeFilter] = useState('all');
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(silverLoans);
 
-  // Calculate due date based on start date and interest rate (assuming monthly payments)
   const calculateDueDate = (loan) => {
     if (!loan.startDate) return null;
     const startDate = new Date(loan.startDate);
     const dueDate = new Date(startDate);
-    dueDate.setMonth(dueDate.getMonth() + 1); // Add 1 month for monthly payment
+    dueDate.setMonth(dueDate.getMonth() + 1);
     return dueDate;
   };
 
-  // Load silver loans data
   const loadSilverLoans = async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await ApiService.getAllSilverLoans({
         page: 1,
-        limit: 100, // Adjust as needed
+        limit: 100,
         status: statusFilter !== 'all' ? statusFilter : undefined
       });
-      console.log('API Response:', response);
-
       if (response.success) {
-        console.log('Raw loan data:', response.data);
-        if (response.data.length > 0) {
-          console.log('First loan structure:', response.data[0]);
-          console.log('First loan totalLoanAmount:', response.data[0].totalLoanAmount);
-          console.log('First loan currentLoanAmount:', response.data[0].currentLoanAmount);
-        }
-        // Add calculated due dates to loans
-        const loansWithDueDates = response.data.map(loan => {
-          const loanWithDueDate = {
-            ...loan,
-            dueDate: calculateDueDate(loan)
-          };
-         
-          // Debug: Log each processed loan
-          console.log('Processed loan:', {
-            id: loanWithDueDate._id,
-            totalLoanAmount: loanWithDueDate.totalLoanAmount,
-            currentLoanAmount: loanWithDueDate.currentLoanAmount,
-            dueDate: loanWithDueDate.dueDate
-          });
-         
-          return loanWithDueDate;
-        });
-
+        const loansWithDueDates = response.data.map(loan => ({
+          ...loan,
+          dueDate: calculateDueDate(loan)
+        }));
         setSilverLoans(loansWithDueDates);
         calculateStats(loansWithDueDates);
       } else {
@@ -116,9 +92,7 @@ const SilverLoanManagement = () => {
     }
   };
 
-  // Calculate dashboard statistics
   const calculateStats = (loans) => {
-    console.log('Calculating stats for loans:', loans);
     const newStats = {
       total: loans.length,
       active: loans.filter(loan => loan.status === 'ACTIVE').length,
@@ -130,25 +104,14 @@ const SilverLoanManagement = () => {
       }).length,
       completed: loans.filter(loan => loan.status === 'COMPLETED').length,
       closed: loans.filter(loan => loan.status === 'CLOSED').length,
-      // Use the correct field names from your data structure
-      totalAmount: loans.reduce((sum, loan) => {
-        const amount = loan.totalLoanAmount || 0;
-        console.log(`Loan ${loan._id}: totalLoanAmount = ${amount}`);
-        return sum + amount;
-      }, 0),
-      totalOutstanding: loans.reduce((sum, loan) => {
-        const outstanding = loan.currentLoanAmount || loan.totalLoanAmount || 0;
-        console.log(`Loan ${loan._id}: outstanding = ${outstanding}`);
-        return sum + outstanding;
-      }, 0),
+      totalAmount: loans.reduce((sum, loan) => sum + (loan.totalLoanAmount || 0), 0),
+      totalOutstanding: loans.reduce((sum, loan) => sum + (loan.outstandingAmount || loan.currentPrincipal || 0), 0),
       totalWeight: loans.reduce((sum, loan) => {
         const weight = loan.items?.reduce((itemSum, item) => itemSum + (item.weightGram || 0), 0) || 0;
         return sum + weight;
       }, 0)
     };
 
-    console.log('Calculated stats:', newStats);
-    // Calculate due dates
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -170,11 +133,9 @@ const SilverLoanManagement = () => {
     setStats(newStats);
   };
 
-  // Filter and sort loans
   useEffect(() => {
     let filtered = [...silverLoans];
 
-    // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(loan =>
@@ -187,19 +148,16 @@ const SilverLoanManagement = () => {
       );
     }
 
-    // Apply silver type filter
     if (silverTypeFilter !== 'all') {
       filtered = filtered.filter(loan =>
         loan.items?.some(item => String(item.purityK) === silverTypeFilter)
       );
     }
 
-    // Apply status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(loan => loan.status === statusFilter);
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'createdAt':
@@ -207,9 +165,7 @@ const SilverLoanManagement = () => {
         case 'customer':
           return (a.customer?.name || '').localeCompare(b.customer?.name || '');
         case 'loanAmount':
-          const amountA = a.totalLoanAmount || 0;
-          const amountB = b.totalLoanAmount || 0;
-          return amountB - amountA;
+          return (b.totalLoanAmount || 0) - (a.totalLoanAmount || 0);
         case 'dueDate':
           return new Date(a.dueDate) - new Date(b.dueDate);
         default:
@@ -220,70 +176,60 @@ const SilverLoanManagement = () => {
     setFilteredLoans(filtered);
   }, [silverLoans, searchTerm, statusFilter, silverTypeFilter, sortBy]);
 
-  // Load data on component mount and when filters change
   useEffect(() => {
     loadSilverLoans();
   }, []);
 
-  // Handle form submissions and actions
   const handleAddLoan = async (formData) => {
     try {
       const response = await ApiService.createSilverLoan(formData);
       if (response.success) {
-        await loadSilverLoans(); // Refresh the list
+        await loadSilverLoans();
       }
     } catch (error) {
       alert('Error creating silver loan: ' + error.message);
-      throw error; // Re-throw to let modal catch it
+      throw error;
     }
   };
-  
 
   const handleEdit = (loan) => {
-    // For now, just show an alert. You can implement edit modal later
     alert(`Edit functionality for ${loan._id} will be implemented`);
   };
 
   const handleView = (loan) => {
-    // This is handled by the modal in SilverLoanCard
     console.log('Viewing loan:', loan._id);
   };
 
   const handlePayment = async (loan) => {
     if (loan.type === 'INTEREST') {
-      // Open interest payment modal
       setSelectedLoan(loan);
       setShowInterestPaymentModal(true);
     } else if (loan.type === 'REPAYMENT') {
-      // Open item repayment modal
       setSelectedLoan(loan);
       setShowItemRepaymentModal(true);
     }
-     window.location.reload();
+    window.location.reload();
   };
 
-const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-const handleInterestPaymentSuccess = async (result) => {
-  console.log('Interest payment successful:', result);
-  
-  try {
-    setRefreshing(true);
-    await loadSilverLoans();
-    alert(`Interest payment recorded successfully! Receipt: ${result.data?.receiptNumber || 'Generated'}`);
-  } catch (error) {
-    console.error('Error refreshing loan data:', error);
-    alert(`Interest payment recorded successfully, but failed to refresh data. Please refresh manually.`);
-  } finally {
-    setRefreshing(false);
-  }
-};
+  const handleInterestPaymentSuccess = async (result) => {
+    console.log('Interest payment successful:', result);
+    try {
+      setRefreshing(true);
+      await loadSilverLoans();
+      alert(`Interest payment recorded successfully! Receipt: ${result.data?.receiptNumber || 'Generated'}`);
+    } catch (error) {
+      console.error('Error refreshing loan data:', error);
+      alert(`Interest payment recorded successfully, but failed to refresh data. Please refresh manually.`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleItemRepaymentSuccess = async (result) => {
     console.log('Item repayment successful:', result);
-    // Refresh the loan data
     await loadSilverLoans();
-    // Show success notification
     alert(`Repayment processed successfully! Receipt: ${result.data?.receiptNumber || 'Generated'}`);
   };
 
@@ -295,35 +241,27 @@ const handleInterestPaymentSuccess = async (result) => {
   const handleReminderAction = (actionData) => {
     console.log('Reminder sent:', actionData);
     setShowReminderModal(false);
-    // Implement reminder sending logic here
   };
 
   const handleExport = () => {
-    // Enhanced CSV export
     const csvContent = [
       [
         'Loan ID', 'Customer', 'Phone', 'Items Count', 'Weight (g)',
         'Loan Amount', 'Outstanding', 'Interest Rate', 'Start Date', 'Due Date', 'Status'
       ],
-      ...filteredLoans.map(loan => {
-        const loanAmount = loan.totalLoanAmount || 0;
-        const outstanding = loan.currentLoanAmount || 0;
-        const totalWeight = loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0;
-       
-        return [
-          loan._id,
-          loan.customer?.name || 'Unknown',
-          loan.customer?.phone || 'N/A',
-          loan.items?.length || 0,
-          totalWeight,
-          loanAmount,
-          outstanding,
-          loan.interestRateMonthlyPct || 0,
-          loan.startDate ? new Date(loan.startDate).toLocaleDateString() : '',
-          loan.dueDate ? new Date(loan.dueDate).toLocaleDateString() : '',
-          loan.status
-        ];
-      })
+      ...filteredLoans.map(loan => [
+        loan._id,
+        loan.customer?.name || 'Unknown',
+        loan.customer?.phone || 'N/A',
+        loan.items?.length || 0,
+        loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0,
+        loan.totalLoanAmount || 0,
+        loan.outstandingAmount || 0,
+        loan.interestRateMonthlyPct || 0,
+        loan.startDate ? new Date(loan.startDate).toLocaleDateString() : '',
+        loan.dueDate ? new Date(loan.dueDate).toLocaleDateString() : '',
+        loan.status
+      ])
     ].map(row => row.join(',')).join('\n');
    
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -335,7 +273,6 @@ const handleInterestPaymentSuccess = async (result) => {
     window.URL.revokeObjectURL(url);
   };
 
-  // Simplified format function for actual amounts (not in paise)
   const formatCurrency = (amount) => `₹${amount?.toLocaleString() || '0'}`;
 
   if (error) {
@@ -362,7 +299,6 @@ const handleInterestPaymentSuccess = async (result) => {
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Silver Loan Management</h1>
@@ -394,7 +330,6 @@ const handleInterestPaymentSuccess = async (result) => {
           </div>
         </div>
 
-        {/* Tab Navigation */}
         <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
           <button
             onClick={() => setActiveTab('loans')}
@@ -425,7 +360,6 @@ const handleInterestPaymentSuccess = async (result) => {
           </button>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <StatsCard
             title="Total Loans"
@@ -477,10 +411,9 @@ const handleInterestPaymentSuccess = async (result) => {
           />
         </div>
 
-        {/* Main Content Area */}
         {activeTab === 'loans' && (
           <>
-<SilverLoanSearchFilterBar
+            <SilverLoanSearchFilterBar
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               statusFilter={statusFilter}
@@ -678,56 +611,50 @@ const handleInterestPaymentSuccess = async (result) => {
             </div>
           </div>
         )}
+
+        {showAddModal && (
+          <AddSilverLoanModal
+            isOpen={showAddModal}
+            onClose={() => setShowAddModal(false)}
+            onSave={handleAddLoan}
+          />
+        )}
+
+        {showReminderModal && selectedLoan && (
+          <PaymentReminderModal
+            isOpen={showReminderModal}
+            onClose={() => setShowReminderModal(false)}
+            loan={selectedLoan}
+            onAction={handleReminderAction}
+          />
+        )}
+
+        {showInterestPaymentModal && selectedLoan && (
+          <InterestPaymentModal
+            isOpen={showInterestPaymentModal}
+            onClose={() => {
+              setShowInterestPaymentModal(false);
+              setSelectedLoan(null);
+            }}
+            loan={selectedLoan}
+            onPaymentSuccess={handleInterestPaymentSuccess}
+          />
+        )}
+
+        {showItemRepaymentModal && selectedLoan && (
+          <ItemRepaymentModal
+            isOpen={showItemRepaymentModal}
+            onClose={() => {
+              setShowItemRepaymentModal(false);
+              setSelectedLoan(null);
+            }}
+            loan={selectedLoan}
+            onRepaymentSuccess={handleItemRepaymentSuccess}
+          />
+        )}
       </div>
-
-      {/* Modals */}
-      {showAddModal && (
-        <AddSilverLoanModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          onSave={handleAddLoan}
-        />
-      )}
-
-      {showReminderModal && selectedLoan && (
-        <PaymentReminderModal
-          isOpen={showReminderModal}
-          onClose={() => setShowReminderModal(false)}
-          loan={selectedLoan}
-          onAction={handleReminderAction}
-        />
-      )}
-
-      {/* Interest Payment Modal */}
-      {showInterestPaymentModal && selectedLoan && (
-        <SilverInterestPaymentModal
-          isOpen={showInterestPaymentModal}
-          onClose={() => {
-            setShowInterestPaymentModal(false);
-            setSelectedLoan(null);
-          }}
-          loan={selectedLoan}
-          onPaymentSuccess={handleInterestPaymentSuccess}
-        />
-      )}
-
-      {/* Item Repayment Modal */}
-      {showItemRepaymentModal && selectedLoan && (
-        <SilverItemRepaymentModal
-          isOpen={showItemRepaymentModal}
-          onClose={() => {
-            setShowItemRepaymentModal(false);
-            setSelectedLoan(null);
-          }}
-          loan={selectedLoan}
-          onRepaymentSuccess={handleItemRepaymentSuccess}
-        />
-      )}
     </div>
   );
 };
 
 export default SilverLoanManagement;
-
-
-// export default InterestPaymentModal;

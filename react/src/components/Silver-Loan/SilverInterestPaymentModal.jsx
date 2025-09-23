@@ -1,8 +1,9 @@
+// InterestPaymentModal.jsx - UPDATED FOR MANUAL INTEREST INPUT, NO PRE-CALCULATION
 import React, { useState, useEffect } from 'react';
 import { X, Percent, AlertCircle, Loader2 } from 'lucide-react';
 import ApiService from '../../services/api.js';
 
-const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
+const InterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess }) => {
   const [interestAmount, setInterestAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
@@ -43,16 +44,6 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const getMonthlyInterest = () => {
-    const outstanding = loan?.currentLoanAmount || loan.totalLoanAmount || 0;
-    const interestRate = loan?.interestRateMonthlyPct || 0;
-    return (outstanding * interestRate);
-  };
-
-  const getPendingInterestAmount = () => {
-    return getMonthlyInterest();
-  };
-
   const handleInterestPayment = async (e) => {
     e.preventDefault();
 
@@ -63,13 +54,6 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
 
     if (!interestAmount || parseFloat(interestAmount) <= 0) {
       setError('Please enter a valid interest amount');
-      return;
-    }
-
-    const expectedInterest = getPendingInterestAmount() + 0.1;
-    if (interestAmount > expectedInterest) {
-      console.log(expectedInterest, interestAmount);
-      setError(`Interest payment cannot exceed expected amount of ${formatCurrency(expectedInterest)}`);
       return;
     }
 
@@ -91,7 +75,7 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
         recordedBy: 'Admin' // Or get from auth
       };
 
-      const response = await ApiService.addInterestPaymentS(loan._id, interestData);
+      const response = await ApiService.addInterestPayment(loan._id, interestData);
 
       if (response.success) {
         onPaymentSuccess?.(response);
@@ -106,20 +90,12 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
     }
   };
 
-  const handleQuickAmount = (percentage) => {
-    const expectedInterest = getPendingInterestAmount();
-    const amount = (expectedInterest * percentage / 100).toFixed(2);
-    setInterestAmount(amount);
-  };
-
   if (!isOpen || !loan || !loan._id) {
     return null;
   }
 
   const customer = loan.customer || {};
-  const monthlyInterest = getMonthlyInterest();
-  const pendingInterest = getPendingInterestAmount();
-  const outstandingAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
+  const outstandingAmount = loan.outstandingAmount || loan.currentPrincipal || 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -146,19 +122,15 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
 
         <div className="p-6 space-y-6">
           <div className="bg-slate-50 p-4 rounded-xl">
-            <h3 className="font-semibold text-slate-900 mb-3">Interest Summary</h3>
+            <h3 className="font-semibold text-slate-900 mb-3">Loan Summary</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-slate-600">Outstanding Principal</p>
+                <p className="text-sm text-slate-600">Outstanding Amount</p>
                 <p className="font-bold text-slate-900">{formatCurrency(outstandingAmount)}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-600">Interest Rate</p>
                 <p className="font-bold text-slate-900">{loan.interestRateMonthlyPct}% monthly</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-600">Current Month Interest</p>
-                <p className="font-bold text-purple-600">{formatCurrency(monthlyInterest)}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-600">Next Due Date</p>
@@ -167,10 +139,10 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
                 </p>
               </div>
             </div>
-            {loan.note && (
+            {loan.notes && (
               <div className="mt-3">
                 <p className="text-sm text-slate-600">Loan Note</p>
-                <p className="text-slate-900">{loan.note}</p>
+                <p className="text-slate-900">{loan.notes}</p>
               </div>
             )}
           </div>
@@ -188,52 +160,14 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
                 value={interestAmount}
                 onChange={(e) => setInterestAmount(e.target.value)}
                 placeholder="0.00"
-                max={pendingInterest}
               />
             </div>
-
-            {pendingInterest > 0 && (
-              <div className="flex gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => handleQuickAmount(25)}
-                  className="px-3 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                >
-                  25%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickAmount(50)}
-                  className="px-3 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                >
-                  50%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickAmount(75)}
-                  className="px-3 py-1 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                >
-                  75%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickAmount(100)}
-                  className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
-                >
-                  Current Month ({formatCurrency(monthlyInterest)})
-                </button>
-              </div>
-            )}
 
             {interestAmount && (
               <div className="mt-2 p-3 bg-purple-50 rounded-lg">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600">Interest Payment:</span>
                   <span className="font-medium text-slate-900">{formatCurrency(parseFloat(interestAmount))}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">Monthly Interest Due:</span>
-                  <span className="font-medium text-purple-600">{formatCurrency(monthlyInterest)}</span>
                 </div>
               </div>
             )}
@@ -379,4 +313,4 @@ const SilverInterestPaymentModal = ({ isOpen, loan, onClose, onPaymentSuccess })
   );
 };
 
-export default SilverInterestPaymentModal;
+export default InterestPaymentModal;

@@ -6,7 +6,8 @@ import ApiService from '../../services/api';
 
 const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
-    interestRate: '2.0',
+    totalLoanAmount: '',
+    interestRate: '2.5',
     branch: 'Main Branch',
     notes: '',
     date: new Date().toISOString().split('T')[0]
@@ -15,48 +16,22 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
   const [items, setItems] = useState([{
     id: Date.now(),
     name: '',
-    weightGram: '',
-    amount: '',
-    purity: '925',
-    silverPriceAtDeposit: '',
+    weight: '',
+     purityK: '925',
     images: []
   }]);
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedBranch, setSelectedBranch] = useState('Main Branch');
   const [searchTerm, setSearchTerm] = useState('');
   const [errors, setErrors] = useState({});
-  const [currentSilverPrice, setCurrentSilverPrice] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // ADDED: Prevent double submission
 
   const branches = [
     'Main Branch', 'North Branch', 'South Branch',
     'East Branch', 'West Branch'
   ];
-
-  // Fetch current silver price
-  useEffect(() => {
-    const fetchSilverPrice = async () => {
-      try {
-        const result = await ApiService.getCurrentSilverPrice();
-        if (result.success && result.data) {
-          setCurrentSilverPrice(result.data);
-        } else {
-          setCurrentSilverPrice({
-            pricePerGram: 85,
-            lastUpdated: new Date().toISOString()
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch silver price:', error);
-        setCurrentSilverPrice({
-          pricePerGram: 85,
-          lastUpdated: new Date().toISOString()
-        });
-      }
-    };
-    fetchSilverPrice();
-  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -81,6 +56,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
 
   const handleItemsChange = (updatedItems) => {
     setItems(updatedItems);
+    // Clear item-related errors when items change
     const newErrors = { ...errors };
     Object.keys(newErrors).forEach(key => {
       if (key.startsWith('item_')) {
@@ -93,28 +69,24 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
   const validateForm = () => {
     const newErrors = {};
 
+    // Customer validation
     if (!selectedCustomer) {
       newErrors.customer = 'Please select a customer';
     }
 
+    // Items validation
     if (items.length === 0) {
-      newErrors.items = 'At least one silver item is required';
+      newErrors.items = 'At least one Silver item is required';
     } else {
       items.forEach((item, index) => {
         if (!item.name.trim()) {
           newErrors[`item_${index}_name`] = 'Item name is required';
         }
-        if (!item.weightGram || parseFloat(item.weightGram) <= 0) {
-          newErrors[`item_${index}_weightGram`] = 'Valid weightGram is required';
+        if (!item.weight || parseFloat(item.weight) <= 0) {
+          newErrors[`item_${index}_weight`] = 'Valid weight is required';
         }
-        if (!item.amount || parseFloat(item.amount) <= 0) {
-          newErrors[`item_${index}_amount`] = 'Valid loan amount is required';
-        }
-        if (!item.purity || parseInt(item.purity) <= 0) {
-          newErrors[`item_${index}_purity`] = 'Valid purity is required';
-        }
-        if (!item.silverPriceAtDeposit || parseFloat(item.silverPrice) <= 0) {
-          newErrors[`item_${index}_silverPrice`] = 'Silver price at deposit is required';
+        if (!item. purityK || parseInt(item. purityK) <= 0) {
+          newErrors[`item_${index}_purity`] = 'Valid  purityK is required';
         }
         if (item.images.length === 0) {
           newErrors[`item_${index}_images`] = 'At least one photo is required';
@@ -122,6 +94,10 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
       });
     }
 
+    // Form data validation
+    if (!formData.totalLoanAmount || parseFloat(formData.totalLoanAmount) <= 0) {
+      newErrors.totalLoanAmount = 'Valid loan amount is required';
+    }
     if (!formData.interestRate || parseFloat(formData.interestRate) <= 0) {
       newErrors.interestRate = 'Valid interest rate is required';
     }
@@ -138,53 +114,60 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
     e.preventDefault();
     console.log("Submit button clicked");
     
+    // FIXED: Prevent double submission
     if (isSubmitting) {
       console.log("Already submitting, ignoring duplicate click");
       return;
     }
    
-    setIsSubmitting(true);
+    // if (!validateForm()) {
+    //   console.log("Validation failed:", errors);
+    //   return;
+    // }
+
+    setIsSubmitting(true); // FIXED: Set submitting state
     setLoading(true);
     
     try {
+      // Prepare the payload to match backend expectations exactly
       const loanData = {
-        customer: selectedCustomer._id,
+        customer: selectedCustomer._id, // Backend expects 'customer' field with customer ID
+        totalLoanAmount: parseFloat(formData.totalLoanAmount),
         items: items.map(item => ({
           name: item.name,
-          weightGram: parseFloat(item.weightGram),
-          loanAmount: parseFloat(item.amount),
-          purityK: parseInt(item.purity),
-          silverPriceAtDeposit: parseFloat(item.silverPriceAtDeposit),
-          images: item.images.map(img => img.dataUrl || img)
+          weightGram: parseFloat(item.weight), // Backend expects 'weightGram'
+           purityK: parseInt(item. purityK), // Backend expects ' purityK'
+          images: item.images.map(img => img.dataUrl || img) // Handle both objects and strings
         })),
-        interestRateMonthlyPct: parseFloat(formData.interestRate),
-        startDate: formData.date,
-        notes: formData.notes || ''
+        interestRateMonthlyPct: parseFloat(formData.interestRate), // Backend expects 'interestRateMonthlyPct'
+        startDate: formData.date, // Backend expects 'startDate'
+        notes: formData.notes || '' // Optional notes
       };
 
       console.log("Sending loan data to onSave:", loanData);
      
-      await onSave(loanData);
+      await onSave(loanData); // Call parent handler for API and refresh
       
-      const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
-      const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weightGram), 0);
+      // Calculate totals for UI feedback
+      const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
      
       handleReset();
       
       onClose();
       
     } catch (error) {
-      console.error('Error creating silver loan:', error);
-      setErrors({ submit: `Failed to create silver loan: ${error.message}` });
+      console.error('Error creating Silver loan:', error);
+      setErrors({ submit: `Failed to create Silver loan: ${error.message}` });
     } finally {
       setLoading(false);
-      setIsSubmitting(false);
+      setIsSubmitting(false); // FIXED: Reset submitting state
     }
   };
 
   const handleReset = () => {
     setFormData({
-      interestRate: '2.0',
+      totalLoanAmount: '',
+      interestRate: '2.5',
       branch: 'Main Branch',
       notes: '',
       date: new Date().toISOString().split('T')[0]
@@ -192,10 +175,8 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
     setItems([{
       id: Date.now(),
       name: '',
-      weightGram: '',
-      amount: '',
-      purity: '925',
-      silverPriceAtDeposit: currentSilverPrice?.pricePerGram?.toString() || '',
+      weight: '',
+       purityK: '925',
       images: []
     }]);
     setSelectedCustomer(null);
@@ -203,29 +184,20 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
     setErrors({});
   };
 
+  // FIXED: Prevent modal close during submission
   const handleClose = () => {
     if (isSubmitting) {
-      return;
+      return; // Don't allow closing during submission
     }
     onClose();
   };
-
-  useEffect(() => {
-    if (currentSilverPrice && items.length > 0) {
-      setItems(prevItems =>
-        prevItems.map(item => ({
-          ...item,
-          silverPriceAtDeposit: item.silverPriceAtDeposit || currentSilverPrice.pricePerGram.toString()
-        }))
-      );
-    }
-  }, [currentSilverPrice]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg flex items-center justify-center text-white">
@@ -233,24 +205,21 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">Create New Silver Loan</h2>
-              {currentSilverPrice && (
-                <p className="text-sm text-gray-600">
-                  Current Silver Price: ₹{currentSilverPrice.pricePerGram}/gram
-                </p>
-              )}
             </div>
           </div>
           <button
-            onClick={handleClose}
+            onClick={handleClose} // FIXED: Use handleClose instead of onClose
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200"
-            disabled={isSubmitting}
+            disabled={isSubmitting} // FIXED: Disable during submission
           >
             <X size={20} />
           </button>
         </div>
 
+        {/* Form Content */}
         <div className="p-6">
           <div className="space-y-6">
+            {/* Customer Search */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Selection *</h3>
               <CustomerSearch
@@ -271,21 +240,39 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
               )}
             </div>
 
+            {/* Silver Items */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Silver Items *</h3>
               <SilverLoanItems
                 items={items}
                 errors={errors}
-                loading={isSubmitting}
+                loading={isSubmitting} // FIXED: Use isSubmitting
                 onItemsChange={handleItemsChange}
-                currentSilverPrice={currentSilverPrice}
               />
               {errors.items && <p className="text-red-500 text-sm mt-2">{errors.items}</p>}
             </div>
 
+            {/* Loan Details */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Loan Details *</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Loan Amount *
+                  </label>
+                  <input
+                    type="number"
+                    name="totalLoanAmount"
+                    value={formData.totalLoanAmount}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
+                      errors.totalLoanAmount ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                    placeholder="50000"
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
+                  />
+                  {errors.totalLoanAmount && <p className="text-red-500 text-sm mt-1">{errors.totalLoanAmount}</p>}
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Interest Rate (% per month) *
@@ -299,8 +286,8 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
                       errors.interestRate ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
-                    placeholder="2.0"
-                    disabled={isSubmitting}
+                    placeholder="2.5"
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
                   />
                   {errors.interestRate && <p className="text-red-500 text-sm mt-1">{errors.interestRate}</p>}
                 </div>
@@ -317,7 +304,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
                       errors.date ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
                   />
                   {errors.date && <p className="text-red-500 text-sm mt-1">{errors.date}</p>}
                 </div>
@@ -328,10 +315,10 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                   </label>
                   <select
                     name="branch"
-                    value={formData.branch}
-                    onChange={handleInputChange}
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
                   >
                     {branches.map(branch => (
                       <option key={branch} value={branch}>{branch}</option>
@@ -341,6 +328,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
               </div>
             </div>
 
+            {/* Additional Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Additional Notes
@@ -351,18 +339,20 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                 onChange={handleInputChange}
                 rows={3}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
-                placeholder="Any additional notes about the silver loan..."
-                disabled={isSubmitting}
+                placeholder="Any additional notes about the Silver loan..."
+                disabled={isSubmitting} // FIXED: Use isSubmitting
               />
             </div>
 
+            {/* Submission Error */}
             {errors.submit && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
                 <strong>Error:</strong> {errors.submit}
               </div>
             )}
 
-            {items.length > 0 && items.some(item => item.weightGram && item.amount) && (
+            {/* Summary */}
+            {items.length > 0 && items.some(item => item.weight) && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <h4 className="font-medium text-gray-900 mb-2">Loan Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -373,13 +363,13 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                   <div>
                     <span className="text-gray-600">Total Weight:</span>
                     <p className="font-medium">
-                      {items.reduce((sum, item) => sum + (parseFloat(item.weightGram) || 0), 0).toFixed(2)}g
+                      {items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0).toFixed(2)}g
                     </p>
                   </div>
                   <div>
                     <span className="text-gray-600">Total Amount:</span>
                     <p className="font-medium text-gray-600">
-                      ₹{items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0).toLocaleString()}
+                      ₹{formData.totalLoanAmount.toLocaleString()}
                     </p>
                   </div>
                   <div>
@@ -391,12 +381,13 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
             )}
           </div>
 
+          {/* Footer */}
           <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
             <button
               type="button"
-              onClick={handleClose}
+              onClick={handleClose} // FIXED: Use handleClose
               className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium"
-              disabled={isSubmitting}
+              disabled={isSubmitting} // FIXED: Disable during submission
             >
               Cancel
             </button>
@@ -404,7 +395,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
               type="button"
               onClick={handleReset}
               className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium"
-              disabled={isSubmitting}
+              disabled={isSubmitting} // FIXED: Disable during submission
             >
               Reset Form
             </button>
@@ -412,7 +403,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
               type="button"
               onClick={handleSubmit}
               className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
-              disabled={isSubmitting}
+              disabled={isSubmitting} // FIXED: Use isSubmitting instead of loading
             >
               <Coins size={16} />
               {isSubmitting ? 'Creating...' : 'Create Silver Loan'}
