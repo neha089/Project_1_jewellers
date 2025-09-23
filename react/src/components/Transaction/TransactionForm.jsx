@@ -14,178 +14,15 @@ import LInterestPaymentModal from "../Loan/LInterestPaymentModal";
 import LoanPaymentModal from "../Loan/LoanPaymentModal";
 import AddUdharModal from "../AddUdhariModal";
 import UdhariPaymentModal from "../Udhaar/UdhariPaymentModal";
-import InterestPaymentModal from "../Gold-Loan/InterestPaymentModal";
-import ItemRepaymentModal from "../Gold-Loan/ItemRepaymentModal";
 import MetalItemsManager from "../MetalItemsManager";
-import GoldTransactionForm from "../GoldBuySell/GoldTransactionForm"; // Assuming path
-import SilverTransactionForm from "../SilverBuySell/SilverTransactionForm"; // Assuming path
-import AddGoldLoanModal from "../Gold-Loan/AddGoldLoanModal"; // Assuming path
 
-const UdhariSelectionModal = ({ isOpen, onClose, availableUdhars, onSelect, categoryId }) => {
-  if (!isOpen) return null;
-
-  const getModalTitle = () => {
-    if (categoryId === 'udhari-received') return 'Select Udhari for Receiving Payment';
-    if (categoryId === 'udhari-returned') return 'Select Udhari for Returning Payment';
-    return 'Select an Udhari';
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-hidden">
-        <h3 className="text-lg font-semibold mb-4">{getModalTitle()}</h3>
-        <div className="space-y-4 max-h-96 overflow-y-auto">
-          {availableUdhars.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>No udharis found for this customer</p>
-            </div>
-          ) : (
-            availableUdhars.map((udhar) => (
-              <div
-                key={udhar._id}
-                className="p-4 border rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => {
-                  onSelect(udhar._id);
-                  onClose();
-                }}
-              >
-                <p className="font-medium">Udhari #{udhar._id.slice(-6)}</p>
-                <p className="text-sm text-gray-600">
-                  Outstanding: ₹{((udhar.outstandingAmount || udhar.principalRupees || 0) ).toFixed(2)}
-                </p>
-                <p className="text-sm">
-                  <span
-                    className={`px-2 py-1 rounded text-xs ${
-                      udhar.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {udhar.status}
-                  </span>
-                  <span
-                    className={`ml-2 px-2 py-1 rounded text-xs ${
-                      udhar.udharType === 'GIVEN'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}
-                  >
-                    {udhar.udharType === 'GIVEN' ? 'To Collect' : 'To Pay'}
-                  </span>
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-        <button
-          onClick={onClose}
-          className="mt-4 w-full bg-gray-300 text-gray-800 py-2 rounded-lg hover:bg-gray-400 transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-};
-
-
-const GoldLoanSelectionModal = ({ isOpen, onClose, availableLoans, onSelect, categoryId }) => {
-  if (!isOpen) return null;
-
-  const getModalTitle = () => {
-    if (categoryId === 'interest-received-gl') return 'Select Gold Loan for Interest Payment';
-    if (categoryId === 'gold-loan-repayment') return 'Select Gold Loan for Repayment';
-    return 'Select a Gold Loan';
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-900">{getModalTitle()}</h3>
-        </div>
-        <div className="p-6 max-h-96 overflow-y-auto">
-          {availableLoans.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Info size={48} className="mx-auto mb-4 text-gray-300" />
-              <p className="text-sm">No active gold loans found for this customer</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {availableLoans.map((loan) => (
-                <div
-                  key={loan._id}
-                  className="group relative p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => {
-                    onSelect(loan._id);
-                    onClose();
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">Gold Loan #{loan._id.slice(-6)}</p>
-                      <p className="text-sm text-gray-600">
-                        Outstanding: {formatCurrency(loan.currentLoanAmount || loan.totalLoanAmount)}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Interest Rate: {loan.interestRateMonthlyPct}% monthly
-                      </p>
-                      <p className="text-sm">
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            loan.status === 'ACTIVE' || loan.status === 'PARTIALLY_PAID'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {loan.status}
-                        </span>
-                        <span className="ml-2 px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
-                          {loan.items?.length || 0} Items
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  {/* Hover Tooltip */}
-                  <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-3 shadow-lg z-10 -top-2 left-1/2 transform -translate-x-1/2 translate-y-[-100%] w-64">
-                    <p className="font-medium">Loan Details</p>
-                    <p>Created: {new Date(loan.createdAt).toLocaleDateString('en-IN')}</p>
-                    <p>Due Date: {loan.dueDate ? new Date(loan.dueDate).toLocaleDateString('en-IN') : 'N/A'}</p>
-                    <p>Total Weight: {(loan.items?.reduce((sum, item) => sum + (parseFloat(item.weightGram) || 0), 0)).toFixed(2)}g</p>
-                    <p>Items: {loan.items?.map(item => item.name).join(', ') || 'None'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="p-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="w-full px-6 py-3 bg-gray-200 text-gray-800 rounded-xl hover:bg-gray-300 transition-colors font-medium"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-
+// Enhanced Loan Selection Modal
 const LoanSelectionModal = ({ isOpen, onClose, availableLoans, onSelect, categoryId }) => {
   if (!isOpen) return null;
 
   const getModalTitle = () => {
-    if (categoryId.includes("interest-received")) return "Select Loan for Interest Payment";
-    if (categoryId.includes("loan-repayment")) return "Select Loan for Repayment";
+    if (categoryId === "interest-received-l") return "Select Loan for Interest Payment";
+    if (categoryId === "loan-repayment") return "Select Loan for Repayment";
     return "Select a Loan";
   };
 
@@ -210,7 +47,7 @@ const LoanSelectionModal = ({ isOpen, onClose, availableLoans, onSelect, categor
               >
                 <p className="font-medium">Loan #{loan._id.slice(-6)}</p>
                 <p className="text-sm text-gray-600">
-                  Outstanding: ₹{((loan.outstandingAmount || loan.principalRupees || 0) ).toFixed(2)}
+                  Outstanding: ₹{((loan.outstandingAmount || loan.principalRupees || 0) / 100).toFixed(2)}
                 </p>
                 <p className="text-sm text-gray-600">
                   Interest Rate: {loan.interestRateMonthlyPct}% monthly
@@ -244,7 +81,6 @@ const LoanSelectionModal = ({ isOpen, onClose, availableLoans, onSelect, categor
   );
 };
 
-
 const TransactionForm = ({
   selectedCustomer,
   selectedCategory,
@@ -260,21 +96,16 @@ const TransactionForm = ({
   const [isLoanSelectionModalOpen, setIsLoanSelectionModalOpen] = useState(false);
   const [isUdharModalOpen, setIsUdharModalOpen] = useState(false);
   const [isUdharPaymentModalOpen, setIsUdharPaymentModalOpen] = useState(false);
-  const [isUdhariSelectionModalOpen, setIsUdhariSelectionModalOpen] = useState(false);
-  const [isGoldLoanSelectionModalOpen, setIsGoldLoanSelectionModalOpen] = useState(false);
-  const [isGoldTransactionModalOpen, setIsGoldTransactionModalOpen] = useState(false);
-  const [isSilverTransactionModalOpen, setIsSilverTransactionModalOpen] = useState(false);
-  const [isAddGoldLoanModalOpen, setIsAddGoldLoanModalOpen] = useState(false);
-
+  
   // Selected items
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [selectedUdhar, setSelectedUdhar] = useState(null);
-
+  
   // Loading and data states
   const [loansLoaded, setLoansLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-
+  
   // Available data
   const [availableLoans, setAvailableLoans] = useState([]);
   const [availableUdhars, setAvailableUdhars] = useState([]);
@@ -312,7 +143,7 @@ const TransactionForm = ({
 
   // Helper functions
   const updateTransactionData = (updates) => {
-    setTransactionData((prev) => ({ ...prev, ...updates }));
+    setTransactionData(prev => ({ ...prev, ...updates }));
   };
 
   const handleDataChange = (e) => {
@@ -335,67 +166,50 @@ const TransactionForm = ({
     try {
       setLoadingLoans(true);
       let loans = [];
-
-      if (selectedCategory.id.includes("gl") || selectedCategory.id === "gold-loan-repayment") {
+      
+      if (selectedCategory.id === "interest-received-gl" || selectedCategory.id === "gold-loan-repayment") {
+        // Gold loan specific API
         const response = await ApiService.getGoldLoansByCustomer(selectedCustomer._id);
         loans = response.data || [];
-      } else {
-        let apiCalls = [];
+      } else if (selectedCategory.id === "interest-received-l" || selectedCategory.id === "loan-repayment") {
+        // Regular business loans - fetch both receivable and payable
+        const [receivableResponse, payableResponse] = await Promise.all([
+          ApiService.getOutstandingToCollectLoan(),
+          ApiService.getOutstandingToPayLoan()
+        ]);
 
-        if (selectedCategory.id.includes("received") || selectedCategory.id.includes("collect")) {
-          apiCalls.push(ApiService.getOutstandingToCollectLoan());
-        } else if (selectedCategory.id.includes("give") || selectedCategory.id.includes("pay")) {
-          apiCalls.push(ApiService.getOutstandingToPayLoan());
-        } else {
-          apiCalls = [
-            ApiService.getOutstandingToCollectLoan(),
-            ApiService.getOutstandingToPayLoan(),
-          ];
-        }
-
-        const responses = await Promise.all(apiCalls);
         const allLoans = [];
-
-        if (responses[0] && responses[0].success) {
-          const customerData = responses[0].data.customerWise.find(
-            (item) => item.customer._id === selectedCustomer._id
+        
+        // Process receivable loans
+        if (receivableResponse.success) {
+          const customerReceivableData = receivableResponse.data.customerWise.find(
+            item => item.customer._id === selectedCustomer._id
           );
-          if (customerData && customerData.loans) {
-            allLoans.push(
-              ...customerData.loans.map((loan) => ({
-                ...loan,
-                loanType: "GIVEN",
-              }))
-            );
+          if (customerReceivableData && customerReceivableData.loans) {
+            allLoans.push(...customerReceivableData.loans.map(loan => ({
+              ...loan,
+              loanType: 'GIVEN'
+            })));
           }
         }
 
-        const payableResponse =
-          apiCalls.length === 1 &&
-          (selectedCategory.id.includes("give") || selectedCategory.id.includes("pay"))
-            ? responses[0]
-            : responses[1];
-
-        if (payableResponse && payableResponse.success) {
-          const customerData = payableResponse.data.customerWise.find(
-            (item) => item.customer._id === selectedCustomer._id
+        // Process payable loans
+        if (payableResponse.success) {
+          const customerPayableData = payableResponse.data.customerWise.find(
+            item => item.customer._id === selectedCustomer._id
           );
-          if (customerData && customerData.loans) {
-            allLoans.push(
-              ...customerData.loans.map((loan) => ({
-                ...loan,
-                loanType: "TAKEN",
-              }))
-            );
+          if (customerPayableData && customerPayableData.loans) {
+            allLoans.push(...customerPayableData.loans.map(loan => ({
+              ...loan,
+              loanType: 'TAKEN'
+            })));
           }
         }
-
+        
         loans = allLoans;
       }
-
-      setAvailableLoans(
-        loans.filter((loan) => loan.status === "ACTIVE" || loan.status === "PARTIALLY_PAID")
-      );
+      
+      setAvailableLoans(loans.filter((loan) => loan.status === "ACTIVE" || loan.status === "PARTIALLY_PAID"));
     } catch (error) {
       console.error("Failed to fetch loans:", error);
       setErrors((prev) => ({ ...prev, loans: "Failed to load loans" }));
@@ -406,50 +220,11 @@ const TransactionForm = ({
 
   const fetchCustomerUdhars = async () => {
     try {
-      setLoadingLoans(true);
-      let udhars = [];
-
-      if (selectedCategory.id.includes("udhari-received")) {
-        const response = await ApiService.getOutstandingToCollectUdhari();
-        if (response.success) {
-          const customerData = response.data.customerWise.find(
-            (item) => item.customer._id === selectedCustomer._id
-          );
-          if (customerData && customerData.udhars) {
-            udhars = customerData.udhars.map((udhar) => ({
-              ...udhar,
-              udharType: "GIVEN",
-            }));
-          }
-        }
-      } else if (selectedCategory.id.includes("udhari-returned")) {
-        const response = await ApiService.getOutstandingToPayUdhari();
-        if (response.success) {
-          const customerData = response.data.customerWise.find(
-            (item) => item.customer._id === selectedCustomer._id
-          );
-          if (customerData && customerData.udhars) {
-            udhars = customerData.udhars.map((udhar) => ({
-              ...udhar,
-              udharType: "TAKEN",
-            }));
-          }
-        }
-      } else {
-        const response = await ApiService.getUdharsByCustomer(selectedCustomer._id);
-        if (response.success) {
-          udhars = response.data || [];
-        }
-      }
-
-      setAvailableUdhars(
-        udhars.filter((udhar) => udhar.status === "ACTIVE" || udhar.status === "PARTIALLY_PAID")
-      );
+      const response = await ApiService.getUdharsByCustomer(selectedCustomer._id);
+      setAvailableUdhars(response.data || []);
     } catch (error) {
       console.error("Failed to fetch udhars:", error);
       setErrors((prev) => ({ ...prev, udhars: "Failed to load udhars" }));
-    } finally {
-      setLoadingLoans(false);
     }
   };
 
@@ -458,6 +233,7 @@ const TransactionForm = ({
       const prices = await MetalPriceService.getCurrentPrices();
       setCurrentMetalPrices(prices);
 
+      // Auto-add default item for metal transactions
       if (
         transactionData.items.length === 0 &&
         (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver"))
@@ -472,7 +248,7 @@ const TransactionForm = ({
           description: "",
           purity: defaultPurity,
           weight: "",
-          ratePerGram: currentPrice ? currentPrice.toString() : "",
+          ratePerGram: currentPrice ? (currentPrice / 100).toString() : "",
           makingCharges: "0",
           wastage: "0",
           taxAmount: "0",
@@ -493,21 +269,18 @@ const TransactionForm = ({
 
   // Effects
   useEffect(() => {
-    const categoryId = selectedCategory?.id;
-    const isInterestPayment = categoryId.includes("interest");
-    const isRepayment = categoryId.includes("repayment");
-    const isUdhari = categoryId.includes("udhari");
-    const isLoanTransaction = categoryId.includes("loan") || categoryId.endsWith("-l");
-    const isGoldLoanTransaction = categoryId.includes("gl") || categoryId === "gold-loan-repayment";
+    const isInterestPayment = selectedCategory?.id.includes("interest-received");
+    const isRepayment = selectedCategory?.id.includes("repayment");
+    const isUdhari = selectedCategory?.id.includes("udhari");
+    // Fix: Check for both "loan" and "-l" suffix for loan transactions
+    const isLoanTransaction = selectedCategory?.id.includes("loan") || selectedCategory?.id.endsWith("-l");
 
-    console.log("TransactionForm: Category changed", {
-      categoryId,
+    console.log('TransactionForm: Category changed', {
+      categoryId: selectedCategory?.id,
       isInterestPayment,
       isRepayment,
       isLoanTransaction,
-      isUdhari,
-      isGoldLoanTransaction,
-      customer: selectedCustomer?.name,
+      customer: selectedCustomer?.name
     });
 
     // Reset modal states
@@ -517,19 +290,14 @@ const TransactionForm = ({
     setIsLoanSelectionModalOpen(false);
     setIsUdharModalOpen(false);
     setIsUdharPaymentModalOpen(false);
-    setIsUdhariSelectionModalOpen(false);
-    setIsGoldLoanSelectionModalOpen(false);
-    setIsGoldTransactionModalOpen(false);
-    setIsSilverTransactionModalOpen(false);
-    setIsAddGoldLoanModalOpen(false);
     setErrors({});
     setLoansLoaded(false);
 
     // Load required data
-    if ((isInterestPayment || isRepayment) && (isLoanTransaction || isGoldLoanTransaction) && selectedCustomer) {
-      console.log("TransactionForm: Loading customer loans for", categoryId);
+    if ((isInterestPayment || isRepayment) && isLoanTransaction && selectedCustomer) {
+      console.log('TransactionForm: Loading customer loans for', selectedCategory.id);
       fetchCustomerLoans().then(() => {
-        console.log("TransactionForm: Loans loaded, setting loansLoaded to true");
+        console.log('TransactionForm: Loans loaded, setting loansLoaded to true');
         setLoansLoaded(true);
       });
     }
@@ -538,121 +306,81 @@ const TransactionForm = ({
       fetchCustomerUdhars();
     }
 
-    if (categoryId.includes("gold") || categoryId.includes("silver")) {
+    if (selectedCategory?.id.includes("gold") || selectedCategory?.id.includes("silver")) {
       fetchCurrentMetalPrices();
     }
   }, [selectedCategory, selectedCustomer]);
 
   // Effect to handle modal opening based on category and loaded data
   useEffect(() => {
-    if (!selectedCategory || !loansLoaded) return;
+    if (!selectedCategory) return;
 
     const categoryId = selectedCategory.id;
-
-    console.log("TransactionForm: Modal opening logic", {
+    
+    console.log('TransactionForm: Modal opening logic', {
       categoryId,
       loansLoaded,
       availableLoansCount: availableLoans.length,
-      availableUdharsCount: availableUdhars.length,
-      selectedLoanId: transactionData.selectedLoanId,
-      selectedUdhariId: transactionData.selectedUdhariId,
+      selectedLoanId: transactionData.selectedLoanId
     });
 
     // Direct modal opening categories
     if (categoryId === "business-loan-given" || categoryId === "business-loan-taken") {
-      console.log("TransactionForm: Opening business loan modal");
+      console.log('TransactionForm: Opening business loan modal');
       setIsLoanModalOpen(true);
       return;
     }
 
     if (categoryId === "udhari-given" || categoryId === "udhari-taken") {
-      console.log("TransactionForm: Opening udhari modal");
+      console.log('TransactionForm: Opening udhari modal');
       setIsUdharModalOpen(true);
       return;
     }
 
-    if (categoryId === "gold-loan") {
-      console.log("TransactionForm: Opening add gold loan modal");
-      setIsAddGoldLoanModalOpen(true);
-      return;
-    }
-
-    if (categoryId === "gold-sell" || categoryId === "gold-purchase") {
-      console.log("TransactionForm: Opening gold transaction modal");
-      setIsGoldTransactionModalOpen(true);
-      return;
-    }
-
-    if (categoryId === "silver-sell" || categoryId === "silver-purchase") {
-      console.log("TransactionForm: Opening silver transaction modal");
-      setIsSilverTransactionModalOpen(true);
-      return;
-    }
-
-    // Gold loan interest or repayment
-    if (categoryId === "interest-received-gl" || categoryId === "gold-loan-repayment") {
-      if (!transactionData.selectedLoanId) {
-        console.log("TransactionForm: Opening gold loan selection modal for", categoryId);
-        setIsGoldLoanSelectionModalOpen(true);
-      } else {
-        console.log("TransactionForm: Gold loan already selected, opening appropriate modal for", categoryId);
-        const loan = availableLoans.find((loan) => loan._id === transactionData.selectedLoanId);
-        if (loan) {
-          setSelectedLoan(loan);
-          if (categoryId === "interest-received-gl") {
-            console.log("TransactionForm: Opening interest payment modal");
-            setIsInterestModalOpen(true);
-          } else if (categoryId === "gold-loan-repayment") {
-            console.log("TransactionForm: Opening item repayment modal");
-            setIsPaymentModalOpen(true);
-          }
-        } else {
-          console.log("TransactionForm: Selected gold loan not found, opening selection modal");
-          setIsGoldLoanSelectionModalOpen(true);
-        }
-      }
-      return;
-    }
-
     // Loan-dependent categories that need loan selection first
-    if (loansLoaded && (categoryId.includes("interest") || categoryId.includes("repayment")) && categoryId.includes("loan")) {
+    if (loansLoaded && (categoryId === "interest-received-l" || categoryId === "loan-repayment")) {
       if (!transactionData.selectedLoanId) {
-        console.log("TransactionForm: Opening loan selection modal for", categoryId);
+        console.log('TransactionForm: Opening loan selection modal for', categoryId);
+        // Open loan selection modal if no loan is selected
         setIsLoanSelectionModalOpen(true);
       } else {
-        console.log("TransactionForm: Loan already selected, opening payment modal for", categoryId);
+        console.log('TransactionForm: Loan already selected, opening payment modal for', categoryId);
+        // If loan is already selected, open the appropriate payment modal
         const loan = availableLoans.find((loan) => loan._id === transactionData.selectedLoanId);
         if (loan) {
           setSelectedLoan(loan);
-          if (categoryId.includes("interest")) {
-            console.log("TransactionForm: Opening interest payment modal");
+          if (categoryId === "interest-received-l") {
+            console.log('TransactionForm: Opening interest payment modal');
             setIsInterestModalOpen(true);
-          } else if (categoryId.includes("repayment")) {
-            console.log("TransactionForm: Opening loan repayment modal");
+          } else if (categoryId === "loan-repayment") {
+            console.log('TransactionForm: Opening loan repayment modal');
             setIsPaymentModalOpen(true);
           }
         } else {
-          console.log("TransactionForm: Selected loan not found, opening loan selection modal");
+          console.log('TransactionForm: Selected loan not found, opening loan selection modal');
           setIsLoanSelectionModalOpen(true);
         }
       }
     }
 
-    // Udhari repayment
-    if (categoryId === "udhari-received" || categoryId === "udhari-returned") {
-      if (!transactionData.selectedUdhariId) {
-        console.log("TransactionForm: Opening udhari selection modal for", categoryId);
-        setIsUdhariSelectionModalOpen(true);
-      } else {
-        console.log("TransactionForm: Udhari already selected, opening payment modal for", categoryId);
-        const udhar = availableUdhars.find((udhar) => udhar._id === transactionData.selectedUdhariId);
-        if (udhar) {
-          setSelectedUdhar(udhar);
-          setIsUdharPaymentModalOpen(true);
-        } else {
-          console.log("TransactionForm: Selected udhari not found, opening udhari selection modal");
-          setIsUdhariSelectionModalOpen(true);
+    // Gold loan categories with auto loan selection
+    if ((categoryId === "interest-received-gl" || categoryId === "gold-loan-repayment") && 
+        transactionData.selectedLoanId) {
+      const loan = availableLoans.find((loan) => loan._id === transactionData.selectedLoanId);
+      if (loan) {
+        setSelectedLoan(loan);
+        if (categoryId === "interest-received-gl") {
+          setIsInterestModalOpen(true);
         }
+      }
+    }
+
+    // Udhari repayment
+    if (categoryId === "udhari-repayment" && transactionData.selectedUdhariId) {
+      const udhar = availableUdhars.find((udhar) => udhar._id === transactionData.selectedUdhariId);
+      if (udhar) {
+        setSelectedUdhar(udhar);
+        setIsUdharPaymentModalOpen(true);
       }
     }
   }, [loansLoaded, selectedCategory, transactionData.selectedLoanId, transactionData.selectedUdhariId, availableLoans, availableUdhars]);
@@ -666,7 +394,7 @@ const TransactionForm = ({
 
   // Calculate suggested amounts for loan repayment
   useEffect(() => {
-    if (transactionData.selectedLoanId && selectedCategory?.id.includes("repayment")) {
+    if (transactionData.selectedLoanId && selectedCategory?.id === "gold-loan-repayment") {
       calculateLoanRepaymentAmounts();
     }
   }, [transactionData.selectedLoanId, selectedCategory?.id]);
@@ -685,7 +413,7 @@ const TransactionForm = ({
         const taxAmount = parseFloat(item.taxAmount) || 0;
 
         const baseAmount = weight * rate;
-        const wastageAmount = baseAmount * (wastage / 100);
+        const wastageAmount = (baseAmount * wastage) / 100;
         const itemTotal = baseAmount + wastageAmount + makingCharges + taxAmount;
 
         return sum + itemTotal;
@@ -727,8 +455,8 @@ const TransactionForm = ({
       const response = await ApiService.getLoanDetails(selectedLoan._id);
       const loanDetails = response.data;
 
-      const outstandingPrincipal = loanDetails.outstandingPrincipal || 0;
-      const pendingInterest = loanDetails.paymentStatus?.pendingAmount || 0;
+      const outstandingPrincipal = loanDetails.outstandingPrincipal / 100;
+      const pendingInterest = loanDetails.paymentStatus?.pendingAmount / 100 || 0;
 
       setTransactionData((prev) => ({
         ...prev,
@@ -750,8 +478,6 @@ const TransactionForm = ({
       selectedCategory?.id.includes("gold-purchase") ||
       selectedCategory?.id.includes("silver-sell") ||
       selectedCategory?.id.includes("silver-purchase");
-    const isUdhariTransaction = selectedCategory?.id.includes("udhari");
-    const isRepayment = selectedCategory?.id.includes("repayment");
 
     if (isMetalTransaction && isMetalBuySell) {
       if (transactionData.items.length === 0) {
@@ -788,9 +514,9 @@ const TransactionForm = ({
     } else if (
       !selectedCategory?.id.includes("gold-loan-repayment") &&
       !selectedCategory?.id.includes("business-loan") &&
-      !selectedCategory?.id.includes("interest") &&
-      !selectedCategory?.id.includes("repayment") &&
-      !isUdhariTransaction &&
+      !selectedCategory?.id.includes("interest-received-l") &&
+      !selectedCategory?.id.includes("loan-repayment") &&
+      !selectedCategory?.id.includes("udhari") &&
       !isMetalBuySell
     ) {
       if (!transactionData.amount.trim() || parseFloat(transactionData.amount) <= 0) {
@@ -798,22 +524,13 @@ const TransactionForm = ({
       }
     }
 
-    const isInterestPayment = selectedCategory?.id.includes("interest");
+    const isInterestPayment = selectedCategory?.id.includes("interest-received");
+    const isRepayment = selectedCategory?.id.includes("repayment");
     if ((isInterestPayment || isRepayment) && !transactionData.selectedLoanId && selectedCategory?.id.includes("loan")) {
       newErrors.selectedLoanId = "Please select a loan";
     }
-    if (isUdhariTransaction && isRepayment && !transactionData.selectedUdhariId) {
+    if (isRepayment && selectedCategory?.id.includes("udhari") && !transactionData.selectedUdhariId) {
       newErrors.selectedUdhariId = "Please select an udhari";
-    } else if (isUdhariTransaction && isRepayment) {
-      const selectedUdhar = availableUdhars.find((udhar) => udhar._id === transactionData.selectedUdhariId);
-      if (selectedUdhar) {
-        const outstanding = selectedUdhar.outstandingAmount || selectedUdhar.principalRupees || 0;
-        if (!transactionData.amount || parseFloat(transactionData.amount) <= 0) {
-          newErrors.amount = "Valid payment amount is required";
-        } else if (parseFloat(transactionData.amount) > outstanding) {
-          newErrors.amount = `Payment cannot exceed outstanding amount of ₹${outstanding.toFixed(2)}`;
-        }
-      }
     }
 
     setErrors(newErrors);
@@ -842,18 +559,70 @@ const TransactionForm = ({
             0
           );
           response = await ApiService.createGoldLoan({
-            customer: selectedCustomer._id,
+            customerId: selectedCustomer._id,
             items: transactionData.items.map((item) => ({
               name: item.name,
               weightGram: parseFloat(item.weight),
-              loanAmount: Math.round(parseFloat(item.amount) * 100),
+              amountPaise: Math.round(parseFloat(item.amount) * 100),
               purityK: parseInt(item.purity),
               images: item.images?.map((img) => img.dataUrl),
             })),
             totalAmount: totalAmount,
-            interestRateMonthlyPct: transactionData.interestRate,
+            interestRate: transactionData.interestRate,
             durationMonths: transactionData.durationMonths,
             date: transactionData.date,
+          });
+          break;
+
+        case "gold-sell":
+        case "gold-purchase":
+          response = await ApiService.createGoldTransaction({
+            transactionType: selectedCategory.id === "gold-sell" ? "SELL" : "BUY",
+            customer: selectedCustomer._id,
+            items: transactionData.items.map((item) => ({
+              itemName: item.itemName,
+              description: item.description,
+              purity: item.purity,
+              weight: parseFloat(item.weight),
+              ratePerGram: parseFloat(item.ratePerGram),
+              makingCharges: parseFloat(item.makingCharges || 0),
+              wastage: parseFloat(item.wastage || 0),
+              taxAmount: parseFloat(item.taxAmount || 0),
+              photos: item.photos,
+              hallmarkNumber: item.hallmarkNumber,
+              certificateNumber: item.certificateNumber,
+            })),
+            advanceAmount: parseFloat(transactionData.advanceAmount || 0),
+            paymentMode: transactionData.paymentMode,
+            notes: transactionData.description,
+            billNumber: transactionData.billNumber,
+            fetchCurrentRates: true,
+          });
+          break;
+
+        case "silver-sell":
+        case "silver-purchase":
+          response = await ApiService.createSilverTransaction({
+            transactionType: selectedCategory.id === "silver-sell" ? "SELL" : "BUY",
+            customer: selectedCustomer._id,
+            items: transactionData.items.map((item) => ({
+              itemName: item.itemName,
+              description: item.description,
+              purity: item.purity,
+              weight: parseFloat(item.weight),
+              ratePerGram: parseFloat(item.ratePerGram),
+              makingCharges: parseFloat(item.makingCharges || 0),
+              wastage: parseFloat(item.wastage || 0),
+              taxAmount: parseFloat(item.taxAmount || 0),
+              photos: item.photos,
+              hallmarkNumber: item.hallmarkNumber,
+              certificateNumber: item.certificateNumber,
+            })),
+            advanceAmount: parseFloat(transactionData.advanceAmount || 0),
+            paymentMode: transactionData.paymentMode,
+            notes: transactionData.description,
+            billNumber: transactionData.billNumber,
+            fetchCurrentRates: true,
           });
           break;
 
@@ -866,32 +635,7 @@ const TransactionForm = ({
           break;
 
         case "gold-loan-repayment":
-          response = { success: true }; // Handled by ItemRepaymentModal
-          break;
-
-        case "udhari-received":
-          response = await ApiService.receiveUdhariPayment({
-            udharId: transactionData.selectedUdhariId,
-            principalPaise: Math.round(parseFloat(transactionData.amount) * 100),
-            paymentMethod: transactionData.paymentMode,
-            paymentDate: transactionData.date,
-            note: transactionData.description || "Udhari payment received",
-            reference: transactionData.billNumber || "",
-            installmentNumber: 1,
-          });
-          break;
-
-        case "udhari-returned":
-          response = await ApiService.makeUdhariPayment({
-            udharId: transactionData.selectedUdhariId,
-            principalPaise: Math.round(parseFloat(transactionData.amount) * 100),
-            customerId: selectedCustomer._id,
-            amount: parseFloat(transactionData.amount),
-            paymentMethod: transactionData.paymentMode,
-            paymentDate: transactionData.date,
-            note: transactionData.description || "Udhari payment returned",
-            reference: transactionData.billNumber || "",
-          });
+          response = { success: true };
           break;
 
         default:
@@ -924,16 +668,17 @@ const TransactionForm = ({
         amount: transactionData.amount || transactionData.totalAmount,
         description: transactionData.description || transactionData.note || `${category} transaction`,
         date: new Date().toISOString(),
-        status: "COMPLETED",
-        ...transactionData,
+        status: 'COMPLETED',
+        ...transactionData
       };
 
+      // Create transaction record in main transactions collection
       const transactionResponse = await ApiService.createTransactionRecord(baseTransactionData);
-
+      
       if (transactionResponse.success) {
         console.log(`Transaction record created successfully for ${category}`);
       }
-
+      
       return transactionResponse;
     } catch (error) {
       console.error(`Failed to create transaction record for ${category}:`, error);
@@ -944,112 +689,92 @@ const TransactionForm = ({
   // Enhanced modal success handlers with database storage
   const handleLoanModalSuccess = async (loanData) => {
     try {
-      await handleCreateTransactionRecord(
-        {
-          amount: loanData.principalAmount || loanData.totalAmount,
-          description: `Business loan ${
-            selectedCategory?.id === "business-loan-given" ? "given to" : "taken from"
-          } ${selectedCustomer.name}`,
-          loanId: loanData.loanId || loanData._id,
-          interestRate: loanData.interestRate,
-          durationMonths: loanData.durationMonths,
-        },
-        selectedCategory?.id
-      );
-
+      // Create transaction record for loan creation
+      await handleCreateTransactionRecord({
+        amount: loanData.principalAmount || loanData.totalAmount,
+        description: `Business loan ${selectedCategory?.id === "business-loan-given" ? "given to" : "taken from"} ${selectedCustomer.name}`,
+        loanId: loanData.loanId || loanData._id,
+        interestRate: loanData.interestRate,
+        durationMonths: loanData.durationMonths
+      }, selectedCategory?.id);
+      
       handleModalSuccess();
     } catch (error) {
-      console.error("Failed to create transaction record for loan:", error);
-      handleModalSuccess();
+      console.error('Failed to create transaction record for loan:', error);
+      handleModalSuccess(); // Still proceed even if transaction record fails
     }
   };
 
   const handleInterestModalSuccess = async (interestData) => {
     try {
-      await handleCreateTransactionRecord(
-        {
-          amount: interestData.interestAmount || interestData.amount,
-          description: `Interest payment ${
-            selectedCategory.id.includes("received") ? "received from" : "given to"
-          } ${selectedCustomer.name}`,
-          loanId: interestData.loanId || selectedLoan?._id,
-          paymentMethod: interestData.paymentMethod,
-          reference: interestData.reference,
-        },
-        selectedCategory.id
-      );
-
+      // Create transaction record for interest payment
+      await handleCreateTransactionRecord({
+        amount: interestData.interestAmount || interestData.amount,
+        description: `Interest payment received from ${selectedCustomer.name}`,
+        loanId: interestData.loanId || selectedLoan?._id,
+        paymentMethod: interestData.paymentMethod,
+        reference: interestData.reference
+      }, 'interest-received');
+      
       handleModalSuccess();
     } catch (error) {
-      console.error("Failed to create transaction record for interest:", error);
-      handleModalSuccess();
+      console.error('Failed to create transaction record for interest:', error);
+      handleModalSuccess(); // Still proceed even if transaction record fails
     }
   };
 
   const handleLoanPaymentModalSuccess = async (paymentData) => {
     try {
-      await handleCreateTransactionRecord(
-        {
-          amount: paymentData.principalAmount || paymentData.amount,
-          description: `Loan repayment ${
-            selectedCategory.id.includes("collect") ? "collected from" : "paid to"
-          } ${selectedCustomer.name}`,
-          loanId: paymentData.loanId || selectedLoan?._id,
-          paymentMethod: paymentData.paymentMethod,
-          reference: paymentData.reference,
-          principalAmount: paymentData.principalAmount,
-          interestAmount: paymentData.interestAmount,
-        },
-        selectedCategory.id
-      );
-
+      // Create transaction record for loan repayment
+      await handleCreateTransactionRecord({
+        amount: paymentData.principalAmount || paymentData.amount,
+        description: `Loan repayment from ${selectedCustomer.name}`,
+        loanId: paymentData.loanId || selectedLoan?._id,
+        paymentMethod: paymentData.paymentMethod,
+        reference: paymentData.reference,
+        principalAmount: paymentData.principalAmount,
+        interestAmount: paymentData.interestAmount
+      }, 'loan-repayment');
+      
       handleModalSuccess();
     } catch (error) {
-      console.error("Failed to create transaction record for loan payment:", error);
-      handleModalSuccess();
+      console.error('Failed to create transaction record for loan payment:', error);
+      handleModalSuccess(); // Still proceed even if transaction record fails
     }
   };
 
   const handleUdharModalSuccess = async (udharData) => {
     try {
-      await handleCreateTransactionRecord(
-        {
-          amount: udharData.principalAmount || udharData.totalAmount,
-          description: `Udhari ${
-            selectedCategory?.id === "udhari-given" ? "given to" : "taken from"
-          } ${selectedCustomer.name}`,
-          udharId: udharData.udharId || udharData._id,
-          dueDate: udharData.dueDate,
-        },
-        selectedCategory?.id
-      );
-
+      // Create transaction record for udhari creation
+      await handleCreateTransactionRecord({
+        amount: udharData.principalAmount || udharData.totalAmount,
+        description: `Udhari ${selectedCategory?.id === "udhari-given" ? "given to" : "taken from"} ${selectedCustomer.name}`,
+        udharId: udharData.udharId || udharData._id,
+        dueDate: udharData.dueDate
+      }, selectedCategory?.id);
+      
       handleModalSuccess();
     } catch (error) {
-      console.error("Failed to create transaction record for udhari:", error);
-      handleModalSuccess();
+      console.error('Failed to create transaction record for udhari:', error);
+      handleModalSuccess(); // Still proceed even if transaction record fails
     }
   };
 
   const handleUdharPaymentModalSuccess = async (paymentData) => {
     try {
-      await handleCreateTransactionRecord(
-        {
-          amount: paymentData.amount,
-          description: `Udhari repayment ${
-            selectedCategory.id === "udhari-received" ? "received from" : "returned to"
-          } ${selectedCustomer.name}`,
-          udharId: paymentData.udharId || selectedUdhar?._id,
-          paymentMethod: paymentData.paymentMethod,
-          reference: paymentData.reference,
-        },
-        selectedCategory.id
-      );
-
+      // Create transaction record for udhari payment
+      await handleCreateTransactionRecord({
+        amount: paymentData.amount,
+        description: `Udhari repayment from ${selectedCustomer.name}`,
+        udharId: paymentData.udharId || selectedUdhar?._id,
+        paymentMethod: paymentData.paymentMethod,
+        reference: paymentData.reference
+      }, 'udhari-repayment');
+      
       handleModalSuccess();
     } catch (error) {
-      console.error("Failed to create transaction record for udhari payment:", error);
-      handleModalSuccess();
+      console.error('Failed to create transaction record for udhari payment:', error);
+      handleModalSuccess(); // Still proceed even if transaction record fails
     }
   };
 
@@ -1061,11 +786,6 @@ const TransactionForm = ({
     setIsLoanSelectionModalOpen(false);
     setIsUdharModalOpen(false);
     setIsUdharPaymentModalOpen(false);
-    setIsUdhariSelectionModalOpen(false);
-    setIsGoldLoanSelectionModalOpen(false);
-    setIsGoldTransactionModalOpen(false);
-    setIsSilverTransactionModalOpen(false);
-    setIsAddGoldLoanModalOpen(false);
     onCancel();
   };
 
@@ -1077,16 +797,11 @@ const TransactionForm = ({
     setIsLoanSelectionModalOpen(false);
     setIsUdharModalOpen(false);
     setIsUdharPaymentModalOpen(false);
-    setIsUdhariSelectionModalOpen(false);
-    setIsGoldLoanSelectionModalOpen(false);
-    setIsGoldTransactionModalOpen(false);
-    setIsSilverTransactionModalOpen(false);
-    setIsAddGoldLoanModalOpen(false);
     onSuccess();
   };
 
   // Determine transaction characteristics
-  const isInterestPayment = selectedCategory?.id.includes("interest");
+  const isInterestPayment = selectedCategory?.id.includes("interest-received");
   const isRepayment = selectedCategory?.id.includes("repayment");
   const isGoldLoan = selectedCategory?.id === "gold-loan";
   const isGoldLoanRepayment = selectedCategory?.id === "gold-loan-repayment";
@@ -1097,31 +812,25 @@ const TransactionForm = ({
     selectedCategory?.id.includes("silver-sell") ||
     selectedCategory?.id.includes("silver-purchase");
   const isUdhariTransaction = selectedCategory?.id.includes("udhari");
-  const isLoanTransaction = selectedCategory?.id.includes("loan") || selectedCategory?.id.endsWith("-l");
+  const isLoanTransaction = selectedCategory?.id.includes("loan");
 
   // Categories that are handled entirely by modals
   const modalHandledCategories = [
     "business-loan-given",
-    "business-loan-taken",
-    "interest-received-l",
-    "interest-give-l",
-    "loan-repayment-collect",
-    "loan-repayment-pay",
+    "business-loan-taken", 
+    "interest-received-l",  // This is the key one that was missing proper detection
+    "loan-repayment",
     "udhari-given",
     "udhari-taken",
-    "udhari-received",
-    "udhari-returned",
-    "interest-received-gl",
-    "gold-loan-repayment",
-    "gold-loan", // Added for creation
-    "gold-sell",
-    "gold-purchase",
-    "silver-sell",
-    "silver-purchase" // Added for metal buy/sell
+    "udhari-repayment"
   ];
 
+  // Fix: Also check for categories ending with -l (like interest-received-l)
+  const isModalHandled = modalHandledCategories.some(cat => selectedCategory?.id === cat) || 
+                         (selectedCategory?.id.endsWith("-l") && selectedCategory?.id.includes("interest-received"));
+
   // If modal handled, only render modals
-  if (modalHandledCategories.includes(selectedCategory?.id)) {
+  if (isModalHandled) {
     return (
       <>
         {/* Business Loan Modals */}
@@ -1135,34 +844,18 @@ const TransactionForm = ({
 
         {/* Loan Interest Payment Modal */}
         <LInterestPaymentModal
-          isOpen={isInterestModalOpen && selectedCategory?.id.includes("-l")}
+          isOpen={isInterestModalOpen}
           loan={selectedLoan}
           onClose={handleModalClose}
           onSuccess={handleInterestModalSuccess}
         />
 
-        {/* Gold Loan Interest Payment Modal */}
-        <InterestPaymentModal
-          isOpen={isInterestModalOpen && selectedCategory?.id === "interest-received-gl"}
-          loan={selectedLoan}
-          onClose={handleModalClose}
-          onPaymentSuccess={handleInterestModalSuccess}
-        />
-
         {/* Loan Principal Payment Modal */}
         <LoanPaymentModal
-          isOpen={isPaymentModalOpen && selectedCategory?.id.includes("-l")}
+          isOpen={isPaymentModalOpen}
           loan={selectedLoan}
           onClose={handleModalClose}
           onSuccess={handleLoanPaymentModalSuccess}
-        />
-
-        {/* Gold Loan Repayment Modal */}
-        <ItemRepaymentModal
-          isOpen={isPaymentModalOpen && selectedCategory?.id === "gold-loan-repayment"}
-          loan={selectedLoan}
-          onClose={handleModalClose}
-          onRepaymentSuccess={handleLoanPaymentModalSuccess}
         />
 
         {/* Loan Selection Modal */}
@@ -1170,6 +863,7 @@ const TransactionForm = ({
           isOpen={isLoanSelectionModalOpen}
           onClose={() => {
             setIsLoanSelectionModalOpen(false);
+            // Don't call onCancel here, just close the modal
           }}
           availableLoans={availableLoans}
           categoryId={selectedCategory?.id}
@@ -1177,31 +871,13 @@ const TransactionForm = ({
             const loan = availableLoans.find((loan) => loan._id === loanId);
             setSelectedLoan(loan);
             updateTransactionData({ selectedLoanId: loanId });
+            
+            // Close loan selection and open appropriate payment modal
             setIsLoanSelectionModalOpen(false);
-            if (isInterestPayment) {
+            
+            if (selectedCategory?.id === "interest-received-l") {
               setIsInterestModalOpen(true);
-            } else if (isRepayment) {
-              setIsPaymentModalOpen(true);
-            }
-          }}
-        />
-
-        {/* Gold Loan Selection Modal */}
-        <GoldLoanSelectionModal
-          isOpen={isGoldLoanSelectionModalOpen}
-          onClose={() => {
-            setIsGoldLoanSelectionModalOpen(false);
-          }}
-          availableLoans={availableLoans}
-          categoryId={selectedCategory?.id}
-          onSelect={(loanId) => {
-            const loan = availableLoans.find((loan) => loan._id === loanId);
-            setSelectedLoan(loan);
-            updateTransactionData({ selectedLoanId: loanId });
-            setIsGoldLoanSelectionModalOpen(false);
-            if (selectedCategory.id === "interest-received-gl") {
-              setIsInterestModalOpen(true);
-            } else if (selectedCategory.id === "gold-loan-repayment") {
+            } else if (selectedCategory?.id === "loan-repayment") {
               setIsPaymentModalOpen(true);
             }
           }}
@@ -1222,72 +898,6 @@ const TransactionForm = ({
           onClose={handleModalClose}
           onSuccess={handleUdharPaymentModalSuccess}
         />
-
-        <UdhariSelectionModal
-          isOpen={isUdhariSelectionModalOpen}
-          onClose={() => {
-            setIsUdhariSelectionModalOpen(false);
-          }}
-          availableUdhars={availableUdhars}
-          categoryId={selectedCategory?.id}
-          onSelect={(udhariId) => {
-            const udhar = availableUdhars.find((udhar) => udhar._id === udhariId);
-            setSelectedUdhar(udhar);
-            updateTransactionData({ selectedUdhariId: udhariId });
-            setIsUdhariSelectionModalOpen(false);
-            setIsUdharPaymentModalOpen(true);
-          }}
-        />
-
-        {/* NEW: Gold Transaction Modal */}
-        {isGoldTransactionModalOpen && (
-          <GoldTransactionForm
-            editingTransaction={null}
-            GoldRates={currentMetalPrices?.gold?.rates || {}}
-            onClose={handleModalClose}
-            onSuccess={handleModalSuccess}
-            onError={(err) => setErrors({submit: err})}
-            initialCustomer={selectedCustomer}
-            transactionType={selectedCategory.id === "gold-sell" ? "SELL" : "BUY"}
-          />
-        )}
-
-        {/* NEW: Silver Transaction Modal */}
-        {isSilverTransactionModalOpen && (
-          <SilverTransactionForm
-            editingTransaction={null}
-            silverRates={currentMetalPrices?.silver?.rates || {}}
-            onClose={handleModalClose}
-            onSuccess={handleModalSuccess}
-            onError={(err) => setErrors({submit: err})}
-            initialCustomer={selectedCustomer}
-            transactionType={selectedCategory.id === "silver-sell" ? "SELL" : "BUY"}
-          />
-        )}
-
-        {/* NEW: Add Gold Loan Modal */}
-        {isAddGoldLoanModalOpen && (
-          <AddGoldLoanModal
-            isOpen={isAddGoldLoanModalOpen}
-            onClose={handleModalClose}
-            onSave={async (loanData) => {
-              try {
-                const response = await ApiService.createGoldLoan({
-                  ...loanData,
-                  customer: selectedCustomer._id
-                });
-                if (response.success) {
-                  handleModalSuccess();
-                } else {
-                  setErrors({submit: response.message || "Failed to create gold loan"});
-                }
-              } catch (error) {
-                setErrors({submit: error.message || "Failed to create gold loan"});
-              }
-            }}
-            initialCustomer={selectedCustomer} // NEW prop
-          />
-        )}
       </>
     );
   }
@@ -1335,7 +945,7 @@ const TransactionForm = ({
 
             <div className="space-y-4 sm:space-y-6">
               {/* Loan Selection for Gold Loans */}
-              {(isInterestPayment || isRepayment) && selectedCategory?.id.includes("gold") && !transactionData.selectedLoanId && (
+              {(isInterestPayment || isRepayment) && selectedCategory?.id.includes("gold") && (
                 <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <LoanSelector
                     availableLoans={availableLoans}
@@ -1400,7 +1010,7 @@ const TransactionForm = ({
               )}
 
               {/* Udhari Selection for Repayment */}
-              {isUdhariTransaction && isRepayment && (
+              {isUdhariTransaction && selectedCategory?.id.includes("repayment") && (
                 <div className="bg-gray-50 p-4 sm:p-5 rounded-lg sm:rounded-xl">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Select Udhari</label>
                   <select
@@ -1413,7 +1023,7 @@ const TransactionForm = ({
                     <option value="">Select an udhari</option>
                     {availableUdhars.map((udhar) => (
                       <option key={udhar._id} value={udhar._id}>
-                        {udhar.note || `Udhari #${udhar._id.slice(-6)}`} - ₹{((udhar.outstandingAmount || udhar.principalRupees) || 0).toFixed(2)}
+                        {udhar.note || `Udhari #${udhar._id}`} - ₹{((udhar.outstandingAmount || udhar.principalRupees) / 100).toFixed(2)}
                       </option>
                     ))}
                   </select>
@@ -1597,3 +1207,4 @@ const TransactionForm = ({
 };
 
 export default TransactionForm;
+

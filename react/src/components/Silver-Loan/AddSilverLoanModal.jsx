@@ -17,7 +17,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
     id: Date.now(),
     name: '',
     weight: '',
-     purityK: '925',
+    purity: '22',
     images: []
   }]);
 
@@ -76,7 +76,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
 
     // Items validation
     if (items.length === 0) {
-      newErrors.items = 'At least one Silver item is required';
+      newErrors.items = 'At least one silver item is required';
     } else {
       items.forEach((item, index) => {
         if (!item.name.trim()) {
@@ -85,8 +85,8 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
         if (!item.weight || parseFloat(item.weight) <= 0) {
           newErrors[`item_${index}_weight`] = 'Valid weight is required';
         }
-        if (!item. purityK || parseInt(item. purityK) <= 0) {
-          newErrors[`item_${index}_purity`] = 'Valid  purityK is required';
+        if (!item.purity || parseInt(item.purity) <= 0) {
+          newErrors[`item_${index}_purity`] = 'Valid purity is required';
         }
         if (item.images.length === 0) {
           newErrors[`item_${index}_images`] = 'At least one photo is required';
@@ -136,7 +136,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
         items: items.map(item => ({
           name: item.name,
           weightGram: parseFloat(item.weight), // Backend expects 'weightGram'
-           purityK: parseInt(item. purityK), // Backend expects ' purityK'
+          purityK: parseInt(item.purity), // Backend expects 'purityK'
           images: item.images.map(img => img.dataUrl || img) // Handle both objects and strings
         })),
         interestRateMonthlyPct: parseFloat(formData.interestRate), // Backend expects 'interestRateMonthlyPct'
@@ -156,8 +156,8 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
       onClose();
       
     } catch (error) {
-      console.error('Error creating Silver loan:', error);
-      setErrors({ submit: `Failed to create Silver loan: ${error.message}` });
+      console.error('Error creating silver loan:', error);
+      setErrors({ submit: `Failed to create silver loan: ${error.message}` });
     } finally {
       setLoading(false);
       setIsSubmitting(false); // FIXED: Reset submitting state
@@ -176,7 +176,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
       id: Date.now(),
       name: '',
       weight: '',
-       purityK: '925',
+      purity: '22',
       images: []
     }]);
     setSelectedCustomer(null);
@@ -198,9 +198,9 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-amber-50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-gray-500 to-gray-600 rounded-lg flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center text-white">
               <Coins size={20} />
             </div>
             <div>
@@ -265,7 +265,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     name="totalLoanAmount"
                     value={formData.totalLoanAmount}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
                       errors.totalLoanAmount ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="50000"
@@ -283,7 +283,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     name="interestRate"
                     value={formData.interestRate}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
                       errors.interestRate ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="2.5"
@@ -301,7 +301,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     name="date"
                     value={formData.date}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
                       errors.date ? 'border-red-300 bg-red-50' : 'border-gray-300'
                     }`}
                     disabled={isSubmitting} // FIXED: Use isSubmitting
@@ -317,7 +317,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                     name="branch"
                     value={selectedBranch}
                     onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
                     disabled={isSubmitting} // FIXED: Use isSubmitting
                   >
                     {branches.map(branch => (
@@ -338,8 +338,8 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                 value={formData.notes}
                 onChange={handleInputChange}
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
-                placeholder="Any additional notes about the Silver loan..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                placeholder="Any additional notes about the silver loan..."
                 disabled={isSubmitting} // FIXED: Use isSubmitting
               />
             </div>
@@ -368,7 +368,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
                   </div>
                   <div>
                     <span className="text-gray-600">Total Amount:</span>
-                    <p className="font-medium text-gray-600">
+                    <p className="font-medium text-amber-600">
                       ₹{formData.totalLoanAmount.toLocaleString()}
                     </p>
                   </div>
@@ -394,7 +394,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
             <button
               type="button"
               onClick={handleReset}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium"
+              className="px-6 py-3 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 hover:border-amber-400 transition-all duration-200 font-medium"
               disabled={isSubmitting} // FIXED: Disable during submission
             >
               Reset Form
@@ -402,7 +402,7 @@ const AddSilverLoanModal = ({ isOpen, onClose, onSave }) => {
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
+              className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-amber-400 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg flex items-center gap-2"
               disabled={isSubmitting} // FIXED: Use isSubmitting instead of loading
             >
               <Coins size={16} />

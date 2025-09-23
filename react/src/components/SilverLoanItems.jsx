@@ -7,7 +7,7 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
       id: Date.now(),
       name: "",
       weight: "",
-      purityPercentage: "22",
+      purity: "22",
       images: [],
     };
     onItemsChange([...items, newItem]);
@@ -22,14 +22,14 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
       if (item.id === itemId) {
         const updatedItem = { ...item, [field]: value };
         
-        // Auto-calculate amount based on weight, purityPercentage, and current silver price
-        if ((field === "weight" || field === "purityPercentage") && currentSilverPrice) {
+        // Auto-calculate amount based on weight, purity, and current silver price
+        if ((field === "weight" || field === "purity") && currentSilverPrice) {
           const weight = parseFloat(field === "weight" ? value : item.weight) || 0;
-          const purityPercentage = parseFloat(field === "purityPercentage" ? value : item.purityPercentage) || 22;
+          const purity = parseFloat(field === "purity" ? value : item.purity) || 22;
           
           if (weight > 0) {
-            // Calculate market value: weight * purityPercentage ratio * current price
-            const marketValue = weight * (purityPercentage / 24) * currentSilverPrice.pricePerGram;
+            // Calculate market value: weight * purity ratio * current price
+            const marketValue = weight * (purity / 24) * currentSilverPrice.pricePerGram;
             // Loan amount is typically 70-80% of market value
             const loanAmount = marketValue * 0.75;
             updatedItem.amount = loanAmount.toFixed(2);
@@ -170,18 +170,18 @@ const SilverLoanItems = ({ items, errors, loading, onItemsChange, currentSilverP
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                PurityPercentage (K)
+                Purity (K)
               </label>
               <select
-                value={item.purityPercentage}
-                onChange={(e) => updateItem(item.id, "purityPercentage", e.target.value)}
+                value={item.purity}
+                onChange={(e) => updateItem(item.id, "purity", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
               >
-                <option value="24">800</option>
-                <option value="22">999</option>
-                <option value="18">925</option>
-                <option value="14">900</option>
+                <option value="24">24K</option>
+                <option value="22">22K</option>
+                <option value="18">18K</option>
+                <option value="14">14K</option>
               </select>
             </div>
 
