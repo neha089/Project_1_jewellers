@@ -6,6 +6,7 @@ import ApiService from '../../services/api';
 
 const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
+    totalLoanAmount: '',
     interestRate: '2.5',
     branch: 'Main Branch',
     notes: '',
@@ -16,16 +17,14 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     id: Date.now(),
     name: '',
     weight: '',
-    amount: '',
     purity: '22',
-    goldPriceAtDeposit: '',
     images: []
   }]);
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedBranch, setSelectedBranch] = useState('Main Branch');
   const [searchTerm, setSearchTerm] = useState('');
   const [errors, setErrors] = useState({});
-  const [currentGoldPrice, setCurrentGoldPrice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // ADDED: Prevent double submission
 
@@ -33,30 +32,6 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     'Main Branch', 'North Branch', 'South Branch',
     'East Branch', 'West Branch'
   ];
-
-  // Fetch current gold price
-  useEffect(() => {
-    const fetchGoldPrice = async () => {
-      try {
-        const result = await ApiService.getCurrentGoldPrice();
-        if (result.success && result.data) {
-          setCurrentGoldPrice(result.data);
-        } else {
-          setCurrentGoldPrice({
-            pricePerGram: 6500,
-            lastUpdated: new Date().toISOString()
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch gold price:', error);
-        setCurrentGoldPrice({
-          pricePerGram: 6500,
-          lastUpdated: new Date().toISOString()
-        });
-      }
-    };
-    fetchGoldPrice();
-  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -110,14 +85,8 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
         if (!item.weight || parseFloat(item.weight) <= 0) {
           newErrors[`item_${index}_weight`] = 'Valid weight is required';
         }
-        if (!item.amount || parseFloat(item.amount) <= 0) {
-          newErrors[`item_${index}_amount`] = 'Valid loan amount is required';
-        }
         if (!item.purity || parseInt(item.purity) <= 0) {
           newErrors[`item_${index}_purity`] = 'Valid purity is required';
-        }
-        if (!item.goldPriceAtDeposit || parseFloat(item.goldPriceAtDeposit) <= 0) {
-          newErrors[`item_${index}_goldPrice`] = 'Gold price at deposit is required';
         }
         if (item.images.length === 0) {
           newErrors[`item_${index}_images`] = 'At least one photo is required';
@@ -126,6 +95,9 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     }
 
     // Form data validation
+    if (!formData.totalLoanAmount || parseFloat(formData.totalLoanAmount) <= 0) {
+      newErrors.totalLoanAmount = 'Valid loan amount is required';
+    }
     if (!formData.interestRate || parseFloat(formData.interestRate) <= 0) {
       newErrors.interestRate = 'Valid interest rate is required';
     }
@@ -160,12 +132,11 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
       // Prepare the payload to match backend expectations exactly
       const loanData = {
         customer: selectedCustomer._id, // Backend expects 'customer' field with customer ID
+        totalLoanAmount: parseFloat(formData.totalLoanAmount),
         items: items.map(item => ({
           name: item.name,
           weightGram: parseFloat(item.weight), // Backend expects 'weightGram'
-          loanAmount: parseFloat(item.amount), // Backend expects 'loanAmount'
           purityK: parseInt(item.purity), // Backend expects 'purityK'
-          goldPriceAtDeposit: parseFloat(item.goldPriceAtDeposit), // Required by backend
           images: item.images.map(img => img.dataUrl || img) // Handle both objects and strings
         })),
         interestRateMonthlyPct: parseFloat(formData.interestRate), // Backend expects 'interestRateMonthlyPct'
@@ -178,7 +149,6 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
       await onSave(loanData); // Call parent handler for API and refresh
       
       // Calculate totals for UI feedback
-      const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount), 0);
       const totalWeight = items.reduce((sum, item) => sum + parseFloat(item.weight), 0);
      
       handleReset();
@@ -196,6 +166,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
 
   const handleReset = () => {
     setFormData({
+      totalLoanAmount: '',
       interestRate: '2.5',
       branch: 'Main Branch',
       notes: '',
@@ -205,9 +176,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
       id: Date.now(),
       name: '',
       weight: '',
-      amount: '',
       purity: '22',
-      goldPriceAtDeposit: currentGoldPrice?.pricePerGram?.toString() || '',
       images: []
     }]);
     setSelectedCustomer(null);
@@ -223,18 +192,6 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
     onClose();
   };
 
-  // Auto-fill gold price when current price is available
-  useEffect(() => {
-    if (currentGoldPrice && items.length > 0) {
-      setItems(prevItems =>
-        prevItems.map(item => ({
-          ...item,
-          goldPriceAtDeposit: item.goldPriceAtDeposit || currentGoldPrice.pricePerGram.toString()
-        }))
-      );
-    }
-  }, [currentGoldPrice]);
-
   if (!isOpen) return null;
 
   return (
@@ -248,11 +205,6 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">Create New Gold Loan</h2>
-              {currentGoldPrice && (
-                <p className="text-sm text-gray-600">
-                  Current Gold Price: ₹{currentGoldPrice.pricePerGram}/gram
-                </p>
-              )}
             </div>
           </div>
           <button
@@ -296,7 +248,6 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                 errors={errors}
                 loading={isSubmitting} // FIXED: Use isSubmitting
                 onItemsChange={handleItemsChange}
-                currentGoldPrice={currentGoldPrice}
               />
               {errors.items && <p className="text-red-500 text-sm mt-2">{errors.items}</p>}
             </div>
@@ -305,6 +256,23 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Loan Details *</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Loan Amount *
+                  </label>
+                  <input
+                    type="number"
+                    name="totalLoanAmount"
+                    value={formData.totalLoanAmount}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${
+                      errors.totalLoanAmount ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
+                    placeholder="50000"
+                    disabled={isSubmitting} // FIXED: Use isSubmitting
+                  />
+                  {errors.totalLoanAmount && <p className="text-red-500 text-sm mt-1">{errors.totalLoanAmount}</p>}
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Interest Rate (% per month) *
@@ -347,8 +315,8 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                   </label>
                   <select
                     name="branch"
-                    value={formData.branch}
-                    onChange={handleInputChange}
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
                     disabled={isSubmitting} // FIXED: Use isSubmitting
                   >
@@ -384,7 +352,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
             )}
 
             {/* Summary */}
-            {items.length > 0 && items.some(item => item.weight && item.amount) && (
+            {items.length > 0 && items.some(item => item.weight) && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <h4 className="font-medium text-gray-900 mb-2">Loan Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -401,7 +369,7 @@ const AddGoldLoanModal = ({ isOpen, onClose, onSave }) => {
                   <div>
                     <span className="text-gray-600">Total Amount:</span>
                     <p className="font-medium text-amber-600">
-                      ₹{items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0).toLocaleString()}
+                      ₹{formData.totalLoanAmount.toLocaleString()}
                     </p>
                   </div>
                   <div>

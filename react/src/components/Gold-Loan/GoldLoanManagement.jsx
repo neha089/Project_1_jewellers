@@ -83,7 +83,8 @@ const GoldLoanManagement = () => {
         if (response.data.length > 0) {
           console.log('First loan structure:', response.data[0]);
           console.log('First loan totalLoanAmount:', response.data[0].totalLoanAmount);
-          console.log('First loan currentLoanAmount:', response.data[0].currentLoanAmount);
+          console.log('First loan currentPrincipal:', response.data[0].currentPrincipal);
+          console.log('First loan outstandingAmount:', response.data[0].outstandingAmount);
         }
         // Add calculated due dates to loans
         const loansWithDueDates = response.data.map(loan => {
@@ -96,7 +97,8 @@ const GoldLoanManagement = () => {
           console.log('Processed loan:', {
             id: loanWithDueDate._id,
             totalLoanAmount: loanWithDueDate.totalLoanAmount,
-            currentLoanAmount: loanWithDueDate.currentLoanAmount,
+            currentPrincipal: loanWithDueDate.currentPrincipal,
+            outstandingAmount: loanWithDueDate.outstandingAmount,
             dueDate: loanWithDueDate.dueDate
           });
          
@@ -137,7 +139,7 @@ const GoldLoanManagement = () => {
         return sum + amount;
       }, 0),
       totalOutstanding: loans.reduce((sum, loan) => {
-        const outstanding = loan.currentLoanAmount || loan.totalLoanAmount || 0;
+        const outstanding = loan.outstandingAmount || loan.currentPrincipal || 0;
         console.log(`Loan ${loan._id}: outstanding = ${outstanding}`);
         return sum + outstanding;
       }, 0),
@@ -307,7 +309,7 @@ const handleInterestPaymentSuccess = async (result) => {
       ],
       ...filteredLoans.map(loan => {
         const loanAmount = loan.totalLoanAmount || 0;
-        const outstanding = loan.currentLoanAmount || 0;
+        const outstanding = loan.outstandingAmount || 0;
         const totalWeight = loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0;
        
         return [
@@ -728,6 +730,3 @@ const handleInterestPaymentSuccess = async (result) => {
 };
 
 export default GoldLoanManagement;
-
-
-// export default InterestPaymentModal;

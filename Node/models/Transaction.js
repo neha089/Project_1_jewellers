@@ -1,4 +1,4 @@
-// models/Transaction.js - SIMPLIFIED VERSION
+// models/Transaction.js - SIMPLIFIED VERSION (UNCHANGED, AS IT ALREADY SUPPORTS RECORDING ALL TRANSACTIONS)
 import mongoose from "mongoose";
 
 const transactionSchema = new mongoose.Schema({

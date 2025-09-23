@@ -7,7 +7,6 @@ const GoldLoanItems = ({ items, errors, loading, onItemsChange, currentGoldPrice
       id: Date.now(),
       name: "",
       weight: "",
-      amount: "",
       purity: "22",
       images: [],
     };
@@ -186,32 +185,7 @@ const GoldLoanItems = ({ items, errors, loading, onItemsChange, currentGoldPrice
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Loan Amount (₹) *
-                {currentGoldPrice && (
-                  <span className="text-xs text-blue-600 block">Auto-calculated</span>
-                )}
-              </label>
-              <input
-                type="number"
-                value={item.amount}
-                onChange={(e) => updateItem(item.id, "amount", e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors[`item_${index}_amount`] ? "border-red-300" : "border-gray-300"
-                } ${currentGoldPrice ? "bg-blue-50" : ""}`}
-                placeholder="0"
-                disabled={loading}
-              />
-              {errors[`item_${index}_amount`] && (
-                <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_amount`]}</p>
-              )}
-              {currentGoldPrice && item.weight && item.purity && (
-                <p className="text-xs text-blue-600 mt-1">
-                  Market value: ₹{(parseFloat(item.weight || 0) * (parseFloat(item.purity || 22) / 24) * currentGoldPrice.pricePerGram).toFixed(2)}
-                </p>
-              )}
-            </div>
+           
           </div>
 
           {/* Item Images */}
@@ -263,20 +237,6 @@ const GoldLoanItems = ({ items, errors, loading, onItemsChange, currentGoldPrice
         <p className="text-red-500 text-sm">{errors.items}</p>
       )}
 
-      {/* Total Amount Display */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <div className="flex justify-between items-center">
-          <span className="font-medium text-gray-700">Total Loan Amount:</span>
-          <span className="text-xl font-bold text-blue-600">
-            ₹{calculateTotalAmount().toFixed(2)}
-          </span>
-        </div>
-        {currentGoldPrice && (
-          <div className="text-xs text-gray-500 mt-1">
-            Based on current gold price: ₹{currentGoldPrice.pricePerGram.toFixed(2)}/gram (24K)
-          </div>
-        )}
-      </div>
     </div>
   );
 };

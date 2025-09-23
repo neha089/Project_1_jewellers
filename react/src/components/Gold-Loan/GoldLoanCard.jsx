@@ -1,3 +1,4 @@
+// GoldLoanCard.jsx - UPDATED: SHOW OUTSTANDING AMOUNT INCLUDING INTEREST, NO GOLD PRICE IN ITEMS
 import React, { useState, useEffect } from 'react';
 import { 
   Edit3, 
@@ -60,9 +61,9 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
   const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
 
   const formatCurrency = (amount) => `₹${(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
-  const formatDate = (date) => date ? new Date(date).toLocaleDateString('en-IN') : 'N/A';
-  const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-IN', { 
-    year: 'numeric', 
+  const formatDate = (date) => date ? date.toLocaleDateString('en-IN') : 'N/A';
+  const formatDateTime = (date) => date ? new Date(date).toLocaleString('en-IN', {
+    year: 'numeric',
     month: 'short', 
     day: 'numeric', 
     hour: '2-digit', 
@@ -71,7 +72,7 @@ export const GoldLoanCard = ({ loan, onEdit, onView, onPayment, onSendReminder }
 
   const totalWeight = loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0;
   const loanAmount = loan.totalLoanAmount || 0; 
-  const outstandingAmount = loan.currentLoanAmount || 0;
+  const outstandingAmount = loan.outstandingAmount || 0;
 
   // Calculate payment summaries from the payments array
   const interestPayments = loan.payments?.filter(p => p.type === 'INTEREST') || [];
@@ -433,13 +434,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
   const StatusIcon = statusConfig.icon;
   const totalWeight = loan.items?.reduce((sum, item) => sum + (item.weightGram || 0), 0) || 0;
   const loanAmount = loan.totalLoanAmount || 0;
-  const outstandingAmount = loan.currentLoanAmount || loan.totalLoanAmount || 0;
-
-  const getAppreciationStatus = (appreciation) => {
-    if (appreciation > 0) return { text: `+${appreciation.toFixed(0)}`, className: 'text-green-600' };
-    if (appreciation < 0) return { text: `${appreciation.toFixed(0)}`, className: 'text-red-600' };
-    return { text: '0', className: 'text-gray-500' };
-  };
+  const outstandingAmount = loan.outstandingAmount || loan.currentPrincipal || loan.totalLoanAmount || 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
@@ -498,7 +493,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                   <Phone size={20} className="text-green-600 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <span className="text-xs text-gray-500 block">Phone</span>
-                    <span className="font-semibold text-gray-900 text-sm sm:text-base">
+                    <span className="font-bold text-gray-900 text-sm sm:text-base">
                       {loan.customer?.phone || 'N/A'}
                     </span>
                   </div>
@@ -509,7 +504,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                   <MapPin size={20} className="text-purple-600 flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <span className="text-xs text-gray-500 block">Email</span>
-                    <span className="font-semibold text-gray-900 text-sm sm:text-base">
+                    <span className="font-bold text-gray-900 text-sm sm:text-base">
                       {loan.customer?.email || 'Not provided'}
                     </span>
                   </div>
@@ -795,12 +790,12 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                             )}
 
                             {/* Loan Balance Change */}
-                            {(payment.currentLoanAmountAtPayment !== undefined || payment.currentLoanAmountAfterPayment !== undefined) && (
+                            {(payment.currentOutstandingAtPayment !== undefined || payment.currentOutstandingAfterPayment !== undefined) && (
                               <div className="space-y-1">
                                 <div className="flex justify-between items-center">
                                   <span className="text-gray-600">Before:</span>
                                   <span className="text-sm font-medium">
-                                    {formatCurrency(payment.currentLoanAmountAtPayment)}
+                                    {formatCurrency(payment.currentOutstandingAtPayment)}
                                   </span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -808,7 +803,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                                   <span className={`text-sm font-medium ${
                                     payment.isFullRepayment ? 'text-green-600' : 'text-gray-900'
                                   }`}>
-                                    {payment.isFullRepayment ? 'LOAN CLOSED' : formatCurrency(payment.currentLoanAmountAfterPayment)}
+                                    {payment.isFullRepayment ? 'LOAN CLOSED' : formatCurrency(payment.currentOutstandingAfterPayment)}
                                   </span>
                                 </div>
                                 {payment.isFullRepayment && (
@@ -866,7 +861,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                                         </div>
                                       ))}
                                       {payment.photos.length > 4 && (
-                                        <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-500">
+                                        <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center text-xs">
                                           +{payment.photos.length - 4}
                                         </div>
                                       )}
@@ -946,12 +941,6 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                             <span className="font-medium text-gray-900">{item.purityK}K</span>
                           </div>
                           <div>
-                            <span className="text-gray-600 block text-xs mb-1">Loan Value</span>
-                            <span className="font-medium text-green-600">
-                              {formatCurrency(item.loanAmount)}
-                            </span>
-                          </div>
-                          <div>
                             <span className="text-gray-600 block text-xs mb-1">Status</span>
                             <span className={`font-medium text-xs px-2 py-1 rounded-full ${
                               item.returnDate 
@@ -962,30 +951,14 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                             </span>
                           </div>
                         </div>
-                        {item.returnValue && (
+                        {item.returnNotes && (
                           <div className="mt-2 p-2 bg-blue-50 rounded-lg">
                             <div className="flex justify-between items-center text-xs">
-                              <span className="text-blue-700">Return Value:</span>
+                              <span className="text-blue-700">Return Notes:</span>
                               <span className="font-semibold text-blue-700">
-                                {formatCurrency(item.returnValue)}
+                                {item.returnNotes}
                               </span>
                             </div>
-                            {item.goldPriceAtReturn && (
-                              <div className="flex justify-between items-center text-xs mt-1">
-                                <span className="text-blue-600">Gold Price:</span>
-                                <span className="text-blue-600">₹{item.goldPriceAtReturn}/g</span>
-                              </div>
-                            )}
-                            {item.appreciation !== undefined && (
-                              <div className="flex justify-between items-center text-xs mt-1">
-                                <span className="text-gray-600">Appreciation:</span>
-                                <span className={`font-semibold ${
-                                  item.appreciation >= 0 ? 'text-green-600' : 'text-red-600'
-                                }`}>
-                                  {item.appreciation >= 0 ? '+' : ''}{formatCurrency(item.appreciation)}
-                                </span>
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
@@ -1014,7 +987,7 @@ const GoldLoanDetailModal = ({ loan, isOpen, onClose, onEdit, onPayment, onSendR
                               </div>
                             ))}
                             {item.images.length > 3 && (
-                              <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-xs text-gray-500">
+                              <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-xs">
                                 +{item.images.length - 3}
                               </div>
                             )}

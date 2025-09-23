@@ -1,4 +1,4 @@
-// routes/goldLoanRoutes.js - UPDATED WITH NEW ENDPOINTS
+// routes/goldLoanRoutes.js - UPDATED WITH NEW ENDPOINTS (UNCHANGED, AS BACKEND LOGIC IS UPDATED IN CONTROLLERS/MODELS)
 import express from 'express';
 import * as goldLoanController from '../controllers/goldLoanController.js';
 // import * as reportController from '../controllers/reportController.js'; // Assume this exists or add if needed
@@ -32,7 +32,7 @@ router.post('/:loanId/interest-payment', goldLoanController.addInterestPayment);
 router.get('/:loanId/interest-payments', goldLoanController.getInterestPayments);
 
 // Repayments
-router.post('/:id/repayment', goldLoanController.processItemRepayment);
+// router.post('/:id/repayment', goldLoanController.processItemRepayment);
 router.get('/:id/repayments', goldLoanController.getRepayments);
 router.get('/:id/repayment-stats', goldLoanController.getRepaymentStats);
 router.post('/:id/validate-repayment', goldLoanController.validateRepayment);
@@ -44,7 +44,7 @@ router.get('/repayments/:repaymentId/receipt', goldLoanController.getRepaymentRe
 router.put('/repayments/:repaymentId/cancel', goldLoanController.cancelRepayment);
 
 // Gold price
-router.get('/gold-price/current', goldLoanController.getCurrentGoldPrice);
+// router.get('/gold-price/current', goldLoanController.getCurrentGoldPrice);
 
 // NEW: Get all transactions for a loan
 router.get('/:id/transactions', goldLoanController.getLoanTransactions);
