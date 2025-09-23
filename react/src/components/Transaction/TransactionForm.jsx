@@ -17,9 +17,9 @@ import UdhariPaymentModal from "../Udhaar/UdhariPaymentModal";
 import InterestPaymentModal from "../Gold-Loan/InterestPaymentModal";
 import ItemRepaymentModal from "../Gold-Loan/ItemRepaymentModal";
 import MetalItemsManager from "../MetalItemsManager";
-import GoldTransactionForm from "../GoldTransactionForm"; // Assuming path
-import SilverTransactionForm from "../SilverTransactionForm"; // Assuming path
-import AddGoldLoanModal from "../AddGoldLoanModal"; // Assuming path
+import GoldTransactionForm from "../GoldBuySell/GoldTransactionForm"; // Assuming path
+import SilverTransactionForm from "../SilverBuySell/SilverTransactionForm"; // Assuming path
+import AddGoldLoanModal from "../Gold-Loan/AddGoldLoanModal"; // Assuming path
 
 const UdhariSelectionModal = ({ isOpen, onClose, availableUdhars, onSelect, categoryId }) => {
   if (!isOpen) return null;
