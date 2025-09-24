@@ -157,7 +157,7 @@ const LoanPaymentModal = ({ isOpen, loan, onClose, onSuccess }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-slate-600">Outstanding Principal</p>
-                <p className="font-bold text-slate-900">{formatCurrency(outstandingAmount)}</p>
+                <p className="font-bold text-slate-900">{formatCurrency(loan.outstandingAmount)}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-600">Monthly Interest ({loan.interestRateMonthlyPct}%)</p>
