@@ -70,7 +70,7 @@ export const giveLoan = async (req, res) => {
     const transaction = new Transaction({
       type: 'LOAN_GIVEN',
       customer,
-      amount: principalPaise / 100,
+      amount: principalPaise,
       direction: -1,
       description: `Loan given to ${customerName} - ${note || 'No note'}`,
       relatedDoc: savedLoan._id,
@@ -80,7 +80,7 @@ export const giveLoan = async (req, res) => {
       metadata: {
         paymentType: 'DISBURSEMENT',
         paymentMethod,
-        originalLoanAmount: principalPaise / 100,
+        originalLoanAmount: principalPaise,
         interestRate: interestRateMonthlyPct,
         totalInstallments
       }
@@ -161,7 +161,7 @@ export const takeLoan = async (req, res) => {
     const transaction = new Transaction({
       type: 'LOAN_TAKEN',
       customer,
-      amount: principalPaise / 100,
+      amount: principalPaise,
       direction: 1,
       description: `Loan taken from ${customerName} - ${note || 'No note'}`,
       relatedDoc: savedLoan._id,
@@ -171,7 +171,7 @@ export const takeLoan = async (req, res) => {
       metadata: {
         paymentType: 'DISBURSEMENT',
         paymentMethod,
-        originalLoanAmount: principalPaise / 100,
+        originalLoanAmount: principalPaise,
         interestRate: interestRateMonthlyPct,
         totalInstallments
       }
@@ -244,16 +244,25 @@ export const receiveLoanPayment = async (req, res) => {
     }
 
     const paymentDateObj = paymentDate ? new Date(paymentDate) : new Date();
-    const accruedInterest = loan.calculateDailyInterest(paymentDateObj);
+
+    const currentDue = loan.getCurrentOutstanding(paymentDateObj);
+
+    const accruedInterest = loan.getAccruedInterest(paymentDateObj);
 
     if (principalPaise > loan.outstandingPrincipal) {
       return res.status(400).json({
         success: false,
-        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(loan.outstandingPrincipal/100).toFixed(2)}`
+        error: `Principal payment ₹${(principalPaise/100).toFixed(0)} exceeds remaining principal ₹${(loan.outstandingPrincipal/100).toFixed(0)}`
       });
     }
 
     const customerName = await getCustomerName(loan.customer._id);
+
+    const outstandingBefore = currentDue;
+
+    const totalPayment = principalPaise + interestPaise;
+
+    const outstandingAfter = Math.max(0, outstandingBefore - totalPayment);
 
     loan.addPayment({
       principalAmount: principalPaise,
@@ -263,10 +272,12 @@ export const receiveLoanPayment = async (req, res) => {
       note,
       paymentMethod,
       paymentReference: reference,
-      bankTransactionId: transactionId
+      bankTransactionId: transactionId,
+      outstandingBefore,
+      outstandingAfter
     });
 
-    if (loan.outstandingPrincipal > 0) {
+    if (outstandingAfter > 0) {
       await loan.updateNextInterestDueDate();
     } else {
       loan.nextInterestDueDate = null;
@@ -277,9 +288,9 @@ export const receiveLoanPayment = async (req, res) => {
     const transactions = [];
     if (principalPaise > 0) {
       transactions.push({
-        type: loan.outstandingPrincipal <= 0 ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
+        type: outstandingAfter <= 0 ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
         customer: loan.customer._id,
-        amount: principalPaise / 100,
+        amount: principalPaise,
         direction: 1,
         description: `Principal payment from ${customerName} - ${note || 'Payment received'}`,
         relatedDoc: loan._id,
@@ -292,8 +303,8 @@ export const receiveLoanPayment = async (req, res) => {
           paymentReference: reference,
           bankTransactionId: transactionId,
           installmentNumber: installmentNumber || loan.paymentHistory.length,
-          remainingAmount: loan.outstandingPrincipal / 100,
-          isFullPayment: loan.outstandingPrincipal <= 0
+          remainingAmount: outstandingAfter,
+          isFullPayment: outstandingAfter <= 0
         }
       });
     }
@@ -303,7 +314,7 @@ export const receiveLoanPayment = async (req, res) => {
       transactions.push({
         type: 'LOAN_INTEREST_RECEIVED',
         customer: loan.customer._id,
-        amount: interestPaise / 100,
+        amount: interestPaise,
         direction: 1,
         description: `Interest payment from ${customerName} for ${currentMonth}`,
         relatedDoc: loan._id,
@@ -333,7 +344,7 @@ export const receiveLoanPayment = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: loan.outstandingPrincipal <= 0 ? 'Loan fully paid and settled!' : 'Payment received successfully',
+      message: outstandingAfter <= 0 ? 'Loan fully paid and settled!' : 'Payment received successfully',
       data: {
         payment: {
           principalAmount: principalPaise / 100,
@@ -342,17 +353,17 @@ export const receiveLoanPayment = async (req, res) => {
           date: paymentDateObj,
           installmentNumber: installmentNumber || loan.paymentHistory.length,
           note: note || '',
-          outstandingBefore: loan.paymentHistory[loan.paymentHistory.length - 1].outstandingBefore / 100,
-          outstandingAfter: loan.paymentHistory[loan.paymentHistory.length - 1].outstandingAfter / 100
+          outstandingBefore: outstandingBefore / 100,
+          outstandingAfter: outstandingAfter / 100
         },
         loanSummary: {
           originalAmount: loan.principalPaise / 100,
           accruedInterest: accruedInterest / 100,
           totalPrincipalPaid: loan.totalPrincipalPaid / 100,
           totalInterestPaid: loan.totalInterestPaid / 100,
-          remainingOutstanding: loan.outstandingPrincipal / 100,
+          remainingOutstanding: outstandingAfter / 100,
           paymentPercentage,
-          isFullyPaid: loan.outstandingPrincipal <= 0,
+          isFullyPaid: outstandingAfter <= 0,
           totalInstallments: loan.totalInstallments,
           paidInstallments: loan.paymentHistory.length,
           nextInterestDueDate: loan.nextInterestDueDate
@@ -417,16 +428,25 @@ export const makeLoanPayment = async (req, res) => {
     }
 
     const paymentDateObj = paymentDate ? new Date(paymentDate) : new Date();
-    const accruedInterest = loan.calculateDailyInterest(paymentDateObj);
+
+    const currentDue = loan.getCurrentOutstanding(paymentDateObj);
+
+    const accruedInterest = loan.getAccruedInterest(paymentDateObj);
 
     if (principalPaise > loan.outstandingPrincipal) {
       return res.status(400).json({
         success: false,
-        error: `Principal payment ₹${(principalPaise/100).toFixed(2)} exceeds outstanding ₹${(loan.outstandingPrincipal/100).toFixed(2)}`
+        error: `Principal payment ₹${(principalPaise/100).toFixed(0)} exceeds remaining principal ₹${(loan.outstandingPrincipal/100).toFixed(0)}`
       });
     }
 
     const customerName = await getCustomerName(loan.customer._id);
+
+    const outstandingBefore = currentDue;
+
+    const totalPayment = principalPaise + interestPaise;
+
+    const outstandingAfter = Math.max(0, outstandingBefore - totalPayment);
 
     loan.addPayment({
       principalAmount: principalPaise,
@@ -436,10 +456,12 @@ export const makeLoanPayment = async (req, res) => {
       note,
       paymentMethod,
       paymentReference: reference,
-      bankTransactionId: transactionId
+      bankTransactionId: transactionId,
+      outstandingBefore,
+      outstandingAfter
     });
 
-    if (loan.outstandingPrincipal > 0) {
+    if (outstandingAfter > 0) {
       await loan.updateNextInterestDueDate();
     } else {
       loan.nextInterestDueDate = null;
@@ -450,9 +472,9 @@ export const makeLoanPayment = async (req, res) => {
     const transactions = [];
     if (principalPaise > 0) {
       transactions.push({
-        type: loan.outstandingPrincipal <= 0 ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
+        type: outstandingAfter <= 0 ? 'LOAN_CLOSURE' : 'LOAN_PAYMENT',
         customer: loan.customer._id,
-        amount: principalPaise / 100,
+        amount: principalPaise,
         direction: -1,
         description: `Principal payment to ${customerName} - ${note || 'Payment made'}`,
         relatedDoc: loan._id,
@@ -465,8 +487,8 @@ export const makeLoanPayment = async (req, res) => {
           paymentReference: reference,
           bankTransactionId: transactionId,
           installmentNumber: installmentNumber || loan.paymentHistory.length,
-          remainingAmount: loan.outstandingPrincipal / 100,
-          isFullPayment: loan.outstandingPrincipal <= 0
+          remainingAmount: outstandingAfter,
+          isFullPayment: outstandingAfter <= 0
         }
       });
     }
@@ -476,7 +498,7 @@ export const makeLoanPayment = async (req, res) => {
       transactions.push({
         type: 'INTEREST_PAID',
         customer: loan.customer._id,
-        amount: interestPaise / 100,
+        amount: interestPaise,
         direction: -1,
         description: `Interest payment to ${customerName} for ${currentMonth}`,
         relatedDoc: loan._id,
@@ -506,7 +528,7 @@ export const makeLoanPayment = async (req, res) => {
 
     res.status(200).json({ 
       success: true, 
-      message: loan.outstandingPrincipal <= 0 ? 'Loan fully paid!' : 'Payment made successfully',
+      message: outstandingAfter <= 0 ? 'Loan fully paid!' : 'Payment made successfully',
       data: {
         payment: {
           principalAmount: principalPaise / 100,
@@ -515,17 +537,17 @@ export const makeLoanPayment = async (req, res) => {
           date: paymentDateObj,
           installmentNumber: installmentNumber || loan.paymentHistory.length,
           note: note || '',
-          outstandingBefore: loan.paymentHistory[loan.paymentHistory.length - 1].outstandingBefore / 100,
-          outstandingAfter: loan.paymentHistory[loan.paymentHistory.length - 1].outstandingAfter / 100
+          outstandingBefore: outstandingBefore / 100,
+          outstandingAfter: outstandingAfter / 100
         },
         loanSummary: {
           originalAmount: loan.principalPaise / 100,
           accruedInterest: accruedInterest / 100,
           totalPrincipalPaid: loan.totalPrincipalPaid / 100,
           totalInterestPaid: loan.totalInterestPaid / 100,
-          remainingOutstanding: loan.outstandingPrincipal / 100,
+          remainingOutstanding: outstandingAfter / 100,
           paymentPercentage,
-          isFullyPaid: loan.outstandingPrincipal <= 0,
+          isFullyPaid: outstandingAfter <= 0,
           totalInstallments: loan.totalInstallments,
           paidInstallments: loan.paymentHistory.length,
           nextInterestDueDate: loan.nextInterestDueDate
@@ -559,21 +581,22 @@ export const getCustomerLoanSummary = async (req, res) => {
 
     const currentDate = new Date();
     for (const loan of loans) {
-      const accruedInterest = loan.calculateDailyInterest(currentDate);
+      const accruedInterest = loan.getAccruedInterest(currentDate);
+      const currentOutstanding = loan.getCurrentOutstanding(currentDate);
       const loanData = {
         ...loan.toObject(),
         accruedInterest: accruedInterest / 100,
-        outstandingRupees: loan.outstandingPrincipal / 100
+        outstandingRupees: currentOutstanding / 100
       };
 
-      if (loan.loanType === 'GIVEN') {
+      if (loan.loanType = 'GIVEN') {
         totalGiven += loan.principalPaise;
-        outstandingToCollect += loan.outstandingPrincipal;
+        outstandingToCollect += currentOutstanding;
         totalInterestPaid += loan.totalInterestPaid;
         givenLoans.push(loanData);
-      } else if (loan.loanType === 'TAKEN') {
+      } else if (loan.loanType = 'TAKEN') {
         totalTaken += loan.principalPaise;
-        outstandingToPay += loan.outstandingPrincipal;
+        outstandingToPay += currentOutstanding;
         totalInterestPaid += loan.totalInterestPaid;
         takenLoans.push(loanData);
       }
@@ -599,8 +622,8 @@ export const getCustomerLoanSummary = async (req, res) => {
         taken: takenLoans,
         all: loans.map(loan => ({
           ...loan.toObject(),
-          accruedInterest: loan.calculateDailyInterest(currentDate) / 100,
-          outstandingRupees: loan.outstandingPrincipal / 100
+          accruedInterest: loan.getAccruedInterest(currentDate) / 100,
+          outstandingRupees: loan.getCurrentOutstanding(currentDate) / 100
         }))
       },
       transactionHistory: relatedTransactions
@@ -631,7 +654,11 @@ export const getPaymentHistory = async (req, res) => {
       });
     }
 
-    const accruedInterest = loan.calculateDailyInterest(new Date());
+    const currentDate = new Date();
+
+    const accruedInterest = loan.getAccruedInterest(currentDate);
+
+    const currentOutstanding = loan.getCurrentOutstanding(currentDate);
 
     const formattedPaymentHistory = (loan.paymentHistory || []).map(payment => ({
       principalAmount: payment.principalAmount / 100,
@@ -659,7 +686,7 @@ export const getPaymentHistory = async (req, res) => {
           ...loan.toObject(),
           originalAmount: loan.principalPaise / 100,
           accruedInterest: accruedInterest / 100,
-          outstandingBalance: loan.outstandingPrincipal / 100
+          outstandingBalance: currentOutstanding / 100
         },
         paymentHistory: formattedPaymentHistory,
         relatedTransactions,
@@ -668,9 +695,9 @@ export const getPaymentHistory = async (req, res) => {
           accruedInterest: accruedInterest / 100,
           totalPrincipalPaid: loan.totalPrincipalPaid / 100,
           totalInterestPaid: loan.totalInterestPaid / 100,
-          outstandingBalance: loan.outstandingPrincipal / 100,
+          outstandingBalance: currentOutstanding / 100,
           paymentCount: formattedPaymentHistory.length,
-          isCompleted: loan.status === 'CLOSED'
+          isCompleted: currentOutstanding <= 0
         }
       }
     });
@@ -686,7 +713,7 @@ export const getOutstandingToCollect = async (req, res) => {
     const outstandingLoans = await Loan.find({
       loanType: 'GIVEN',
       status: { $ne: 'CLOSED' },
-      outstandingPrincipal: { $gt: 0 }
+      isActive: true
     })
       .populate('customer', 'name phone email address')
       .sort({ takenDate: -1 });
@@ -696,7 +723,9 @@ export const getOutstandingToCollect = async (req, res) => {
     let totalToCollect = 0;
 
     for (const loan of outstandingLoans) {
-      const accruedInterest = loan.calculateDailyInterest(currentDate);
+      const accruedInterest = loan.getAccruedInterest(currentDate);
+      const currentOutstanding = loan.getCurrentOutstanding(currentDate);
+      if (currentOutstanding <= 0) continue;
       const customerId = loan.customer._id.toString();
       if (!customerWise[customerId]) {
         customerWise[customerId] = {
@@ -710,11 +739,11 @@ export const getOutstandingToCollect = async (req, res) => {
         ...loan.toObject(),
         originalAmount: loan.principalPaise / 100,
         accruedInterest: accruedInterest / 100,
-        outstandingAmount: loan.outstandingPrincipal / 100
+        outstandingAmount: currentOutstanding / 100
       });
-      customerWise[customerId].totalOutstanding += loan.outstandingPrincipal;
+      customerWise[customerId].totalOutstanding += currentOutstanding;
       customerWise[customerId].totalInterestPaid += loan.totalInterestPaid;
-      totalToCollect += loan.outstandingPrincipal;
+      totalToCollect += currentOutstanding;
     }
 
     const formattedCustomerWise = Object.values(customerWise).map(item => ({
@@ -728,7 +757,7 @@ export const getOutstandingToCollect = async (req, res) => {
       data: {
         totalToCollect: totalToCollect / 100,
         customerCount: formattedCustomerWise.length,
-        loanCount: outstandingLoans.length,
+        loanCount: formattedCustomerWise.reduce((sum, item) => sum + item.loans.length, 0),
         customerWise: formattedCustomerWise
       }
     });
@@ -744,7 +773,7 @@ export const getOutstandingToPay = async (req, res) => {
     const outstandingLoans = await Loan.find({
       loanType: 'TAKEN',
       status: { $ne: 'CLOSED' },
-      outstandingPrincipal: { $gt: 0 }
+      isActive: true
     })
       .populate('customer', 'name phone email address')
       .sort({ takenDate: -1 });
@@ -754,7 +783,9 @@ export const getOutstandingToPay = async (req, res) => {
     let totalToPay = 0;
 
     for (const loan of outstandingLoans) {
-      const accruedInterest = loan.calculateDailyInterest(currentDate);
+      const accruedInterest = loan.getAccruedInterest(currentDate);
+      const currentOutstanding = loan.getCurrentOutstanding(currentDate);
+      if (currentOutstanding <= 0) continue;
       const customerId = loan.customer._id.toString();
       if (!customerWise[customerId]) {
         customerWise[customerId] = {
@@ -768,11 +799,11 @@ export const getOutstandingToPay = async (req, res) => {
         ...loan.toObject(),
         originalAmount: loan.principalPaise / 100,
         accruedInterest: accruedInterest / 100,
-        outstandingAmount: loan.outstandingPrincipal / 100
+        outstandingAmount: currentOutstanding / 100
       });
-      customerWise[customerId].totalOutstanding += loan.outstandingPrincipal;
+      customerWise[customerId].totalOutstanding += currentOutstanding;
       customerWise[customerId].totalInterestPaid += loan.totalInterestPaid;
-      totalToPay += loan.outstandingPrincipal;
+      totalToPay += currentOutstanding;
     }
 
     const formattedCustomerWise = Object.values(customerWise).map(item => ({
@@ -786,7 +817,7 @@ export const getOutstandingToPay = async (req, res) => {
       data: {
         totalToPay: totalToPay / 100,
         customerCount: formattedCustomerWise.length,
-        loanCount: outstandingLoans.length,
+        loanCount: formattedCustomerWise.reduce((sum, item) => sum + item.loans.length, 0),
         customerWise: formattedCustomerWise
       }
     });
@@ -800,48 +831,24 @@ export const getOutstandingToPay = async (req, res) => {
 export const getOverallLoanSummary = async (req, res) => {
   try {
     const currentDate = new Date();
-    const summary = await Loan.aggregate([
-      {
-        $match: { sourceType: 'LOAN' },
-      },
-      {
-        $group: {
-          _id: '$loanType',
-          totalAmount: { $sum: '$principalPaise' },
-          totalOutstanding: { $sum: '$outstandingPrincipal' },
-          totalInterestPaid: { $sum: '$totalInterestPaid' },
-          count: { $sum: 1 },
-          completedCount: {
-            $sum: { $cond: [{ $eq: ['$status', 'CLOSED'] }, 1, 0] }
-          }
-        }
-      }
-    ]);
+
+    const loans = await Loan.find({ sourceType: 'LOAN' });
 
     const formattedSummary = {
       given: { totalAmount: 0, totalOutstanding: 0, totalInterestPaid: 0, count: 0, completedCount: 0 },
       taken: { totalAmount: 0, totalOutstanding: 0, totalInterestPaid: 0, count: 0, completedCount: 0 }
     };
 
-    summary.forEach(item => {
-      if (item._id === 'GIVEN') {
-        formattedSummary.given = {
-          totalAmount: item.totalAmount / 100,
-          totalOutstanding: item.totalOutstanding / 100,
-          totalInterestPaid: item.totalInterestPaid / 100,
-          count: item.count,
-          completedCount: item.completedCount
-        };
-      } else if (item._id === 'TAKEN') {
-        formattedSummary.taken = {
-          totalAmount: item.totalAmount / 100,
-          totalOutstanding: item.totalOutstanding / 100,
-          totalInterestPaid: item.totalInterestPaid / 100,
-          count: item.count,
-          completedCount: item.completedCount
-        };
-      }
-    });
+    for (const loan of loans) {
+      const currentOutstanding = loan.getCurrentOutstanding(currentDate);
+      const isCompleted = currentOutstanding <= 0 || loan.status === 'CLOSED';
+      const entry = loan.loanType === 'GIVEN' ? formattedSummary.given : formattedSummary.taken;
+      entry.totalAmount += loan.principalPaise / 100;
+      entry.totalOutstanding += currentOutstanding / 100;
+      entry.totalInterestPaid += loan.totalInterestPaid / 100;
+      entry.count += 1;
+      if (isCompleted) entry.completedCount += 1;
+    }
 
     const netOutstanding = formattedSummary.given.totalOutstanding - formattedSummary.taken.totalOutstanding;
 
@@ -879,9 +886,9 @@ export const getLoanReminders = async (req, res) => {
     }).populate('customer', 'name phone email');
 
     const reminders = overdueLoans.map(loan => {
-      const accruedInterest = loan.calculateDailyInterest(checkDate);
+      const accruedInterest = loan.getAccruedInterest(checkDate);
       const paymentStatus = loan.getInterestPaymentStatus();
-      const currentMonthInterest = (loan.outstandingPrincipal * loan.interestRateMonthlyPct) / 100;
+      const currentMonthInterest = loan.monthlyInterest;
 
       return {
         loanId: loan._id,
@@ -891,12 +898,12 @@ export const getLoanReminders = async (req, res) => {
         outstandingPrincipal: loan.outstandingPrincipal / 100,
         interestRate: loan.interestRateMonthlyPct,
         monthsOverdue: paymentStatus.overdueMonths,
-        pendingInterestAmount: paymentStatus.pendingAmount,
+        pendingInterestAmount: paymentStatus.pendingAmount / 100,
         currentMonthInterest: currentMonthInterest / 100,
         nextDueDate: paymentStatus.nextDueDate,
         status: paymentStatus.status,
         lastInterestPayment: loan.lastInterestPaymentDate,
-        reminderMessage: `Dear ${loan.customer.name}, your loan interest of ₹${(currentMonthInterest / 100).toFixed(2)} is ${paymentStatus.isOverdue ? 'overdue' : 'due'}. Outstanding principal: ₹${(loan.outstandingPrincipal / 100).toFixed(2)}`
+        reminderMessage: `Dear ${loan.customer.name}, your loan interest of ₹${(currentMonthInterest / 100).toFixed(0)} is ${paymentStatus.isOverdue ? 'overdue' : 'due'}. Outstanding principal: ₹${(loan.outstandingPrincipal / 100).toFixed(0)}`
       };
     });
 
@@ -967,7 +974,7 @@ export const updateInterestRate = async (req, res) => {
       success: true,
       data: {
         ...loan.toObject(),
-        outstandingRupees: loan.outstandingPrincipal / 100
+        outstandingRupees: loan.getCurrentOutstanding() / 100
       },
       message: `Interest rate updated from ${oldRate}% to ${interestRateMonthlyPct}% successfully`
     });
